@@ -1,0 +1,60 @@
+# Demo source materials currently stored locally in the repository root.
+# They are intentionally excluded from Git because they are binary/reference data,
+# not application source code.
+/Сценарий демо-показа АИ ООС.docx
+/Техническое задание и план работ для Demo-стенда АИ ООС.pdf
+/ФТ АИ ОСС.docx
+/01_📅 График проверок/
+/02_📂 Чек-листы/
+/03_📚 База знаний/
+/04_📄 Шаблоны чек-листов/
+/06_🏭 Объекты/
+/07_⚠️ Реестр нарушений/
+/08_📋 Справочники/
+/Дулаева - рабочие материалы/
+
+# Build output
+[Bb]in/
+[Oo]bj/
+artifacts/
+
+# User-specific IDE files
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider/ReSharper
+_ReSharper*/
+*.DotSettings.user
+
+# ASP.NET Core local settings and secrets
+appsettings.Local.json
+appsettings.*.Local.json
+secrets.json
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.cache
+*.swp
+~$*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Test and coverage output
+TestResults/
+coverage/
+coverage.*
+*.coverage
+*.coveragexml
+
+# Publish/deployment output
+publish/
+*.nupkg
+*.snupkg
