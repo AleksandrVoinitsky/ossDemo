@@ -1,58 +1,160 @@
 @page
 @model IndexModel
 @{ 
-    ViewData["Title"] = "Сводка ООС";
+    ViewData["Title"] = "Нормативные новости";
     ViewData["Nav"] = "Home";
-    ViewData["Breadcrumb"] = "Главная \\ Сводка";
+    ViewData["Breadcrumb"] = "Главная \\ Нормативные новости";
 }
 
-<section class="row g-3 mb-4">
-    <div class="col-md-6 col-xl-3"><div class="metric-card"><div class="metric-label">Пункты проекта</div><div class="metric-value">42</div><div class="small text-muted">1 требует решения инспектора</div></div></div>
-    <div class="col-md-6 col-xl-3"><div class="metric-card"><div class="metric-label">Источники БЗ</div><div class="metric-value">5</div><div class="small text-muted">нормативные и корпоративные документы</div></div></div>
-    <div class="col-md-6 col-xl-3"><div class="metric-card"><div class="metric-label">Нарушения</div><div class="metric-value text-danger">1</div><div class="small text-muted">критический просроченный срок</div></div></div>
-    <div class="col-md-6 col-xl-3"><div class="metric-card"><div class="metric-label">Разделы</div><div class="metric-value">7</div><div class="small text-muted">активная версия v2026.01</div></div></div>
+<section class="page-header mb-4">
+    <div>
+        <h1 class="section-title h2 mb-1">Нормативные новости ООС</h1>
+        <p class="muted-note mb-0">Постановления, приказы, методические письма и внутренние объявления, влияющие на подготовку проверок и чек-листов.</p>
+    </div>
+    <div class="header-status">
+        <span>Обновлено 21.08.2026 21:15</span>
+    </div>
 </section>
 
-<section class="row g-4 mb-4">
+<section class="row g-4 news-workspace">
     <div class="col-xl-8">
-        <div class="soft-panel p-3 p-lg-4 h-100">
-            <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
+        <section class="soft-panel" aria-labelledby="newsFeedTitle">
+            <div class="strict-panel-header">
                 <div>
-                    <h2 class="section-title h4 mb-1">Текущее состояние подготовки</h2>
-                    <p class="muted-note mb-0">Контрольные данные по основному сценарию без рекламных и вводных блоков.</p>
+                    <h2 id="newsFeedTitle" class="section-title h4 mb-1">Лента обновлений</h2>
+                    <p class="muted-note mb-0">Документы и объявления, влияющие на состав требований и порядок контроля.</p>
                 </div>
-                <a class="btn btn-primary" asp-page="/Checklists/New">Открыть мастер</a>
+                <nav class="strict-filter" aria-label="Фильтр новостей">
+                    <a href="#">Все</a>
+                    <a href="#">Постановления</a>
+                    <a href="#">Приказы</a>
+                    <a href="#">Методика</a>
+                </nav>
             </div>
+
             <div class="table-responsive">
-                <table class="table align-middle mb-0">
-                    <thead><tr><th>Контур</th><th>Состояние</th><th>Влияние на результат</th><th>Действие</th></tr></thead>
+                <table class="table strict-news-table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Дата</th>
+                            <th>Тип</th>
+                            <th>Содержание</th>
+                            <th>Влияние</th>
+                            <th>Статус</th>
+                        </tr>
+                    </thead>
                     <tbody>
-                        <tr><td><strong>График</strong><div class="small text-muted">Запись №18</div></td><td><span class="badge text-bg-success">сопоставлен</span></td><td>объект и период проверки определены</td><td><a asp-page="/Schedule">перейти</a></td></tr>
-                        <tr><td><strong>Профиль объекта</strong><div class="small text-muted">Березниковское ЛПУМГ</div></td><td><span class="badge text-bg-success">готов</span></td><td>применимы разделы 1-7 классификатора</td><td><a asp-page="/Facilities">перейти</a></td></tr>
-                        <tr><td><strong>ОРД проверки</strong><div class="small text-muted">3 документа</div></td><td><span class="badge text-bg-warning">есть решение</span></td><td>лицензия по скважине №3 требует проверки</td><td><a asp-page="/Documents">перейти</a></td></tr>
-                        <tr><td><strong>Реестр нарушений</strong><div class="small text-muted">история за 5 лет</div></td><td><span class="badge text-bg-danger">критический пункт</span></td><td>добавлен контроль протоколов выбросов</td><td><a asp-page="/Violations">перейти</a></td></tr>
-                        <tr><td><strong>Результат</strong><div class="small text-muted">проект чек-листа</div></td><td><span class="badge text-bg-primary">в работе</span></td><td>экспорт доступен после подтверждения</td><td><a asp-page="/Checklists/Result">перейти</a></td></tr>
+                        <tr>
+                            <td><time datetime="2026-08-21">21.08.2026</time></td>
+                            <td>Постановление</td>
+                            <td>
+                                <a asp-page="/KnowledgeBase">Обновлён порядок учёта требований производственного экологического контроля</a>
+                                <div class="news-row-note">Затрагивает программу ПЭК, сроки контроля и подтверждающие материалы для объектов I и II категории НВОС.</div>
+                            </td>
+                            <td>Высокое</td>
+                            <td>Проиндексировано</td>
+                        </tr>
+                        <tr>
+                            <td><time datetime="2026-08-21">21.08.2026</time></td>
+                            <td>Приказ</td>
+                            <td>
+                                <a asp-page="/Documents">Уточнён перечень ОРД, запрашиваемых перед плановой проверкой</a>
+                                <div class="news-row-note">Рекомендуется прикладывать приказ о назначении ответственных, распоряжение об инвентаризации и актуальную программу ПЭК.</div>
+                            </td>
+                            <td>Среднее</td>
+                            <td>В обработке</td>
+                        </tr>
+                        <tr>
+                            <td><time datetime="2026-08-20">20.08.2026</time></td>
+                            <td>Постановление</td>
+                            <td>
+                                <a asp-page="/Violations">Изменён подход к контролю повторяющихся нарушений</a>
+                                <div class="news-row-note">Повторяемость нарушений за пятилетний период выделяется отдельно; неустранённые нарушения сохраняют критический статус.</div>
+                            </td>
+                            <td>Высокое</td>
+                            <td>Требует сверки</td>
+                        </tr>
+                        <tr>
+                            <td><time datetime="2026-08-19">19.08.2026</time></td>
+                            <td>Методическое письмо</td>
+                            <td>
+                                <a asp-page="/Classifier">Рекомендовано уточнить классификацию требований по разделам «Вода» и «Отходы»</a>
+                                <div class="news-row-note">Описаны правила привязки требований к классификатору без дублирования норм в нескольких разделах.</div>
+                            </td>
+                            <td>Информационное</td>
+                            <td>На классификации</td>
+                        </tr>
+                        <tr>
+                            <td><time datetime="2026-08-18">18.08.2026</time></td>
+                            <td>Внутреннее распоряжение</td>
+                            <td>
+                                <a asp-page="/Templates">Актуализированы шаблоны чек-листов филиального уровня</a>
+                                <div class="news-row-note">Добавлены поля для источника требования, причины включения пункта и отметки о ручном решении инспектора.</div>
+                            </td>
+                            <td>Среднее</td>
+                            <td>Доступно</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
-        </div>
+        </section>
     </div>
-    <div class="col-xl-4">
-        <div class="soft-panel p-3 p-lg-4 h-100">
-            <h2 class="section-title h4 mb-3">Оперативные события</h2>
-            <div class="timeline compact-timeline">
-                <div class="timeline-item"><strong>21:15 · Вопрос ИИ</strong><div class="small text-muted">ответ по критическому пункту с цитатами источников</div></div>
-                <div class="timeline-item"><strong>21:13 · Пункт добавлен</strong><div class="small text-muted">ручное требование по журналу учета отходов</div></div>
-                <div class="timeline-item"><strong>21:11 · Эскалация закрыта</strong><div class="small text-muted">пункт по лицензии включён решением инспектора</div></div>
-                <div class="timeline-item mb-0"><strong>21:10 · Проект сформирован</strong><div class="small text-muted">агенты БЗ, ОРД, нарушений и истории завершили анализ</div></div>
-            </div>
-        </div>
-    </div>
-</section>
 
-<section class="row g-3">
-    <div class="col-md-6 col-xl-3"><a class="module-link" asp-page="/Classifier"><span>Классификатор</span><strong>65 критериев</strong></a></div>
-    <div class="col-md-6 col-xl-3"><a class="module-link" asp-page="/KnowledgeBase"><span>База знаний</span><strong>5 источников</strong></a></div>
-    <div class="col-md-6 col-xl-3"><a class="module-link" asp-page="/Templates"><span>Шаблоны</span><strong>филиал Пермь v2026</strong></a></div>
-    <div class="col-md-6 col-xl-3"><a class="module-link" asp-page="/AuditLog"><span>Журнал</span><strong>8 событий</strong></a></div>
+    <div class="col-xl-4">
+        <aside class="dashboard-stack" aria-label="Оперативная сводка">
+            <section class="soft-panel">
+                <div class="strict-panel-header compact">
+                    <h2 class="section-title h4 mb-0">Сводные показатели</h2>
+                </div>
+                <table class="table strict-summary-table mb-0">
+                    <tbody>
+                        <tr><th>Новых документов за 7 дней</th><td>12</td></tr>
+                        <tr><th>Индексация базы знаний</th><td>94%</td></tr>
+                        <tr><th>Требуют сверки</th><td>3</td></tr>
+                        <tr><th>Проверки в ближайшие 30 дней</th><td>5</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section class="soft-panel">
+                <div class="strict-panel-header compact">
+                    <h2 class="section-title h4 mb-0">Контроль актуальности</h2>
+                </div>
+                <table class="table strict-summary-table mb-0">
+                    <tbody>
+                        <tr><th><a asp-page="/KnowledgeBase">База знаний</a></th><td>5 источников обновлены</td></tr>
+                        <tr><th><a asp-page="/Classifier">Классификатор</a></th><td>v2026.01 активна</td></tr>
+                        <tr><th><a asp-page="/Templates">Шаблоны</a></th><td>2 требуют сверки</td></tr>
+                        <tr><th><a asp-page="/Documents">ОРД</a></th><td>3 документа в обработке</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section class="soft-panel">
+                <div class="strict-panel-header compact">
+                    <h2 class="section-title h4 mb-0">Ближайшие проверки</h2>
+                </div>
+                <table class="table strict-summary-table mb-0">
+                    <tbody>
+                        <tr><th>02.09</th><td>Березниковское ЛПУМГ</td></tr>
+                        <tr><th>12.09</th><td>Площадка подготовки газа</td></tr>
+                        <tr><th>24.09</th><td>Узел водоотведения</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section class="soft-panel">
+                <div class="strict-panel-header compact">
+                    <h2 class="section-title h4 mb-0">Очередь обработки</h2>
+                </div>
+                <table class="table strict-summary-table mb-0">
+                    <tbody>
+                        <tr><th>Критическое влияние</th><td>1 запись</td></tr>
+                        <tr><th>Ожидают классификации</th><td>2 документа</td></tr>
+                        <tr><th>Обработаны без замечаний</th><td>7 обновлений</td></tr>
+                    </tbody>
+                </table>
+            </section>
+        </aside>
+    </div>
 </section>

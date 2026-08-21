@@ -41,6 +41,96 @@
     button.addEventListener('click', () => activatePanel(button));
   });
 
+  const wizard = document.querySelector('[data-checklist-wizard]');
+  if (wizard) {
+    const panels = Array.from(wizard.querySelectorAll('[data-step-panel]'));
+    const indicators = Array.from(wizard.querySelectorAll('[data-wizard-indicator]'));
+    const wizardProgress = wizard.querySelector('[data-wizard-progress]');
+    const wizardStatus = wizard.querySelector('[data-wizard-status]');
+    const stepNames = ['Объект', 'ОРД', 'Шаблон', 'Генерация', 'Просмотр'];
+    let currentStep = 0;
+
+    const setWizardStep = (step, shouldScroll = true) => {
+      currentStep = Math.max(0, Math.min(step, panels.length - 1));
+      panels.forEach((panel, index) => {
+        const active = index === currentStep;
+        panel.hidden = !active;
+        panel.classList.toggle('active', active);
+      });
+      indicators.forEach((indicator, index) => {
+        indicator.classList.toggle('active', index === currentStep);
+        indicator.classList.toggle('complete', index < currentStep);
+      });
+      if (wizardProgress) wizardProgress.style.width = `${((currentStep + 1) / panels.length) * 100}%`;
+      if (wizardStatus) wizardStatus.textContent = `Этап ${currentStep + 1} из ${panels.length} · ${stepNames[currentStep]}`;
+      if (shouldScroll) wizard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    wizard.querySelectorAll('[data-wizard-next]').forEach((button) => {
+      button.addEventListener('click', () => setWizardStep(currentStep + 1));
+    });
+    wizard.querySelectorAll('[data-wizard-prev]').forEach((button) => {
+      button.addEventListener('click', () => setWizardStep(currentStep - 1));
+    });
+
+    setWizardStep(0, false);
+  }
+
+  const liveChecklistItems = [
+    { number: '1', title: 'Наличие утвержденной программы производственного экологического контроля', status: 'Включён', badge: 'text-bg-success', source: 'База знаний + ОРД', note: 'ФЗ-7 ст. 67; программа ПЭК' },
+    { number: '8', title: 'Представлены протоколы инструментального контроля выбросов', status: 'Критический', badge: 'text-bg-danger', source: 'Реестр нарушений', note: 'Не устранено в срок по акту 22.09.2024' },
+    { number: '17', title: 'Проверить устранение замечания по маркировке места накопления отходов', status: 'Контрольный', badge: 'text-bg-info', source: 'Нарушения + история', note: 'Повторяемость 2+ раза за 5 лет' },
+    { number: '19', title: 'Сверить выполнение предыдущего чек-листа по плану корректирующих действий', status: 'Контрольный', badge: 'text-bg-info', source: 'Агент истории', note: 'Перенесено из архива 2025' },
+    { number: '23', title: 'Проверить применимость лицензии на пользование недрами для скважины №3', status: 'Требует решения', badge: 'text-bg-warning', source: 'ОРД', note: 'Низкое качество распознавания приложения' },
+    { number: '31', title: 'Наличие утвержденного ПНООЛР и соответствие фактических объемов лимитам', status: 'Включён', badge: 'text-bg-success', source: 'База знаний', note: 'ФЗ-89 ст. 11; Приказ №792' }
+  ];
+
+  const agentScripts = {
+    kb: [
+      [18, 'Ищет требования в 7-ФЗ, 89-ФЗ и СТО'],
+      [46, 'Сопоставляет фрагменты с классификатором'],
+      [78, 'Проверяет применимость к НВОС I'],
+      [100, 'Передал нормативные пункты']
+    ],
+    ord: [
+      [16, 'Распознаёт приказ ПЭК и распоряжение'],
+      [48, 'Извлекает поручения, сроки и ответственных'],
+      [82, 'Помечает неоднозначное приложение к лицензии'],
+      [100, 'Передал требования из ОРД']
+    ],
+    violations: [
+      [20, 'Загружает акты и предписания за 5 лет'],
+      [54, 'Ищет повторяемость нарушений'],
+      [86, 'Выделяет просроченное устранение'],
+      [100, 'Передал контрольные и критические пункты']
+    ],
+    history: [
+      [22, 'Открывает архивный чек-лист 2025'],
+      [50, 'Сравнивает прошлые пункты с текущим объектом'],
+      [84, 'Отбирает применимые корректирующие действия'],
+      [100, 'Передал исторические пункты']
+    ]
+  };
+
+  const setAgentState = (agent, percent, message, done = false) => {
+    if (!agent) return;
+    const dot = agent.querySelector('.status-dot');
+    const progress = agent.querySelector('[data-agent-progress]');
+    const status = agent.querySelector('[data-agent-status]');
+    agent.classList.toggle('agent-card-active', !done);
+    agent.classList.toggle('agent-card-done', done);
+    if (dot) dot.className = `status-dot ${done ? 'status-ready' : 'status-info'}`;
+    if (progress) progress.style.width = `${percent}%`;
+    if (status) status.textContent = message;
+  };
+
+  const appendLiveChecklistItem = (container, item) => {
+    const row = document.createElement('div');
+    row.className = 'live-checklist-item';
+    row.innerHTML = `<div class="live-item-number">${item.number}</div><div><strong>${item.title}</strong><div class="small text-muted">${item.note}</div><div class="small muted-note mt-1">Источник: ${item.source}</div></div><span class="badge ${item.badge}">${item.status}</span>`;
+    container.appendChild(row);
+  };
+
   document.querySelectorAll('[data-run-generation]').forEach((button) => {
     button.addEventListener('click', () => {
       const templateSelect = document.querySelector('[data-template-select]');
@@ -56,54 +146,67 @@
       const progress = document.querySelector('[data-generation-progress]');
       const status = document.querySelector('[data-generation-status]');
       const result = document.querySelector('[data-generation-result]');
+      const liveChecklist = document.querySelector('[data-live-checklist]');
+      const liveEmpty = document.querySelector('[data-live-empty]');
+      const liveCount = document.querySelector('[data-live-count]');
+      const nextButton = document.querySelector('[data-generation-next]');
       if (!progress || !status || !result) return;
 
       button.disabled = true;
       result.hidden = true;
-      const steps = [
-        ['12%', 'Проверяем запись графика, профиль объекта и шаблон филиала', null],
-        ['32%', 'Агент базы знаний ищет требования в 7-ФЗ, 89-ФЗ и СТО', 'kb'],
-        ['52%', 'Агент ОРД извлекает требования из приказа, распоряжения и программы ПЭК', 'ord'],
-        ['72%', 'Агент нарушений анализирует повторы и просроченные сроки за последние 5 лет', 'violations'],
-        ['90%', 'Агент истории переносит применимые пункты из архивного чек-листа', 'history'],
-        ['100%', 'Проект чек-листа сформирован: источники объединены и статусы рассчитаны', null]
-      ];
-      let index = 0;
+      if (nextButton) nextButton.disabled = true;
       progress.style.width = '0';
-      status.textContent = 'Запуск формирования...';
+      status.textContent = 'Запускаем параллельных агентов...';
+
+      if (liveChecklist) liveChecklist.replaceChildren();
+      if (liveEmpty && liveChecklist) liveChecklist.appendChild(liveEmpty);
+      if (liveEmpty) liveEmpty.hidden = false;
+      if (liveCount) liveCount.textContent = '0 пунктов';
+
       document.querySelectorAll('[data-agent]').forEach((agent) => {
         agent.classList.remove('agent-card-active', 'agent-card-done');
         const dot = agent.querySelector('.status-dot');
+        const agentProgress = agent.querySelector('[data-agent-progress]');
+        const agentStatus = agent.querySelector('[data-agent-status]');
         if (dot) dot.className = 'status-dot status-muted';
+        if (agentProgress) agentProgress.style.width = '0';
+        if (agentStatus) agentStatus.textContent = 'Ожидает задачи.';
       });
 
-      const tick = () => {
-        const [width, message, agentName] = steps[index];
-        progress.style.width = width;
-        status.textContent = message;
-        if (agentName) {
-          const agent = document.querySelector(`[data-agent="${agentName}"]`);
-          const dot = agent?.querySelector('.status-dot');
-          agent?.classList.add('agent-card-active');
-          if (dot) dot.className = 'status-dot status-info';
-          setTimeout(() => {
-            agent?.classList.remove('agent-card-active');
-            agent?.classList.add('agent-card-done');
-            if (dot) dot.className = 'status-dot status-ready';
-          }, 420);
-        }
-        index += 1;
-        if (index < steps.length) {
-          setTimeout(tick, 520);
-          return;
-        }
-        setTimeout(() => {
-          result.hidden = false;
-          button.disabled = false;
-        }, 350);
-      };
+      let overall = 0;
+      const overallTimer = setInterval(() => {
+        overall = Math.min(overall + 4, 96);
+        progress.style.width = `${overall}%`;
+      }, 150);
 
-      setTimeout(tick, 250);
+      Object.entries(agentScripts).forEach(([name, script], agentIndex) => {
+        const agent = document.querySelector(`[data-agent="${name}"]`);
+        script.forEach(([percent, message], scriptIndex) => {
+          window.setTimeout(() => {
+            setAgentState(agent, percent, message, percent === 100);
+          }, 220 + agentIndex * 120 + scriptIndex * 620);
+        });
+      });
+
+      liveChecklistItems.forEach((item, index) => {
+        window.setTimeout(() => {
+          if (!liveChecklist) return;
+          if (liveEmpty) liveEmpty.hidden = true;
+          appendLiveChecklistItem(liveChecklist, item);
+          if (liveCount) liveCount.textContent = `${index + 1} из 42 пунктов`;
+          status.textContent = `Добавлен пункт №${item.number}: ${item.source}`;
+        }, 900 + index * 520);
+      });
+
+      window.setTimeout(() => {
+        clearInterval(overallTimer);
+        progress.style.width = '100%';
+        status.textContent = 'Проект чек-листа сформирован: источники объединены и статусы рассчитаны.';
+        result.hidden = false;
+        button.disabled = false;
+        if (liveCount) liveCount.textContent = '42 пункта';
+        if (nextButton) nextButton.disabled = false;
+      }, 4600);
     });
   });
 

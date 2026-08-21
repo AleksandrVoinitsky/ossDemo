@@ -9,115 +9,233 @@
     <a class="btn btn-outline-primary" asp-page="/Checklists/Result">Открыть готовый результат</a>
 </div>
 
-<section class="row g-4">
-    <div class="col-xl-8">
-        <div class="soft-panel p-4 mb-4">
-            <h2 class="h4 section-title mb-3">1. Выбор записи графика</h2>
-            <div class="row g-3">
-                <div class="col-md-6">
+<section class="soft-panel checklist-wizard" data-checklist-wizard>
+    <div class="wizard-progress-area">
+        <span class="badge text-bg-primary" data-wizard-status>Этап 1 из 5 · Объект</span>
+        <div class="wizard-progress-line" aria-hidden="true"><div data-wizard-progress></div></div>
+    </div>
+
+    <div class="wizard-panel active" data-step-panel="0">
+        <div class="wizard-panel-header">
+            <div>
+                <h2 class="h4 section-title mb-1">Шаг 1. Выбор объекта из графика</h2>
+                <p class="muted-note mb-0">Система подставляет объект, профиль и ответственного инспектора из плановой записи.</p>
+            </div>
+            <span class="badge text-bg-success">Профиль найден</span>
+        </div>
+
+        <div class="row g-4 align-items-stretch">
+            <div class="col-lg-7">
+                <div class="wizard-card h-100">
                     <label class="form-label">Запись графика</label>
-                    <select class="form-select form-select-lg" data-master-field="schedule">
+                    <select class="form-select form-select-lg mb-3" data-master-field="schedule">
                         <option value="ber" selected>№18 · Березниковское ЛПУМГ · август 2026</option>
                         <option value="vot" disabled>№21 · Воткинское ЛПУМГ · профиль требует доработки</option>
                     </select>
+                    <table class="table compact-detail-table mb-0">
+                        <tbody>
+                            <tr><th>Объект</th><td>Березниковское ЛПУМГ · НВОС I</td></tr>
+                            <tr><th>Период</th><td>Август 2026</td></tr>
+                            <tr><th>Инспектор</th><td>Дулаева Н. И.</td></tr>
+                            <tr><th>Готовность</th><td>обязательные поля заполнены</td></tr>
+                        </tbody>
+                    </table>
                 </div>
-                <div class="col-md-6">
-                    <label class="form-label">Автоматически подставленный объект</label>
-                    <input class="form-control form-control-lg" value="Березниковское ЛПУМГ · НВОС I" readonly />
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Период проверки</label>
-                    <input class="form-control form-control-lg" value="Август 2026" readonly />
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Ответственный инспектор</label>
-                    <input class="form-control form-control-lg" value="Дулаева Н. И." readonly />
+            </div>
+            <div class="col-lg-5">
+                <div class="wizard-card h-100">
+                    <h3 class="h5 section-title">Цифровой паспорт</h3>
+                    <p class="muted-note">Применимые разделы уже определены по профилю объекта и версии классификатора.</p>
+                    <div class="pill-group">
+                        <span class="classifier-chip">1 Общие вопросы</span>
+                        <span class="classifier-chip">2 Атмосфера</span>
+                        <span class="classifier-chip">3 Вода</span>
+                        <span class="classifier-chip">4 Отходы</span>
+                        <span class="classifier-chip">6 Недра</span>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="soft-panel p-4 mb-4">
-            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
-                <div>
-                    <h2 class="h4 section-title mb-1">2. ОРД проверки</h2>
-                    <p class="muted-note mb-0">Документы проверки распознаются и влияют на состав индивидуального чек-листа.</p>
-                </div>
-                <button class="btn btn-outline-primary" data-show-target="#ordUploadPanel" type="button">Загрузить ОРД</button>
+        <div class="wizard-actions">
+            <button class="btn btn-primary btn-lg" data-wizard-next type="button">Перейти к загрузке ОРД</button>
+        </div>
+    </div>
+
+    <div class="wizard-panel" data-step-panel="1" hidden>
+        <div class="wizard-panel-header">
+            <div>
+                <h2 class="h4 section-title mb-1">Шаг 2. Загрузка ОРД проверки</h2>
+                <p class="muted-note mb-0">Приказы, распоряжения и приложения распознаются до генерации и влияют на будущие пункты.</p>
             </div>
-            <div id="ordUploadPanel" class="alert alert-info state-hidden" hidden>
-                Зона загрузки PDF/DOCX/JPG. Документы текущей проверки уже распознаны, повторная загрузка не требуется.
-            </div>
-            <div class="table-responsive">
-                <table class="table align-middle mb-0">
-                    <thead><tr><th>Документ</th><th>Тип</th><th>Что извлечено</th><th>Влияние</th></tr></thead>
-                    <tbody>
-                        <tr><td>Приказ об утверждении программы ПЭК</td><td>DOCX</td><td>график инструментального контроля</td><td><span class="badge text-bg-success">включить пункт 1.4</span></td></tr>
-                        <tr><td>Распоряжение о корректирующих действиях</td><td>PDF</td><td>поручение по отходам, срок 30.06.2025</td><td><span class="badge text-bg-info">контрольный пункт 4.2</span></td></tr>
-                        <tr><td>Скан приложения к лицензии</td><td>JPG</td><td>неоднозначная скважина №3</td><td><span class="badge text-bg-warning">требует решения</span></td></tr>
-                    </tbody>
-                </table>
-            </div>
+            <button class="btn btn-outline-primary" data-show-target="#ordUploadPanel" type="button">Загрузить ОРД</button>
         </div>
 
-        <div class="soft-panel p-4 mb-4">
-            <h2 class="h4 section-title mb-3">3. Выбор шаблона</h2>
-            <div class="row g-3 align-items-end">
-                <div class="col-md-8">
+        <div id="ordUploadPanel" class="upload-dropzone state-hidden" hidden>
+            <strong>Перетащите PDF/DOCX/JPG сюда</strong>
+            <span>Для демо документы уже загружены и распознаны. Повторная загрузка не требуется.</span>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table align-middle mb-0 wizard-table">
+                <thead><tr><th>Документ</th><th>Тип</th><th>Что извлечено</th><th>Влияние на чек-лист</th></tr></thead>
+                <tbody>
+                    <tr><td>Приказ об утверждении программы ПЭК</td><td>DOCX</td><td>график инструментального контроля</td><td><span class="badge text-bg-success">включить пункт 1.4</span></td></tr>
+                    <tr><td>Распоряжение о корректирующих действиях</td><td>PDF</td><td>поручение по отходам, срок 30.06.2025</td><td><span class="badge text-bg-info">контрольный пункт 4.2</span></td></tr>
+                    <tr><td>Скан приложения к лицензии</td><td>JPG</td><td>неоднозначная скважина №3</td><td><span class="badge text-bg-warning">требует решения</span></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="wizard-actions">
+            <button class="btn btn-outline-primary btn-lg" data-wizard-prev type="button">Назад</button>
+            <button class="btn btn-primary btn-lg" data-wizard-next type="button">Перейти к выбору шаблона</button>
+        </div>
+    </div>
+
+    <div class="wizard-panel" data-step-panel="2" hidden>
+        <div class="wizard-panel-header">
+            <div>
+                <h2 class="h4 section-title mb-1">Шаг 3. Выбор шаблона</h2>
+                <p class="muted-note mb-0">Для сценария выбран шаблон уровня филиала, как в демонстрационном маршруте.</p>
+            </div>
+            <a class="btn btn-outline-primary" asp-page="/Templates">Открыть шаблоны</a>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="wizard-card h-100">
                     <label class="form-label">Шаблон результата</label>
                     <select class="form-select form-select-lg" data-template-select>
                         <option value="">Не выбран — генерация будет заблокирована</option>
                         <option value="company">Уровень Общества v2026</option>
                         <option value="branch" selected>Уровень филиала Пермь v2026 · выбран</option>
                     </select>
-                </div>
-                <div class="col-md-4">
-                    <a class="btn btn-outline-primary w-100" asp-page="/Templates">Открыть шаблоны</a>
+                    <div class="alert alert-warning mt-3 mb-0 state-hidden" data-template-warning hidden>Нельзя запускать генерацию без выбранного шаблона.</div>
                 </div>
             </div>
-            <div class="alert alert-warning mt-3 mb-0 state-hidden" data-template-warning hidden>Нельзя запускать генерацию без выбранного шаблона.</div>
+            <div class="col-lg-5">
+                <div class="wizard-card h-100">
+                    <h3 class="h5 section-title">Что будет в результате</h3>
+                    <ul class="muted-note mb-0">
+                        <li>структура по классификатору;</li>
+                        <li>статусы обычных, контрольных и критических пунктов;</li>
+                        <li>ссылки на источник и причину включения.</li>
+                    </ul>
+                </div>
+            </div>
         </div>
 
-        <div class="soft-panel p-4">
-            <h2 class="h4 section-title">4. Проверка готовности и запуск генерации</h2>
-            <div class="row g-3 mb-4">
-                <div class="col-md-6"><div class="workflow-step"><span class="step-number">1</span><div><strong>Профиль объекта</strong><div class="small text-success">Готов: все обязательные поля заполнены.</div></div></div></div>
-                <div class="col-md-6"><div class="workflow-step"><span class="step-number">2</span><div><strong>Классификатор</strong><div class="small text-success">Активна версия v2026.01.</div></div></div></div>
-                <div class="col-md-6"><div class="workflow-step"><span class="step-number">3</span><div><strong>База знаний</strong><div class="small text-success">СТО, 7-ФЗ, 89-ФЗ и программа ПЭК проиндексированы.</div></div></div></div>
-                <div class="col-md-6"><div class="workflow-step"><span class="step-number">4</span><div><strong>ОРД, нарушения, история</strong><div class="small text-warning">Есть 1 пункт для решения инспектора.</div></div></div></div>
-            </div>
-            <button class="btn btn-primary btn-lg" data-run-generation>Сгенерировать</button>
-            <div class="mt-4">
-                <div class="generation-progress"><div class="generation-progress-bar" data-generation-progress></div></div>
-                <div class="small muted-note mt-2" data-generation-status>Ожидает запуска.</div>
-            </div>
-            <div class="row g-3 mt-3" data-agent-list>
-                <div class="col-md-6"><div class="agent-card" data-agent="kb"><span class="status-dot status-muted"></span><strong>Агент базы знаний</strong><div class="small text-muted">Законы, СТО, нормативные фрагменты.</div></div></div>
-                <div class="col-md-6"><div class="agent-card" data-agent="ord"><span class="status-dot status-muted"></span><strong>Агент ОРД</strong><div class="small text-muted">Приказы, распоряжения, программа ПЭК.</div></div></div>
-                <div class="col-md-6"><div class="agent-card" data-agent="violations"><span class="status-dot status-muted"></span><strong>Агент нарушений</strong><div class="small text-muted">Повторы и просроченные сроки за 5 лет.</div></div></div>
-                <div class="col-md-6"><div class="agent-card" data-agent="history"><span class="status-dot status-muted"></span><strong>Агент истории</strong><div class="small text-muted">Предыдущий архивный чек-лист.</div></div></div>
-            </div>
-            <div class="alert alert-success mt-4 state-hidden" data-generation-result hidden>
-                Проект создан: 42 пункта, 1 критический, 2 контрольных, 1 требует решения. Использован шаблон уровня филиала. <a asp-page="/Checklists/Result" class="alert-link">Перейти к результату</a>.
-            </div>
+        <div class="wizard-actions">
+            <button class="btn btn-outline-primary btn-lg" data-wizard-prev type="button">Назад</button>
+            <button class="btn btn-primary btn-lg" data-wizard-next type="button">Перейти к генерации</button>
         </div>
     </div>
-    <div class="col-xl-4">
-        <div class="soft-panel p-4 h-100">
-            <h2 class="h4 section-title">Источники формирования</h2>
-            <div class="timeline">
-                <div class="timeline-item"><strong>Классификатор v2026.01</strong><div class="small text-muted">Задает разделы, алиасы и применимость.</div></div>
-                <div class="timeline-item"><strong>База знаний</strong><div class="small text-muted">7-ФЗ, 89-ФЗ, СТО, приказ №792, цитаты.</div></div>
-                <div class="timeline-item"><strong>ОРД</strong><div class="small text-muted">Приказ ПЭК, распоряжение, лицензия.</div></div>
-                <div class="timeline-item"><strong>Реестр нарушений</strong><div class="small text-muted">Контрольные и критические пункты.</div></div>
-                <div class="timeline-item"><strong>История</strong><div class="small text-muted">Архивный чек-лист 2025 как источник агента истории.</div></div>
+
+    <div class="wizard-panel" data-step-panel="3" hidden>
+        <div class="wizard-panel-header">
+            <div>
+                <h2 class="h4 section-title mb-1">Шаг 4. Запуск генерации</h2>
+                <p class="muted-note mb-0">После запуска четыре агента параллельно анализируют базу знаний, ОРД, нарушения и историю.</p>
             </div>
-            <hr />
-            <h3 class="h5 section-title">Негативные проверки</h3>
-            <ul class="small muted-note mb-0">
-                <li>Профиль Воткинского ЛПУМГ недоступен для генерации, пока не заполнен.</li>
-                <li>Пустой шаблон блокирует кнопку генерации с понятным сообщением.</li>
-                <li>При отсутствии новых ОРД используются документы текущей проверки.</li>
-            </ul>
+            <button class="btn btn-primary btn-lg" data-run-generation type="button">Сгенерировать</button>
+        </div>
+
+        <div class="readiness-inline mb-3">
+            <span>Профиль объекта: готов</span>
+            <span>Классификатор: v2026.01</span>
+            <span>ОРД: 3 документа</span>
+            <span>Эскалации: 1 пункт</span>
+        </div>
+
+        <div class="generation-stage">
+            <div class="generation-orbit" aria-hidden="true"><span></span><span></span><span></span></div>
+            <div>
+                <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+                    <strong>Общий прогресс формирования</strong>
+                    <span class="muted-note" data-generation-status>Ожидает запуска.</span>
+                </div>
+                <div class="generation-progress"><div class="generation-progress-bar" data-generation-progress></div></div>
+            </div>
+        </div>
+
+        <div class="agent-strip mt-3" data-agent-list>
+            <div class="agent-card wizard-agent-card" data-agent="kb">
+                <div class="agent-card-head"><span class="status-dot status-muted"></span><strong>Агент базы знаний</strong></div>
+                <div class="small text-muted" data-agent-status>Ожидает задачи.</div>
+                <div class="agent-mini-progress"><div data-agent-progress></div></div>
+            </div>
+            <div class="agent-card wizard-agent-card" data-agent="ord">
+                <div class="agent-card-head"><span class="status-dot status-muted"></span><strong>Агент ОРД</strong></div>
+                <div class="small text-muted" data-agent-status>Ожидает задачи.</div>
+                <div class="agent-mini-progress"><div data-agent-progress></div></div>
+            </div>
+            <div class="agent-card wizard-agent-card" data-agent="violations">
+                <div class="agent-card-head"><span class="status-dot status-muted"></span><strong>Агент нарушений</strong></div>
+                <div class="small text-muted" data-agent-status>Ожидает задачи.</div>
+                <div class="agent-mini-progress"><div data-agent-progress></div></div>
+            </div>
+            <div class="agent-card wizard-agent-card" data-agent="history">
+                <div class="agent-card-head"><span class="status-dot status-muted"></span><strong>Агент истории</strong></div>
+                <div class="small text-muted" data-agent-status>Ожидает задачи.</div>
+                <div class="agent-mini-progress"><div data-agent-progress></div></div>
+            </div>
+        </div>
+
+        <div class="live-checklist-shell mt-4">
+            <div class="d-flex flex-wrap justify-content-end gap-2 mb-3">
+                <span class="badge text-bg-primary" data-live-count>0 пунктов</span>
+            </div>
+            <div class="live-checklist" data-live-checklist>
+                <div class="empty-live-state" data-live-empty>Пункты появятся после запуска генерации.</div>
+            </div>
+        </div>
+
+        <div class="alert alert-success mt-4 state-hidden" data-generation-result hidden>
+            Проект создан: 42 пункта, 1 критический, 2 контрольных, 1 требует решения. Использован шаблон уровня филиала.
+        </div>
+
+        <div class="wizard-actions">
+            <button class="btn btn-outline-primary btn-lg" data-wizard-prev type="button">Назад</button>
+            <button class="btn btn-primary btn-lg" data-wizard-next data-generation-next type="button" disabled>Перейти к просмотру</button>
+        </div>
+    </div>
+
+    <div class="wizard-panel" data-step-panel="4" hidden>
+        <div class="wizard-panel-header">
+            <div>
+                <h2 class="h4 section-title mb-1">Шаг 5. Просмотр и верификация проекта</h2>
+                <p class="muted-note mb-0">Проект готов к интерактивной проверке: статусы и источники уже проставлены.</p>
+            </div>
+            <a class="btn btn-success btn-lg" asp-page="/Checklists/Result">Открыть интерактивный чек-лист</a>
+        </div>
+
+        <section class="wizard-card mb-4">
+            <h3 class="h5 section-title mb-3">Сводка проекта</h3>
+            <table class="table compact-detail-table mb-0">
+                <tbody>
+                    <tr><th>Всего пунктов</th><td>42</td></tr>
+                    <tr><th>Особые статусы</th><td>1 критический, 2 контрольных, 1 требует решения инспектора</td></tr>
+                    <tr><th>Шаблон</th><td>уровень филиала Пермь v2026</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <div class="table-responsive">
+            <table class="table align-middle wizard-table mb-0">
+                <thead><tr><th>№</th><th>Наименование</th><th>Основание</th><th>Статус</th><th>Источник</th></tr></thead>
+                <tbody>
+                    <tr><td>1</td><td>Наличие утвержденной программы производственного экологического контроля</td><td>ФЗ-7 ст. 67; программа ПЭК</td><td><span class="badge text-bg-success">Включён</span></td><td>База знаний + ОРД</td></tr>
+                    <tr class="checklist-row-critical"><td>8</td><td>Представлены протоколы инструментального контроля выбросов</td><td>СТО 16-005-2025; акт 22.09.2024</td><td><span class="badge text-bg-danger">Критический</span></td><td>Реестр нарушений</td></tr>
+                    <tr class="checklist-row-control"><td>17</td><td>Проверить устранение замечания по маркировке места накопления отходов</td><td>Акт проверки 2025; предписание</td><td><span class="badge text-bg-info">Контрольный</span></td><td>Нарушения + история</td></tr>
+                    <tr class="checklist-row-decision"><td>23</td><td>Проверить применимость лицензии на пользование недрами для скважины №3</td><td>Скан приложения к лицензии</td><td><span class="badge text-bg-warning">Требует решения</span></td><td>ОРД</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="wizard-actions">
+            <button class="btn btn-outline-primary btn-lg" data-wizard-prev type="button">Назад</button>
+            <a class="btn btn-success btn-lg" asp-page="/Checklists/Result">Продолжить верификацию</a>
         </div>
     </div>
 </section>
