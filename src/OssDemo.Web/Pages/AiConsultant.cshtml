@@ -23,12 +23,12 @@
     <div class="chat-thread" data-chat-thread>
         <div class="chat-bubble user">
             <div class="chat-author">Инспектор</div>
-            <p>Какие документы проверить по ПНООЛР для объекта НВОС I?</p>
+            <p>Почему пункт по протоколам инструментального контроля считается критическим?</p>
         </div>
         <div class="chat-bubble assistant">
             <div class="chat-author">AI-консультант</div>
-            <p>Для объекта НВОС I проверьте наличие утвержденного ПНООЛР, соответствие фактических объемов образования и размещения отходов установленным нормативам, а также актуальность паспортов отходов и журналов учета.</p>
-            <div class="pill-group"><span class="source-chip">ФЗ-89 ст. 11 п. 2</span><span class="source-chip">Приказ №792</span><span class="classifier-chip">4.3 ПНООЛР</span></div>
+            <p>Пункт критический, потому что нарушение по протоколам инструментального контроля выбросов не закрыто в срок 10.10.2024. В demo это подтверждается актом от 22.09.2024 и требованием СТО 16-005-2025 п. 4.2.</p>
+            <div class="pill-group"><span class="source-chip">Акт 22.09.2024</span><span class="source-chip">СТО 16-005-2025 п. 4.2</span><span class="classifier-chip">2.3 Атмосфера</span></div>
         </div>
     </div>
 
@@ -41,8 +41,8 @@
 <template data-ai-answer-template>
     <div class="chat-bubble assistant">
         <div class="chat-author">AI-консультант</div>
-        <p>По вопросу «<span data-ai-question-text></span>» проверьте применимые требования в базе знаний. Если релевантный источник не найден, ответ должен быть уточнен инспектором или методологом.</p>
-        <div class="pill-group"><span class="source-chip">База знаний</span><span class="classifier-chip">требует проверки</span></div>
+        <p data-ai-answer-text>По вопросу «<span data-ai-question-text></span>» проверьте применимые требования в базе знаний. Если релевантный источник не найден, ответ должен быть уточнен инспектором или методологом.</p>
+        <div class="pill-group" data-ai-sources><span class="source-chip">База знаний</span><span class="classifier-chip">требует проверки</span></div>
     </div>
 </template>
 

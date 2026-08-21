@@ -6,22 +6,29 @@
 
 <section class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
     <div>
-        <span class="badge text-bg-success mb-2">Проект сформирован</span>
+        <span class="badge text-bg-primary mb-2" data-checklist-status>В работе</span>
         <h1 class="section-title mb-1">Индивидуальный чек-лист · Березниковское ЛПУМГ</h1>
-        <p class="muted-note mb-0">Статусы и служебные метаданные видны инспектору, в печатную форму выводятся только нужные колонки.</p>
+        <p class="muted-note mb-0">Инспектор видит источник каждого пункта, решает спорные позиции и только после этого подтверждает результат.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <button class="btn btn-outline-primary" data-file-action>Скачать DOCX</button>
-        <button class="btn btn-outline-primary" data-file-action>Скачать PDF</button>
-        <button class="btn btn-outline-secondary" data-file-action>Скачать XLSX</button>
+        <a class="btn btn-outline-primary disabled" data-export-link href="/exports/checklist.docx">Скачать DOCX</a>
+        <a class="btn btn-outline-primary disabled" data-export-link href="/exports/checklist.pdf">Скачать PDF</a>
+        <a class="btn btn-outline-secondary disabled" data-export-link href="/exports/checklist.xlsx">Скачать XLSX</a>
     </div>
 </section>
 
 <section class="row g-4 mb-4">
-    <div class="col-md-3"><div class="metric-card"><div class="metric-value">42</div><div class="small text-muted">пункта всего</div></div></div>
+    <div class="col-md-3"><div class="metric-card"><div class="metric-value" data-total-count>42</div><div class="small text-muted">пункта всего</div></div></div>
     <div class="col-md-3"><div class="metric-card"><div class="metric-value">1</div><div class="small text-muted">критический</div></div></div>
     <div class="col-md-3"><div class="metric-card"><div class="metric-value">2</div><div class="small text-muted">контрольных</div></div></div>
-    <div class="col-md-3"><div class="metric-card"><div class="metric-value">3</div><div class="small text-muted">требуют решения</div></div></div>
+    <div class="col-md-3"><div class="metric-card"><div class="metric-value" data-decision-count>1</div><div class="small text-muted">требует решения</div></div></div>
+</section>
+
+<section class="alert alert-warning" data-confirm-warning>
+    Чек-лист нельзя подтвердить, пока есть пункт со статусом «Требует решения». Откройте жёлтый пункт и выберите действие инспектора.
+</section>
+<section class="alert alert-success state-hidden" data-confirm-success hidden>
+    Чек-лист подтверждён. Статус изменён на «Готов», экспорт PDF/DOCX/XLSX доступен.
 </section>
 
 <section class="soft-panel p-3 p-lg-4 mb-4">
@@ -29,17 +36,28 @@
         <h2 class="h4 section-title mb-0">Пункты чек-листа</h2>
         <button class="btn btn-sm btn-primary" data-show-target="#manualItem">Добавить пункт вручную</button>
     </div>
-    <div id="manualItem" class="alert alert-info state-hidden" hidden>Ручное добавление будет отмечено признаком «ручной пункт» и записано в журнал действий.</div>
-    <div class="table-responsive"><table class="table align-middle"><thead><tr><th>№</th><th>Контролируемая позиция</th><th>Основание</th><th>Раздел</th><th>Статус</th><th>Причина включения</th><th></th></tr></thead><tbody>
-        <tr><td>1</td><td>Наличие утвержденной программы производственного экологического контроля</td><td>ФЗ-7, программа ПЭК</td><td><span class="classifier-chip">1.4</span></td><td><span class="badge text-bg-success">обязательный</span></td><td>Профиль объекта + БЗ</td><td></td></tr>
-        <tr class="checklist-row-critical"><td>8</td><td>Представлены протоколы инструментального контроля выбросов от стационарных источников</td><td>СТО 16-005-2025 п. 4.2</td><td><span class="classifier-chip">2.3</span></td><td><span class="badge text-bg-danger">критический</span></td><td>Просроченное нарушение 2024</td><td></td></tr>
-        <tr class="checklist-row-control"><td>17</td><td>Проверить устранение замечания по маркировке места накопления отходов</td><td>Акт проверки 2025</td><td><span class="classifier-chip">4.2</span></td><td><span class="badge text-bg-info">контрольный</span></td><td>Повторяемость 2+ раза за 5 лет</td><td></td></tr>
-        <tr class="checklist-row-decision"><td>23</td><td>Применим ли пункт по лицензии на пользование недрами для скважины №3?</td><td>Скан приложения к лицензии</td><td><span class="classifier-chip">6.1</span></td><td><span id="decision-status" class="badge text-bg-warning">требует решения</span></td><td>Низкое качество распознавания ОРД</td><td><button class="btn btn-sm btn-warning" data-resolve-item="#decision-status">Разрешить</button></td></tr>
-        <tr><td>31</td><td>Наличие утвержденного ПНООЛР и соответствие фактических объемов лимитам</td><td>ФЗ-89 ст. 11, Приказ №792</td><td><span class="classifier-chip">4.3</span></td><td><span class="badge text-bg-success">обязательный</span></td><td>НВОС I + отходы</td><td></td></tr>
+    <div id="manualItem" class="soft-panel p-3 mb-3 state-hidden" hidden>
+        <h3 class="h5 section-title">Ручное добавление требования</h3>
+        <div class="row g-3 align-items-end">
+            <div class="col-lg-5"><label class="form-label">Наименование</label><input class="form-control" data-manual-title value="Проверить наличие журнала учета отходов за текущий квартал" /></div>
+            <div class="col-lg-3"><label class="form-label">Раздел классификатора</label><select class="form-select" data-manual-section><option>4.1 Отходы</option><option>1.4 ПЭК</option><option>2.3 Атмосфера</option></select></div>
+            <div class="col-lg-2"><label class="form-label">Основание</label><input class="form-control" data-manual-basis value="Решение инспектора" /></div>
+            <div class="col-lg-2"><button class="btn btn-success w-100" data-add-manual-item type="button">Сохранить</button></div>
+        </div>
+        <div class="small muted-note mt-2">Перед сохранением система заявляет проверку дублей: совпадений в demo-наборе нет.</div>
+    </div>
+    <div class="table-responsive"><table class="table align-middle"><thead><tr><th>№</th><th>Наименование</th><th>Основание</th><th>Да/Нет/Не применяется</th><th>Примечание</th><th>Раздел</th><th>Статус</th><th>Источник и причина</th><th></th></tr></thead><tbody data-checklist-body>
+        <tr><td>1</td><td>Наличие утвержденной программы производственного экологического контроля</td><td>ФЗ-7 ст. 67; программа ПЭК</td><td>Да</td><td>Проверить актуальность приказа</td><td><span class="classifier-chip">1.4</span></td><td><span class="badge text-bg-success">Включён</span></td><td>База знаний + ОРД · объект НВОС I</td><td></td></tr>
+        <tr class="checklist-row-critical"><td>8</td><td>Представлены протоколы инструментального контроля выбросов от стационарных источников</td><td>СТО 16-005-2025 п. 4.2; акт 22.09.2024</td><td>Нет</td><td>Не устранено в срок</td><td><span class="classifier-chip">2.3</span></td><td><span class="badge text-bg-danger">Критический</span></td><td>Реестр нарушений · просроченное нарушение 2024</td><td></td></tr>
+        <tr class="checklist-row-control"><td>17</td><td>Проверить устранение замечания по маркировке места накопления отходов</td><td>Акт проверки 2025; предписание</td><td></td><td>Повторяемость 2+ раза за 5 лет</td><td><span class="classifier-chip">4.2</span></td><td><span class="badge text-bg-info">Контрольный</span></td><td>Реестр нарушений + история · повторное нарушение</td><td></td></tr>
+        <tr class="checklist-row-control"><td>19</td><td>Сверить выполнение пункта предыдущего чек-листа по плану корректирующих действий</td><td>Архивный чек-лист 2025</td><td></td><td>Перенесено агентом истории</td><td><span class="classifier-chip">1.7</span></td><td><span class="badge text-bg-info">Контрольный</span></td><td>История · предыдущий чек-лист</td><td></td></tr>
+        <tr class="checklist-row-decision" data-decision-row><td>23</td><td>Проверить применимость лицензии на пользование недрами для скважины №3</td><td>Скан приложения к лицензии</td><td></td><td data-decision-note>Низкое качество распознавания ОРД</td><td><span class="classifier-chip">6.1</span></td><td><span id="decision-status" class="badge text-bg-warning">Требует решения</span></td><td>ОРД · требуется решение инспектора</td><td><div class="btn-group btn-group-sm"><button class="btn btn-warning" data-resolve-action="include" type="button">Включить</button><button class="btn btn-outline-secondary" data-resolve-action="exclude" type="button">Исключить</button><button class="btn btn-outline-primary" data-resolve-action="edit" type="button">Изменить</button></div></td></tr>
+        <tr><td>31</td><td>Наличие утвержденного ПНООЛР и соответствие фактических объемов лимитам</td><td>ФЗ-89 ст. 11; Приказ №792</td><td></td><td>Сверить лимиты размещения</td><td><span class="classifier-chip">4.3</span></td><td><span class="badge text-bg-success">Включён</span></td><td>База знаний · НВОС I + отходы</td><td></td></tr>
     </tbody></table></div>
 </section>
 
 <section class="row g-4">
-    <div class="col-lg-6"><div class="soft-panel p-4 h-100"><h2 class="h4 section-title">Источники</h2><div class="pill-group"><span class="source-chip">ФЗ-7</span><span class="source-chip">ФЗ-89</span><span class="source-chip">СТО 16-005-2025</span><span class="source-chip">Приказ ПЭК</span><span class="source-chip">Акт 2025</span></div></div></div>
-    <div class="col-lg-6"><div class="soft-panel p-4 h-100"><h2 class="h4 section-title">Ограничение статуса</h2><p class="muted-note mb-3">Чек-лист нельзя перевести в «Готов», пока есть пункты «Требует решения».</p><button class="btn btn-success">Сохранить проект</button></div></div>
+    <div class="col-lg-4"><div class="soft-panel p-4 h-100"><h2 class="h4 section-title">Источники</h2><div class="pill-group"><span class="source-chip">7-ФЗ</span><span class="source-chip">89-ФЗ</span><span class="source-chip">СТО 16-005-2025</span><span class="source-chip">Приказ ПЭК</span><span class="source-chip">Акт 2025</span><span class="source-chip">Архив 2025</span></div></div></div>
+    <div class="col-lg-4"><div class="soft-panel p-4 h-100"><h2 class="h4 section-title">Журнал demo</h2><div class="timeline mb-0" data-local-audit><div class="timeline-item"><strong>Проект сформирован</strong><div class="small text-muted">4 агента завершили анализ.</div></div></div></div></div>
+    <div class="col-lg-4"><div class="soft-panel p-4 h-100"><h2 class="h4 section-title">Утверждение</h2><p class="muted-note mb-3">Кнопка переведёт чек-лист в статус «Готов» только после разрешения жёлтых пунктов.</p><button class="btn btn-success" data-confirm-checklist type="button">Подтвердить чек-лист</button></div></div>
 </section>

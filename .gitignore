@@ -2,6 +2,7 @@
 # They are intentionally excluded from Git because they are binary/reference data,
 # not application source code.
 /Сценарий демо-показа АИ ООС.docx
+/сценарий.txt
 /Техническое задание и план работ для Demo-стенда АИ ООС.pdf
 /ФТ АИ ОСС.docx
 /01_📅 График проверок/

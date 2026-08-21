@@ -337,6 +337,26 @@ a {
   transition: width .35s ease;
 }
 
+.agent-card {
+  height: 100%;
+  padding: .95rem;
+  border: 1px solid var(--border-soft);
+  border-radius: .75rem;
+  background: var(--surface-muted);
+  transition: border-color .18s ease, background-color .18s ease, transform .18s ease;
+}
+
+.agent-card-active {
+  border-color: #74c0fc;
+  background: #eef7ff;
+  transform: translateY(-1px);
+}
+
+.agent-card-done {
+  border-color: #b2f2bb;
+  background: #f0fff4;
+}
+
 .chat-shell {
   display: flex;
   flex-direction: column;
@@ -443,6 +463,10 @@ a {
 
 .checklist-row-control td {
   background: var(--info-soft);
+}
+
+.checklist-row-manual td {
+  background: #f3f0ff;
 }
 
 .form-floating > .form-control-plaintext::placeholder,

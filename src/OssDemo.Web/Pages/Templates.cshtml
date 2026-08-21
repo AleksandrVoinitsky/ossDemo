@@ -1,0 +1,66 @@
+@page
+@{
+    ViewData["Title"] = "Шаблоны чек-листов";
+    ViewData["Nav"] = "Templates";
+}
+
+<section class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <span class="badge text-bg-primary mb-2">Структура результата</span>
+        <h1 class="section-title mb-1">Шаблоны чек-листов</h1>
+        <p class="muted-note mb-0">Для demo доступны шаблоны двух уровней: Общества и филиала. Генерация без выбранного шаблона блокируется.</p>
+    </div>
+    <a class="btn btn-primary" asp-page="/Checklists/New">Выбрать в мастере</a>
+</section>
+
+<section class="row g-4">
+    <div class="col-lg-5">
+        <div class="soft-panel p-4 h-100">
+            <h2 class="h4 section-title">Доступные шаблоны</h2>
+            <div class="list-group">
+                <button class="list-group-item list-group-item-action" type="button" data-panel-group="templates" data-panel-target="template-company" aria-selected="false">
+                    <div class="d-flex justify-content-between gap-3">
+                        <strong>Уровень Общества v2026</strong>
+                        <span class="badge text-bg-secondary">базовый</span>
+                    </div>
+                    <div class="small text-muted">Единая табличная структура для всех филиалов.</div>
+                </button>
+                <button class="list-group-item list-group-item-action active" type="button" data-panel-group="templates" data-panel-target="template-branch" aria-selected="true">
+                    <div class="d-flex justify-content-between gap-3">
+                        <strong>Уровень филиала Пермь v2026</strong>
+                        <span class="badge text-bg-success">выбран для demo</span>
+                    </div>
+                    <div class="small text-muted">Расширен разделами по компрессорным станциям, водным объектам и недрам.</div>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <article id="template-company" class="soft-panel p-4 tab-panel" data-panel-owner="templates" hidden>
+            <h2 class="h4 section-title">Шаблон уровня Общества</h2>
+            <p class="muted-note">Используется как корпоративная основа и задает минимальный набор колонок результата.</p>
+            <div class="pill-group mb-3"><span class="classifier-chip">1 Общие</span><span class="classifier-chip">2 Атмосфера</span><span class="classifier-chip">3 Вода</span><span class="classifier-chip">4 Отходы</span></div>
+            <div class="alert alert-light border mb-0">Колонки: №, Наименование, Основание, Да/Нет/Не применяется, Примечание.</div>
+        </article>
+        <article id="template-branch" class="soft-panel p-4 tab-panel" data-panel-owner="templates">
+            <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
+                <h2 class="h4 section-title mb-0">Шаблон уровня филиала Пермь v2026</h2>
+                <span class="badge text-bg-success">доступен в основном сценарии</span>
+            </div>
+            <p class="muted-note">Именно этот шаблон выбран в мастере для Березниковского ЛПУМГ.</p>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead><tr><th>Колонка</th><th>Назначение</th><th>Видимость</th></tr></thead>
+                    <tbody>
+                        <tr><td>№</td><td>Номер пункта в структуре проверки</td><td><span class="badge text-bg-success">экспорт</span></td></tr>
+                        <tr><td>Наименование</td><td>Формулировка требования для инспектора</td><td><span class="badge text-bg-success">экспорт</span></td></tr>
+                        <tr><td>Основание</td><td>Нормативный, ОРД или исторический источник</td><td><span class="badge text-bg-success">экспорт</span></td></tr>
+                        <tr><td>Да/Нет/Не применяется</td><td>Итог проверки на объекте</td><td><span class="badge text-bg-success">экспорт</span></td></tr>
+                        <tr><td>Примечание</td><td>Комментарий инспектора</td><td><span class="badge text-bg-success">экспорт</span></td></tr>
+                        <tr><td>Статус, источник, причина</td><td>Служебные поля для прозрачности demo</td><td><span class="badge text-bg-info">интерфейс + XLSX</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </div>
+</section>
