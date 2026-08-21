@@ -5,44 +5,75 @@
     ViewData["Breadcrumb"] = "ИИ-консультант \\ База знаний";
 }
 
-<section class="chat-shell soft-panel">
+<section class="chat-shell soft-panel" aria-label="Чат с ИИ-консультантом">
     <div class="chat-header">
         <div>
             <h2 class="h5 section-title mb-1">Запрос к ИИ-консультанту</h2>
             <div class="small muted-note">Контекст: Березниковское ЛПУМГ, НВОС I, подготовка проверки</div>
         </div>
-        <span class="badge text-bg-success">онлайн</span>
-    </div>
-
-    <div class="chat-thread" data-chat-thread>
-        <div class="chat-bubble user">
-            <div class="chat-author">Инспектор</div>
-            <p>Почему пункт по протоколам инструментального контроля считается критическим?</p>
-        </div>
-        <div class="chat-bubble assistant">
-            <div class="chat-author">ИИ-консультант</div>
-            <p>Пункт критический, потому что нарушение по протоколам инструментального контроля выбросов не закрыто в срок 10.10.2024. Это подтверждается актом от 22.09.2024 и требованием СТО 16-005-2025 п. 4.2.</p>
-            <div class="pill-group"><span class="source-chip">Акт 22.09.2024</span><span class="source-chip">СТО 16-005-2025 п. 4.2</span><span class="classifier-chip">2.3 Атмосфера</span></div>
+        <div class="chat-header-actions">
+            <span class="badge text-bg-success">онлайн</span>
+            <span class="chat-model-label">Markdown · источники · готово к API</span>
         </div>
     </div>
 
-    <form data-ai-question class="chat-input">
-        <input class="form-control form-control-lg" placeholder="Введите вопрос по источникам" aria-label="Вопрос ИИ-консультанту" />
-        <button class="btn btn-primary btn-lg" type="submit">Отправить</button>
+    <div class="chat-thread" data-chat-thread aria-live="polite" aria-label="История сообщений">
+        <article class="chat-message chat-message-user" data-chat-message data-role="user">
+            <div class="chat-avatar" aria-hidden="true">И</div>
+            <div class="chat-bubble">
+                <div class="chat-author">Инспектор</div>
+                <div class="chat-markdown" data-chat-markdown>
+                    Почему пункт по протоколам инструментального контроля считается критическим?
+                </div>
+            </div>
+        </article>
+
+        <article class="chat-message chat-message-assistant" data-chat-message data-role="assistant">
+            <div class="chat-avatar" aria-hidden="true">AI</div>
+            <div class="chat-bubble">
+                <div class="chat-author">ИИ-консультант</div>
+                <div class="chat-markdown" data-chat-markdown>
+                    Пункт считается **критическим**, потому что нарушение по протоколам инструментального контроля выбросов не закрыто в срок `10.10.2024`.
+
+                    Подтверждающие основания:
+
+                    - акт проверки от **22.09.2024**;
+                    - требование **СТО 16-005-2025, п. 4.2**;
+                    - раздел классификатора **2.3 Атмосфера**.
+
+                    > Для рабочего ответа ИИ должен возвращать не только вывод, но и проверяемые источники.
+                </div>
+                <div class="pill-group chat-sources" data-ai-sources>
+                    <span class="source-chip">Акт 22.09.2024</span>
+                    <span class="source-chip">СТО 16-005-2025 п. 4.2</span>
+                    <span class="classifier-chip">2.3 Атмосфера</span>
+                </div>
+            </div>
+        </article>
+    </div>
+
+    <form data-ai-question class="chat-input" autocomplete="off">
+        <label class="visually-hidden" for="ai-question-input">Вопрос ИИ-консультанту</label>
+        <textarea id="ai-question-input" class="form-control chat-textarea" data-chat-input rows="1" placeholder="Введите вопрос по источникам. Enter — отправить, Shift+Enter — новая строка." aria-label="Вопрос ИИ-консультанту"></textarea>
+        <div class="chat-composer-actions">
+            <div class="chat-input-hint">Поддерживаются Markdown, списки, таблицы и блоки кода.</div>
+            <button class="btn btn-primary" data-chat-send type="submit">Отправить</button>
+        </div>
     </form>
 </section>
 
-<template data-ai-answer-template>
-    <div class="chat-bubble assistant">
-        <div class="chat-author">ИИ-консультант</div>
-        <p data-ai-answer-text>По вопросу «<span data-ai-question-text></span>» проверьте применимые требования в базе знаний. Если релевантный источник не найден, ответ должен быть уточнен инспектором или методологом.</p>
-        <div class="pill-group" data-ai-sources><span class="source-chip">База знаний</span><span class="classifier-chip">требует проверки</span></div>
-    </div>
+<template data-chat-message-template>
+    <article class="chat-message" data-chat-message>
+        <div class="chat-avatar" data-chat-avatar aria-hidden="true"></div>
+        <div class="chat-bubble">
+            <div class="chat-author" data-chat-author></div>
+            <div class="chat-markdown" data-chat-markdown></div>
+            <div class="pill-group chat-sources" data-ai-sources hidden></div>
+        </div>
+    </article>
 </template>
 
-<template data-user-question-template>
-    <div class="chat-bubble user">
-        <div class="chat-author">Инспектор</div>
-        <p data-user-question-text></p>
-    </div>
-</template>
+@section VendorScripts {
+    <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+}

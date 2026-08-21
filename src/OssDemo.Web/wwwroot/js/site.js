@@ -297,41 +297,241 @@
     });
   });
 
+  const normalizeMarkdown = (value) => {
+    const lines = String(value ?? '').replace(/\r\n/g, '\n').split('\n');
+    while (lines.length && !lines[0].trim()) lines.shift();
+    while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+
+    const indents = lines
+      .filter((line) => line.trim())
+      .map((line) => line.match(/^\s*/)?.[0].length ?? 0);
+    const minIndent = indents.length ? Math.min(...indents) : 0;
+
+    return lines.map((line) => line.slice(minIndent)).join('\n');
+  };
+
+  const renderMarkdown = (container, markdown) => {
+    if (!container) return;
+
+    const source = normalizeMarkdown(markdown);
+    container.dataset.markdownRaw = source;
+
+    if (window.marked && window.DOMPurify) {
+      window.marked.setOptions({ breaks: true, gfm: true });
+      const html = typeof window.marked.parse === 'function'
+        ? window.marked.parse(source)
+        : window.marked(source);
+      container.innerHTML = window.DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+      return;
+    }
+
+    container.textContent = source;
+  };
+
+  const scrollChatToBottom = (thread) => {
+    if (!thread) return;
+    thread.scrollTop = thread.scrollHeight;
+  };
+
+  const renderSources = (container, sources = []) => {
+    if (!container) return;
+
+    container.replaceChildren();
+    sources.filter(Boolean).forEach((source) => {
+      const item = typeof source === 'string' ? { title: source } : source;
+      const chip = item.url ? document.createElement('a') : document.createElement('span');
+      chip.className = item.kind === 'classifier' ? 'classifier-chip' : 'source-chip';
+      chip.textContent = item.title || item.name || item.label || '';
+
+      if (item.url) {
+        chip.href = item.url;
+        chip.rel = 'noopener noreferrer';
+        chip.target = '_blank';
+      }
+
+      if (chip.textContent) container.appendChild(chip);
+    });
+
+    container.hidden = !container.children.length;
+  };
+
+  const appendChatMessage = (thread, template, options) => {
+    const message = template.content.firstElementChild.cloneNode(true);
+    message.dataset.role = options.role;
+    message.classList.add(options.role === 'user' ? 'chat-message-user' : 'chat-message-assistant');
+
+    const avatar = message.querySelector('[data-chat-avatar]');
+    const author = message.querySelector('[data-chat-author]');
+    const markdown = message.querySelector('[data-chat-markdown]');
+    const sources = message.querySelector('[data-ai-sources]');
+
+    if (avatar) avatar.textContent = options.role === 'user' ? 'И' : 'AI';
+    if (author) author.textContent = options.role === 'user' ? 'Инспектор' : 'ИИ-консультант';
+
+    if (options.pending) {
+      message.classList.add('chat-message-pending');
+      if (markdown) {
+        markdown.innerHTML = '<span class="chat-typing" aria-label="ИИ-консультант готовит ответ"><span></span><span></span><span></span></span>';
+      }
+    } else {
+      renderMarkdown(markdown, options.markdown);
+      renderSources(sources, options.sources);
+    }
+
+    thread.appendChild(message);
+    scrollChatToBottom(thread);
+    return message;
+  };
+
+  const updateChatMessage = (message, markdown, sources) => {
+    message.classList.remove('chat-message-pending');
+    renderMarkdown(message.querySelector('[data-chat-markdown]'), markdown);
+    renderSources(message.querySelector('[data-ai-sources]'), sources);
+  };
+
+  const buildDemoAiReply = (question) => {
+    const normalizedQuestion = question.toLowerCase();
+
+    if (normalizedQuestion.includes('крит')) {
+      return {
+        answer: `Пункт относится к **критическим**, потому что есть незакрытое нарушение с истекшим сроком устранения.
+
+| Проверка | Значение |
+| --- | --- |
+| Нарушение | протоколы инструментального контроля выбросов |
+| Срок устранения | 10.10.2024 |
+| Статус | не закрыто |
+
+Рекомендуемое действие инспектора:
+
+1. открыть карточку нарушения;
+2. проверить актуальность протоколов;
+3. зафиксировать источник в чек-листе перед экспортом.`,
+        sources: [
+          'Акт 22.09.2024',
+          'СТО 16-005-2025 п. 4.2',
+          { title: '2.3 Атмосфера', kind: 'classifier' }
+        ]
+      };
+    }
+
+    if (normalizedQuestion.includes('не найден') || normalizedQuestion.includes('санитар')) {
+      return {
+        answer: `В базе знаний нет подтверждённого источника по этому вопросу.
+
+> Рабочий режим чата не должен формировать нормативный вывод без проверяемой цитаты.
+
+Что можно сделать:
+
+- уточнить формулировку вопроса;
+- выбрать другой объект или период проверки;
+- передать вопрос методологу.`,
+        sources: [{ title: 'источник не найден', kind: 'classifier' }]
+      };
+    }
+
+    return {
+      answer: `Я подготовил черновой ответ по вопросу: **${question}**.
+
+Для реальной интеграции подключите серверный обработчик к форме через атрибут \`data-ai-endpoint\`. Клиент уже ожидает JSON-ответ вида:
+
+\`\`\`json
+{
+  "answer": "Markdown-ответ модели",
+  "sources": ["Название источника", { "title": "Раздел", "kind": "classifier" }]
+}
+\`\`\`
+
+До подключения API используется демонстрационный ответ с безопасным Markdown-рендерингом.`,
+      sources: ['База знаний', { title: 'требует проверки', kind: 'classifier' }]
+    };
+  };
+
+  const collectConversation = (thread) => Array.from(thread.querySelectorAll('[data-chat-message]')).map((message) => ({
+    role: message.dataset.role || 'assistant',
+    content: message.querySelector('[data-chat-markdown]')?.dataset.markdownRaw || ''
+  })).filter((item) => item.content);
+
+  const requestAiReply = async (form, thread, question) => {
+    const endpoint = form.dataset.aiEndpoint;
+    if (!endpoint) return buildDemoAiReply(question);
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message: question,
+        conversation: collectConversation(thread)
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI endpoint failed: ${response.status}`);
+    }
+
+    const payload = await response.json();
+    return {
+      answer: payload.answer || payload.message || payload.content || 'Ответ получен, но поле answer пустое.',
+      sources: Array.isArray(payload.sources) ? payload.sources : []
+    };
+  };
+
+  const resizeChatInput = (textarea) => {
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
+  };
+
+  document.querySelectorAll('[data-chat-markdown]').forEach((container) => {
+    if (!container.dataset.markdownRaw) renderMarkdown(container, container.textContent);
+  });
+
   document.querySelectorAll('[data-ai-question]').forEach((form) => {
-    form.addEventListener('submit', (event) => {
+    const input = form.querySelector('[data-chat-input]');
+    const sendButton = form.querySelector('[data-chat-send]');
+
+    input?.addEventListener('input', () => resizeChatInput(input));
+    input?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+        form.requestSubmit();
+      }
+    });
+
+    form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const thread = document.querySelector('[data-chat-thread]');
-      const userTemplate = document.querySelector('[data-user-question-template]');
-      const answerTemplate = document.querySelector('[data-ai-answer-template]');
-      const input = form.querySelector('input');
-      if (!thread || !userTemplate || !answerTemplate || !input) return;
+      const messageTemplate = document.querySelector('[data-chat-message-template]');
+      if (!thread || !messageTemplate || !input || !sendButton) return;
 
       const question = input.value.trim();
       if (!question) return;
 
-      const userMessage = userTemplate.content.firstElementChild.cloneNode(true);
-      userMessage.querySelector('[data-user-question-text]').textContent = question;
-      thread.appendChild(userMessage);
-
-      const answerMessage = answerTemplate.content.firstElementChild.cloneNode(true);
-      const questionTarget = answerMessage.querySelector('[data-ai-question-text]');
-      const answerText = answerMessage.querySelector('[data-ai-answer-text]');
-      const sources = answerMessage.querySelector('[data-ai-sources]');
-      const normalizedQuestion = question.toLowerCase();
-      if (questionTarget) questionTarget.textContent = question;
-      if (answerText && sources) {
-        if (normalizedQuestion.includes('крит')) {
-          answerText.textContent = 'Пункт считается критическим, потому что в реестре нарушений есть неустранённое в срок нарушение по протоколам инструментального контроля выбросов. Источник: акт от 22.09.2024 и СТО 16-005-2025 п. 4.2.';
-          sources.innerHTML = '<span class="source-chip">Акт 22.09.2024</span><span class="source-chip">СТО 16-005-2025 п. 4.2</span><span class="classifier-chip">2.3 Атмосфера</span>';
-        } else if (normalizedQuestion.includes('не найден') || normalizedQuestion.includes('санитар')) {
-          answerText.textContent = 'В базе знаний нет релевантного источника по этому вопросу. Система не формирует ответ без подтверждённой цитаты и предлагает обратиться к методологу.';
-          sources.innerHTML = '<span class="classifier-chip">источник не найден</span>';
-        }
-      }
-      thread.appendChild(answerMessage);
-
       input.value = '';
-      thread.scrollTop = thread.scrollHeight;
+      resizeChatInput(input);
+      input.disabled = true;
+      sendButton.disabled = true;
+
+      appendChatMessage(thread, messageTemplate, { role: 'user', markdown: question });
+      const pendingMessage = appendChatMessage(thread, messageTemplate, { role: 'assistant', pending: true });
+
+      try {
+        const reply = await requestAiReply(form, thread, question);
+        updateChatMessage(pendingMessage, reply.answer, reply.sources);
+      } catch (error) {
+        updateChatMessage(
+          pendingMessage,
+          'Не удалось получить ответ от сервера ИИ. Проверьте подключение и повторите запрос.\n\n```text\n' + error.message + '\n```',
+          [{ title: 'ошибка подключения', kind: 'classifier' }]
+        );
+      } finally {
+        input.disabled = false;
+        sendButton.disabled = false;
+        input.focus();
+        scrollChatToBottom(thread);
+      }
     });
   });
 })();
