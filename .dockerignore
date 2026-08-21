@@ -1,0 +1,43 @@
+.git/
+.github/
+.vs/
+.vscode/
+.idea/
+
+**/bin/
+**/obj/
+artifacts/
+publish/
+TestResults/
+coverage/
+coverage.*
+
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+*.log
+*.tmp
+*.temp
+*.cache
+*.swp
+*.nupkg
+*.snupkg
+~$*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Локальные демонстрационные материалы не нужны для сборки web-сервиса.
+/Сценарий демо-показа АИ ООС.docx
+/Техническое задание и план работ для Demo-стенда АИ ООС.pdf
+/ФТ АИ ОСС.docx
+/01_📅 График проверок/
+/02_📂 Чек-листы/
+/03_📚 База знаний/
+/04_📄 Шаблоны чек-листов/
+/06_🏭 Объекты/
+/07_⚠️ Реестр нарушений/
+/08_📋 Справочники/
+/Дулаева - рабочие материалы/
