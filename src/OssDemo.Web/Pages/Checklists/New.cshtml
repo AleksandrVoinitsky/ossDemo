@@ -6,9 +6,9 @@
 
 <section class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
     <div>
-        <span class="badge text-bg-primary mb-2">Happy path</span>
+        <span class="badge text-bg-primary mb-2">Подготовка</span>
         <h1 class="section-title mb-1">Формирование индивидуального чек-листа</h1>
-        <p class="muted-note mb-0">Demo workflow не вызывает внешний AI: результат подготовлен заранее и прозрачно показывает источники.</p>
+        <p class="muted-note mb-0">Система формирует проект чек-листа и прозрачно показывает источники включения пунктов.</p>
     </div>
     <a class="btn btn-outline-primary" asp-page="/Checklists/Result">Открыть готовый результат</a>
 </section>
@@ -32,12 +32,12 @@
                 <div class="col-md-6"><div class="workflow-step"><span class="step-number">3</span><div><strong>База знаний</strong><div class="small text-success">5 источников с цитатами.</div></div></div></div>
                 <div class="col-md-6"><div class="workflow-step"><span class="step-number">4</span><div><strong>ОРД и история</strong><div class="small text-warning">Есть 3 пункта для решения инспектора.</div></div></div></div>
             </div>
-            <button class="btn btn-primary btn-lg" data-run-generation>Запустить demo-формирование</button>
+            <button class="btn btn-primary btn-lg" data-run-generation>Запустить формирование</button>
             <div class="mt-4">
-                <div class="demo-progress"><div class="demo-progress-bar" data-generation-progress></div></div>
+                <div class="generation-progress"><div class="generation-progress-bar" data-generation-progress></div></div>
                 <div class="small muted-note mt-2" data-generation-status>Ожидает запуска.</div>
             </div>
-            <div class="alert alert-success mt-4 demo-hidden" data-generation-result hidden>
+            <div class="alert alert-success mt-4 state-hidden" data-generation-result hidden>
                 Проект создан: 42 пункта, 1 критический, 2 контрольных, 3 требуют решения. <a asp-page="/Checklists/Result" class="alert-link">Перейти к результату</a>.
             </div>
         </div>

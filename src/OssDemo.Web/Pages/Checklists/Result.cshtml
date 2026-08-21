@@ -11,9 +11,9 @@
         <p class="muted-note mb-0">Статусы и служебные метаданные видны инспектору, в печатную форму выводятся только нужные колонки.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <button class="btn btn-outline-primary" data-export-demo>Скачать DOCX</button>
-        <button class="btn btn-outline-primary" data-export-demo>Скачать PDF</button>
-        <button class="btn btn-outline-secondary" data-export-demo>Скачать XLSX</button>
+        <button class="btn btn-outline-primary" data-file-action>Скачать DOCX</button>
+        <button class="btn btn-outline-primary" data-file-action>Скачать PDF</button>
+        <button class="btn btn-outline-secondary" data-file-action>Скачать XLSX</button>
     </div>
 </section>
 
@@ -29,7 +29,7 @@
         <h2 class="h4 section-title mb-0">Пункты чек-листа</h2>
         <button class="btn btn-sm btn-primary" data-show-target="#manualItem">Добавить пункт вручную</button>
     </div>
-    <div id="manualItem" class="alert alert-info demo-hidden" hidden>Ручное добавление будет отмечено признаком «ручной пункт» и записано в журнал действий.</div>
+    <div id="manualItem" class="alert alert-info state-hidden" hidden>Ручное добавление будет отмечено признаком «ручной пункт» и записано в журнал действий.</div>
     <div class="table-responsive"><table class="table align-middle"><thead><tr><th>№</th><th>Контролируемая позиция</th><th>Основание</th><th>Раздел</th><th>Статус</th><th>Причина включения</th><th></th></tr></thead><tbody>
         <tr><td>1</td><td>Наличие утвержденной программы производственного экологического контроля</td><td>ФЗ-7, программа ПЭК</td><td><span class="classifier-chip">1.4</span></td><td><span class="badge text-bg-success">обязательный</span></td><td>Профиль объекта + БЗ</td><td></td></tr>
         <tr class="checklist-row-critical"><td>8</td><td>Представлены протоколы инструментального контроля выбросов от стационарных источников</td><td>СТО 16-005-2025 п. 4.2</td><td><span class="classifier-chip">2.3</span></td><td><span class="badge text-bg-danger">критический</span></td><td>Просроченное нарушение 2024</td><td></td></tr>

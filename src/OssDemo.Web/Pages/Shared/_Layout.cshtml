@@ -10,70 +10,44 @@
     <link rel="stylesheet" href="~/OssDemo.Web.styles.css" asp-append-version="true" />
 </head>
 <body>
-    <header>
-        <nav class="navbar navbar-expand-xl navbar-light app-navbar border-bottom box-shadow">
-            <div class="container-fluid px-3 px-lg-4">
-                <a class="navbar-brand fw-semibold d-flex align-items-center gap-2" asp-area="" asp-page="/Index">
-                    <span class="brand-mark">ООС</span>
-                    <span>АИ ООС</span>
-                </a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="navbar-collapse collapse d-xl-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1 align-items-xl-center gap-xl-1">
-                        <li class="nav-item">
-                            <a class="nav-link @(ViewData["Nav"] as string == "Home" ? "active" : "")" asp-area="" asp-page="/Index">Главная</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link @(ViewData["Nav"] as string == "Schedule" ? "active" : "")" asp-area="" asp-page="/Schedule">График</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link @(ViewData["Nav"] as string == "Facilities" ? "active" : "")" asp-area="" asp-page="/Facilities">Объекты</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link @(ViewData["Nav"] as string == "Classifier" ? "active" : "")" asp-area="" asp-page="/Classifier">Классификатор</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link @(ViewData["Nav"] as string == "Knowledge" ? "active" : "")" asp-area="" asp-page="/KnowledgeBase">База знаний</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link @(ViewData["Nav"] as string == "Documents" ? "active" : "")" asp-area="" asp-page="/Documents">ОРД</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link @(ViewData["Nav"] as string == "Violations" ? "active" : "")" asp-area="" asp-page="/Violations">Нарушения</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link @(ViewData["Nav"] as string == "Checklist" ? "active" : "")" asp-area="" asp-page="/Checklists/New">Чек-лист</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link @(ViewData["Nav"] as string == "Ai" ? "active" : "")" asp-area="" asp-page="/AiConsultant">AI-консультант</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link @(ViewData["Nav"] as string == "Audit" ? "active" : "")" asp-area="" asp-page="/AuditLog">Журнал</a>
-                        </li>
-                    </ul>
-                    <div class="d-flex align-items-center gap-2 mt-3 mt-xl-0">
-                        <span class="badge rounded-pill text-bg-warning">Demo/mock</span>
-                        <a class="btn btn-sm btn-outline-primary" asp-page="/Login">Войти</a>
-                    </div>
-                </div>
+    <div class="app-frame">
+        <aside class="app-sidebar" aria-label="Основное меню">
+            <a class="app-brand" asp-area="" asp-page="/Index">
+                <span class="brand-mark">ООС</span>
+                <span>АИ ООС</span>
+            </a>
+            <nav class="sidebar-nav">
+                <a class="sidebar-link @(ViewData["Nav"] as string == "Home" ? "active" : "")" asp-area="" asp-page="/Index">Главная</a>
+                <a class="sidebar-link @(ViewData["Nav"] as string == "Schedule" ? "active" : "")" asp-area="" asp-page="/Schedule">График</a>
+                <a class="sidebar-link @(ViewData["Nav"] as string == "Facilities" ? "active" : "")" asp-area="" asp-page="/Facilities">Объекты</a>
+                <a class="sidebar-link @(ViewData["Nav"] as string == "Classifier" ? "active" : "")" asp-area="" asp-page="/Classifier">Классификатор</a>
+                <a class="sidebar-link @(ViewData["Nav"] as string == "Knowledge" ? "active" : "")" asp-area="" asp-page="/KnowledgeBase">База знаний</a>
+                <a class="sidebar-link @(ViewData["Nav"] as string == "Documents" ? "active" : "")" asp-area="" asp-page="/Documents">ОРД</a>
+                <a class="sidebar-link @(ViewData["Nav"] as string == "Violations" ? "active" : "")" asp-area="" asp-page="/Violations">Нарушения</a>
+                <a class="sidebar-link @(ViewData["Nav"] as string == "Checklist" ? "active" : "")" asp-area="" asp-page="/Checklists/New">Чек-лист</a>
+                <a class="sidebar-link @(ViewData["Nav"] as string == "Ai" ? "active" : "")" asp-area="" asp-page="/AiConsultant">AI-консультант</a>
+                <a class="sidebar-link @(ViewData["Nav"] as string == "Audit" ? "active" : "")" asp-area="" asp-page="/AuditLog">Журнал</a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="small text-muted mb-2">Пользователь: inspector</div>
+                <form method="post" asp-page="/Login" asp-page-handler="Logout">
+                    <button class="btn btn-outline-secondary btn-sm w-100" type="submit">Выйти</button>
+                </form>
             </div>
-        </nav>
-    </header>
-    <div class="container-fluid app-shell px-3 px-lg-4">
-        <main role="main" class="pb-4">
-            @RenderBody()
-        </main>
-    </div>
+        </aside>
 
-    <footer class="border-top footer text-muted">
-        <div class="container-fluid px-3 px-lg-4 d-flex flex-wrap justify-content-between gap-2">
-            <span>&copy; 2026 — Demo-стенд АИ ООС</span>
-            <span><a asp-area="" asp-page="/Privacy">Ограничения и назначение стенда</a></span>
+        <div class="app-content">
+            <main role="main" class="app-shell">
+                @RenderBody()
+            </main>
+            <footer class="footer text-muted">
+                <div class="d-flex flex-wrap justify-content-between gap-2">
+                    <span>&copy; 2026 — АИ ООС</span>
+                    <span><a asp-area="" asp-page="/Privacy">О системе</a></span>
+                </div>
+            </footer>
         </div>
-    </footer>
+    </div>
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>

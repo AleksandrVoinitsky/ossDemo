@@ -1,22 +1,22 @@
 @page
 @model IndexModel
 @{
-    ViewData["Title"] = "Демо-стенд экологического контроля";
+    ViewData["Title"] = "Экологический контроль";
     ViewData["Nav"] = "Home";
 }
 
-<section class="hero-panel p-4 p-lg-5 mb-5">
+<section class="hero-panel p-4 p-lg-5 mb-4">
     <div class="row align-items-center g-4">
         <div class="col-xl-7">
-            <span class="badge text-bg-light text-primary mb-3">Demo АИ ООС · подготовка плановой проверки</span>
+            <span class="badge text-bg-primary mb-3">АИ ООС · подготовка плановой проверки</span>
             <h1 class="display-5 fw-semibold mb-3">Рабочее место инспектора по охране окружающей среды</h1>
-            <p class="lead mb-4 text-white-75">
-                Стенд показывает полный путь: от годового графика и профиля объекта до проекта индивидуального чек-листа,
+            <p class="lead mb-4 muted-note">
+                Система поддерживает полный путь: от годового графика и профиля объекта до проекта индивидуального чек-листа,
                 спорных пунктов, источников требований и AI-консультации с цитатами.
             </p>
             <div class="d-flex flex-wrap gap-2">
-                <a class="btn btn-light btn-lg" asp-page="/Schedule">Начать с графика</a>
-                <a class="btn btn-outline-light btn-lg" asp-page="/Checklists/New">Сформировать чек-лист</a>
+                <a class="btn btn-primary btn-lg" asp-page="/Schedule">Начать с графика</a>
+                <a class="btn btn-outline-primary btn-lg" asp-page="/Checklists/New">Сформировать чек-лист</a>
             </div>
         </div>
         <div class="col-xl-5">
@@ -46,10 +46,9 @@
         <div class="soft-panel p-4 h-100">
             <div class="d-flex flex-wrap justify-content-between gap-3 mb-4">
                 <div>
-                    <h2 class="section-title h4 mb-1">Путь демонстрации</h2>
-                    <p class="muted-note mb-0">Все переходы доступны из верхнего меню и карточек ниже.</p>
+                    <h2 class="section-title h4 mb-1">Основной рабочий процесс</h2>
+                    <p class="muted-note mb-0">Все разделы доступны из бокового меню и карточек ниже.</p>
                 </div>
-                <span class="badge rounded-pill text-bg-warning align-self-start">AI/RAG — явный mock-режим</span>
             </div>
             <div class="row g-3">
                 <div class="col-md-6"><div class="workflow-step"><span class="step-number">1</span><div><strong>Выбор проверки</strong><div class="small text-muted">График 2026, статус подготовки, ответственный.</div></div></div></div>
@@ -66,13 +65,13 @@
                 <div class="timeline-item"><strong>Классификатор v2026.01</strong><div class="small text-muted">Активен, 7 групп, есть алиасы разделов.</div></div>
                 <div class="timeline-item"><strong>База знаний индексирована</strong><div class="small text-muted">ФЗ-89, ФЗ-7, приказы, СТО и программа ПЭК.</div></div>
                 <div class="timeline-item"><strong>ОРД загружены</strong><div class="small text-muted">2 документа влияют на результат чек-листа.</div></div>
-                <div class="timeline-item mb-0"><strong>Журнал действий</strong><div class="small text-muted">Ключевые операции отображаются в demo-ленте.</div></div>
+                <div class="timeline-item mb-0"><strong>Журнал действий</strong><div class="small text-muted">Ключевые операции отображаются в ленте аудита.</div></div>
             </div>
         </div>
     </div>
 </section>
 
-<section id="demo-modules" class="row g-4">
+<section class="row g-4">
     <div class="col-md-6 col-xl-3">
         <a class="card feature-card module-card h-100 text-decoration-none text-body" asp-page="/Schedule">
             <div class="card-body">
@@ -96,7 +95,7 @@
             <div class="card-body">
                 <div class="mb-3"><span class="status-dot status-warn"></span><span class="small text-muted">Формирование</span></div>
                 <h2 class="h5">Чек-листы</h2>
-                <p class="text-muted mb-0">Demo workflow, спорные пункты, ручные правки и выгрузка.</p>
+                <p class="text-muted mb-0">Формирование, спорные пункты, ручные правки и выгрузка.</p>
             </div>
         </a>
     </div>

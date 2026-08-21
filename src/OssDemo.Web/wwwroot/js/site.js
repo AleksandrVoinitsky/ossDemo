@@ -32,11 +32,11 @@
         ['38%', 'Проверяем профиль, классификатор и шаблон'],
         ['64%', 'Подбираем требования из базы знаний и ОРД'],
         ['86%', 'Поднимаем исторические нарушения и спорные пункты'],
-        ['100%', 'Проект чек-листа сформирован в demo-режиме']
+        ['100%', 'Проект чек-листа сформирован']
       ];
       let index = 0;
       progress.style.width = '0';
-      status.textContent = 'Запуск demo workflow...';
+      status.textContent = 'Запуск формирования...';
 
       const tick = () => {
         const [width, message] = steps[index];
@@ -78,7 +78,7 @@
     });
   });
 
-  document.querySelectorAll('[data-export-demo]').forEach((button) => {
+  document.querySelectorAll('[data-file-action]').forEach((button) => {
     button.addEventListener('click', () => {
       const originalText = button.textContent;
       button.textContent = 'Файл подготовлен';
@@ -93,12 +93,25 @@
   document.querySelectorAll('[data-ai-question]').forEach((form) => {
     form.addEventListener('submit', (event) => {
       event.preventDefault();
-      const answer = document.querySelector('[data-ai-answer]');
+      const thread = document.querySelector('[data-chat-thread]');
+      const userTemplate = document.querySelector('[data-user-question-template]');
+      const answerTemplate = document.querySelector('[data-ai-answer-template]');
       const input = form.querySelector('input');
-      if (!answer || !input) return;
-      answer.hidden = false;
-      answer.querySelector('[data-ai-question-text]').textContent = input.value || 'Какие документы нужны по ПНООЛР?';
+      if (!thread || !userTemplate || !answerTemplate || !input) return;
+
+      const question = input.value.trim();
+      if (!question) return;
+
+      const userMessage = userTemplate.content.firstElementChild.cloneNode(true);
+      userMessage.querySelector('[data-user-question-text]').textContent = question;
+      thread.appendChild(userMessage);
+
+      const answerMessage = answerTemplate.content.firstElementChild.cloneNode(true);
+      answerMessage.querySelector('[data-ai-question-text]').textContent = question;
+      thread.appendChild(answerMessage);
+
       input.value = '';
+      thread.scrollTop = thread.scrollHeight;
     });
   });
 })();
