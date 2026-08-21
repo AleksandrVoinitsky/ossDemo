@@ -1,37 +1,47 @@
-﻿/* Please see documentation at https://learn.microsoft.com/aspnet/core/client-side/bundling-and-minification
-for details on configuring this project to bundle and minify static web assets. */
-
 a.navbar-brand {
   white-space: normal;
   text-align: center;
-  word-break: break-all;
+  letter-spacing: .01em;
 }
 
-a {
-  color: #0077cc;
-}
-
-.btn-primary {
+.brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: .85rem;
   color: #fff;
-  background-color: #1b6ec2;
-  border-color: #1861ac;
+  background: linear-gradient(135deg, #176b5f, #7bb661);
+  box-shadow: 0 .55rem 1.2rem rgba(23, 107, 95, .22);
+  font-size: .78rem;
+  letter-spacing: .06em;
 }
 
-.nav-pills .nav-link.active, .nav-pills .show > .nav-link {
-  color: #fff;
-  background-color: #1b6ec2;
-  border-color: #1861ac;
+.app-navbar {
+  background: rgba(250, 253, 250, .94);
+  backdrop-filter: blur(14px);
+}
+
+.navbar .nav-link {
+  border-radius: 999px;
+  padding-inline: .8rem;
+}
+
+.navbar .nav-link.active,
+.navbar .nav-link:hover {
+  color: #0d5b51;
+  background: rgba(23, 107, 95, .09);
 }
 
 .border-top {
-  border-top: 1px solid #e5e5e5;
+  border-top: 1px solid var(--bs-border-color);
 }
 .border-bottom {
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid var(--bs-border-color);
 }
 
 .box-shadow {
-  box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .05);
+  box-shadow: 0 .35rem 1.2rem rgba(19, 75, 69, .08);
 }
 
 button.accept-policy {
@@ -40,9 +50,8 @@ button.accept-policy {
 }
 
 .footer {
-  position: absolute;
-  bottom: 0;
   width: 100%;
   white-space: nowrap;
   line-height: 60px;
+  background: rgba(255, 255, 255, .7);
 }

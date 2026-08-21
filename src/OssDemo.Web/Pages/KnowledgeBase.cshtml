@@ -1,0 +1,52 @@
+@page
+@{
+    ViewData["Title"] = "База знаний";
+    ViewData["Nav"] = "Knowledge";
+}
+
+<section class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <span class="badge text-bg-info mb-2">RAG-контур</span>
+        <h1 class="section-title mb-1">База знаний требований ООС</h1>
+        <p class="muted-note mb-0">Нормативные, корпоративные и региональные источники с цитатами и привязкой к классификатору.</p>
+    </div>
+    <button class="btn btn-primary" data-export-demo>Загрузить документы</button>
+</section>
+
+<section class="row g-4">
+    <div class="col-lg-4">
+        <div class="soft-panel p-4 h-100">
+            <h2 class="h4 section-title">Индекс</h2>
+            <div class="metric-card mb-3"><div class="metric-value">5</div><div class="small text-muted">подготовленных источников</div></div>
+            <ul class="list-unstyled mb-0">
+                <li class="mb-2"><span class="status-dot status-ready"></span>ФЗ-7 «Об охране окружающей среды»</li>
+                <li class="mb-2"><span class="status-dot status-ready"></span>ФЗ-89 «Об отходах производства...»</li>
+                <li class="mb-2"><span class="status-dot status-ready"></span>Приказ Минприроды №792</li>
+                <li class="mb-2"><span class="status-dot status-ready"></span>СТО 16-005-2025</li>
+                <li><span class="status-dot status-warn"></span>Региональные требования — нужна актуализация</li>
+            </ul>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="soft-panel p-4 mb-4">
+            <h2 class="h4 section-title">Поиск требования</h2>
+            <div class="input-group input-group-lg mb-3">
+                <input class="form-control" value="наличие утвержденного ПНООЛР" aria-label="Поиск по базе знаний" />
+                <button class="btn btn-primary">Найти</button>
+            </div>
+            <div class="alert alert-light border mb-0">
+                <div class="d-flex justify-content-between gap-3"><strong>Требование найдено</strong><span class="badge text-bg-success">действует</span></div>
+                <p class="mb-2 mt-2">Организация обязана обеспечивать разработку и соблюдение нормативов образования отходов и лимитов на их размещение.</p>
+                <div class="pill-group"><span class="source-chip">ФЗ-89 ст. 11 п. 2</span><span class="source-chip">Приказ №792</span><span class="classifier-chip">4.3 ПНООЛР</span></div>
+            </div>
+        </div>
+        <div class="soft-panel p-4">
+            <h2 class="h4 section-title">Статусы фрагментов</h2>
+            <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Документ</th><th>Раздел</th><th>Индексация</th><th>Актуализация</th></tr></thead><tbody>
+                <tr><td>СТО 16-005-2025</td><td>4.3, 2.2</td><td><span class="badge text-bg-success">готово</span></td><td>12.01.2026</td></tr>
+                <tr><td>Программа ПЭК</td><td>1.4, 2.1, 3.2</td><td><span class="badge text-bg-success">готово</span></td><td>18.02.2026</td></tr>
+                <tr><td>Региональное постановление</td><td>7.1</td><td><span class="badge text-bg-warning">требует проверки</span></td><td>нет данных</td></tr>
+            </tbody></table></div>
+        </div>
+    </div>
+</section>

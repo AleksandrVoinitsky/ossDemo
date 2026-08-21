@@ -1,8 +1,36 @@
-﻿@page
+@page
 @model PrivacyModel
 @{
-    ViewData["Title"] = "Privacy Policy";
+    ViewData["Title"] = "О demo-стенде";
 }
-<h1>@ViewData["Title"]</h1>
-
-<p>Use this page to detail your site's privacy policy.</p>
+<section class="soft-panel p-4 p-lg-5">
+    <span class="badge text-bg-warning mb-3">Важно для показа</span>
+    <h1 class="section-title mb-3">Ограничения и назначение demo-стенда</h1>
+    <p class="lead muted-note">
+        АИ ООС помогает инспектору подготовить индивидуальный чек-лист к плановой проверке, но не проводит саму проверку
+        и не принимает юридически значимые решения. Финальное утверждение остается за инспектором.
+    </p>
+    <div class="row g-4 mt-2">
+        <div class="col-md-6">
+            <div class="feature-card card h-100"><div class="card-body">
+                <h2 class="h5">Что демонстрируется</h2>
+                <ul class="mb-0">
+                    <li>выбор объекта из графика;</li>
+                    <li>профиль объекта и классификатор;</li>
+                    <li>подбор требований из БЗ, ОРД и истории;</li>
+                    <li>статусы пунктов, источники, экспорт результата.</li>
+                </ul>
+            </div></div>
+        </div>
+        <div class="col-md-6">
+            <div class="feature-card card h-100"><div class="card-body">
+                <h2 class="h5">Что является mock</h2>
+                <ul class="mb-0">
+                    <li>генерация чек-листа выполняется заранее подготовленным workflow;</li>
+                    <li>AI-консультант не делает скрытых внешних вызовов;</li>
+                    <li>скачивание файлов визуально имитируется до подключения экспортера.</li>
+                </ul>
+            </div></div>
+        </div>
+    </div>
+</section>

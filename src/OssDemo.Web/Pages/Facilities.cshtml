@@ -1,0 +1,65 @@
+@page
+@{
+    ViewData["Title"] = "Объекты контроля";
+    ViewData["Nav"] = "Facilities";
+}
+
+<section class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <span class="badge text-bg-success mb-2">Справочник объектов</span>
+        <h1 class="section-title mb-1">Цифровые профили объектов</h1>
+        <p class="muted-note mb-0">Профиль определяет применимые разделы классификатора и возможность формирования чек-листа.</p>
+    </div>
+    <button class="btn btn-primary" data-show-target="#newFacilityPanel">Добавить объект</button>
+</section>
+
+<div id="newFacilityPanel" class="alert alert-info demo-hidden" hidden>
+    Demo-форма создания объекта: обязательны наименование, тип и категория НВОС. В промышленной версии изменения попадут в журнал действий.
+</div>
+
+<section class="row g-4">
+    <div class="col-xl-4">
+        <div class="soft-panel p-3 h-100">
+            <div class="d-grid gap-2" role="tablist" aria-label="Объекты">
+                <button class="btn btn-light text-start active" data-panel-group="facilities" data-panel-target="facility-ber" aria-selected="true"><strong>Березниковское ЛПУМГ</strong><div class="small text-muted">НВОС I · профиль готов</div></button>
+                <button class="btn btn-light text-start" data-panel-group="facilities" data-panel-target="facility-vot" aria-selected="false"><strong>Воткинское ЛПУМГ</strong><div class="small text-muted">НВОС II · требует доработки</div></button>
+                <button class="btn btn-light text-start" data-panel-group="facilities" data-panel-target="facility-itc" aria-selected="false"><strong>ИТЦ</strong><div class="small text-muted">офисный объект · профиль готов</div></button>
+                <button class="btn btn-light text-start" data-panel-group="facilities" data-panel-target="facility-uavr" aria-selected="false"><strong>УАВР №1</strong><div class="small text-muted">требует создания из графика</div></button>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-8">
+        <article id="facility-ber" class="soft-panel p-4 tab-panel" data-panel-owner="facilities">
+            <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
+                <div><h2 class="section-title h3 mb-1">Березниковское ЛПУМГ</h2><p class="muted-note mb-0">Компрессорная станция, филиал ПАО, категория НВОС I.</p></div>
+                <span class="badge text-bg-success align-self-start">Профиль готов</span>
+            </div>
+            <div class="row g-3 mb-4">
+                <div class="col-md-4"><div class="metric-card"><div class="small text-muted">Функциональные зоны</div><strong>СЗЗ, водоохранная зона</strong></div></div>
+                <div class="col-md-4"><div class="metric-card"><div class="small text-muted">Технологии</div><strong>ГОУ, КОС, скважины</strong></div></div>
+                <div class="col-md-4"><div class="metric-card"><div class="small text-muted">Документы</div><strong>ПЭК, ПНООЛР, СЗЗ</strong></div></div>
+            </div>
+            <h3 class="h5">Применимые разделы классификатора</h3>
+            <div class="pill-group mb-4"><span class="classifier-chip">1 Общие вопросы</span><span class="classifier-chip">2 Атмосфера</span><span class="classifier-chip">3 Вода</span><span class="classifier-chip">4 Отходы</span><span class="classifier-chip">5 Земля</span><span class="classifier-chip">6 Недра</span><span class="classifier-chip">7 ООПТ</span></div>
+            <div class="eco-map d-flex align-items-end p-3"><span class="badge text-bg-light">Схема зон объекта: производство · СЗЗ · водный объект · места накопления отходов</span></div>
+        </article>
+
+        <article id="facility-vot" class="soft-panel p-4 tab-panel" data-panel-owner="facilities" hidden>
+            <div class="d-flex justify-content-between gap-3 mb-3"><div><h2 class="section-title h3 mb-1">Воткинское ЛПУМГ</h2><p class="muted-note mb-0">Профиль заполнен частично.</p></div><span class="badge text-bg-warning align-self-start">Требует доработки</span></div>
+            <div class="alert alert-warning">Не выбраны разделы по водному контролю и не подтвержден статус проекта СЗЗ. Формирование чек-листа будет заблокировано до уточнения.</div>
+            <div class="pill-group"><span class="classifier-chip">1 Общие вопросы</span><span class="classifier-chip">4 Отходы</span><span class="classifier-chip">5 Земля</span></div>
+        </article>
+
+        <article id="facility-itc" class="soft-panel p-4 tab-panel" data-panel-owner="facilities" hidden>
+            <h2 class="section-title h3">ИТЦ</h2>
+            <p class="muted-note">Офисный объект с минимальным набором экологических аспектов.</p>
+            <span class="badge text-bg-success">Профиль готов</span>
+        </article>
+
+        <article id="facility-uavr" class="soft-panel p-4 tab-panel" data-panel-owner="facilities" hidden>
+            <h2 class="section-title h3">УАВР №1</h2>
+            <div class="alert alert-danger">Объект найден в графике, но отсутствует в справочнике. Генерация заблокирована.</div>
+            <button class="btn btn-danger">Создать карточку объекта</button>
+        </article>
+    </div>
+</section>

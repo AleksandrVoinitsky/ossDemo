@@ -1,10 +1,112 @@
-﻿@page
+@page
 @model IndexModel
 @{
-    ViewData["Title"] = "Home page";
+    ViewData["Title"] = "Демо-стенд экологического контроля";
+    ViewData["Nav"] = "Home";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
-</div>
+<section class="hero-panel p-4 p-lg-5 mb-5">
+    <div class="row align-items-center g-4">
+        <div class="col-xl-7">
+            <span class="badge text-bg-light text-primary mb-3">Demo АИ ООС · подготовка плановой проверки</span>
+            <h1 class="display-5 fw-semibold mb-3">Рабочее место инспектора по охране окружающей среды</h1>
+            <p class="lead mb-4 text-white-75">
+                Стенд показывает полный путь: от годового графика и профиля объекта до проекта индивидуального чек-листа,
+                спорных пунктов, источников требований и AI-консультации с цитатами.
+            </p>
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-light btn-lg" asp-page="/Schedule">Начать с графика</a>
+                <a class="btn btn-outline-light btn-lg" asp-page="/Checklists/New">Сформировать чек-лист</a>
+            </div>
+        </div>
+        <div class="col-xl-5">
+            <div class="card feature-card text-dark">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <div class="text-uppercase text-muted small">Основной сценарий</div>
+                            <h2 class="h5 mb-0">Березниковское ЛПУМГ · НВОС I</h2>
+                        </div>
+                        <span class="badge text-bg-success">готов к генерации</span>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6"><div class="metric-card"><div class="metric-value">7</div><div class="small text-muted">разделов классификатора</div></div></div>
+                        <div class="col-6"><div class="metric-card"><div class="metric-value">42</div><div class="small text-muted">пункта в проекте</div></div></div>
+                        <div class="col-6"><div class="metric-card"><div class="metric-value">5</div><div class="small text-muted">источников БЗ</div></div></div>
+                        <div class="col-6"><div class="metric-card"><div class="metric-value">3</div><div class="small text-muted">спорных решения</div></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="row g-4 mb-5">
+    <div class="col-lg-8">
+        <div class="soft-panel p-4 h-100">
+            <div class="d-flex flex-wrap justify-content-between gap-3 mb-4">
+                <div>
+                    <h2 class="section-title h4 mb-1">Путь демонстрации</h2>
+                    <p class="muted-note mb-0">Все переходы доступны из верхнего меню и карточек ниже.</p>
+                </div>
+                <span class="badge rounded-pill text-bg-warning align-self-start">AI/RAG — явный mock-режим</span>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-6"><div class="workflow-step"><span class="step-number">1</span><div><strong>Выбор проверки</strong><div class="small text-muted">График 2026, статус подготовки, ответственный.</div></div></div></div>
+                <div class="col-md-6"><div class="workflow-step"><span class="step-number">2</span><div><strong>Цифровой профиль</strong><div class="small text-muted">Тип объекта, НВОС, зоны, технологии, документы.</div></div></div></div>
+                <div class="col-md-6"><div class="workflow-step"><span class="step-number">3</span><div><strong>Источники требований</strong><div class="small text-muted">Классификатор, БЗ, ОРД, нарушения и история.</div></div></div></div>
+                <div class="col-md-6"><div class="workflow-step"><span class="step-number">4</span><div><strong>Результат</strong><div class="small text-muted">Пункты, статусы, причины включения, экспорт.</div></div></div></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="soft-panel p-4 h-100">
+            <h2 class="section-title h4 mb-3">Контроль готовности</h2>
+            <div class="timeline">
+                <div class="timeline-item"><strong>Классификатор v2026.01</strong><div class="small text-muted">Активен, 7 групп, есть алиасы разделов.</div></div>
+                <div class="timeline-item"><strong>База знаний индексирована</strong><div class="small text-muted">ФЗ-89, ФЗ-7, приказы, СТО и программа ПЭК.</div></div>
+                <div class="timeline-item"><strong>ОРД загружены</strong><div class="small text-muted">2 документа влияют на результат чек-листа.</div></div>
+                <div class="timeline-item mb-0"><strong>Журнал действий</strong><div class="small text-muted">Ключевые операции отображаются в demo-ленте.</div></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="demo-modules" class="row g-4">
+    <div class="col-md-6 col-xl-3">
+        <a class="card feature-card module-card h-100 text-decoration-none text-body" asp-page="/Schedule">
+            <div class="card-body">
+                <div class="mb-3"><span class="status-dot status-info"></span><span class="small text-muted">Планирование</span></div>
+                <h2 class="h5">График проверок</h2>
+                <p class="text-muted mb-0">Выбор записи, сопоставление объекта, старт подготовки чек-листа.</p>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <a class="card feature-card module-card h-100 text-decoration-none text-body" asp-page="/Facilities">
+            <div class="card-body">
+                <div class="mb-3"><span class="status-dot status-ready"></span><span class="small text-muted">Профили</span></div>
+                <h2 class="h5">Объекты контроля</h2>
+                <p class="text-muted mb-0">Карточки объектов, зоны, аспекты, готовность к генерации.</p>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <a class="card feature-card module-card h-100 text-decoration-none text-body" asp-page="/Checklists/New">
+            <div class="card-body">
+                <div class="mb-3"><span class="status-dot status-warn"></span><span class="small text-muted">Формирование</span></div>
+                <h2 class="h5">Чек-листы</h2>
+                <p class="text-muted mb-0">Demo workflow, спорные пункты, ручные правки и выгрузка.</p>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <a class="card feature-card module-card h-100 text-decoration-none text-body" asp-page="/AiConsultant">
+            <div class="card-body">
+                <div class="mb-3"><span class="status-dot status-muted"></span><span class="small text-muted">Поддержка решений</span></div>
+                <h2 class="h5">AI-консультант</h2>
+                <p class="text-muted mb-0">Ответы по базе знаний с цитатами или честным отсутствием источника.</p>
+            </div>
+        </a>
+    </div>
+</section>

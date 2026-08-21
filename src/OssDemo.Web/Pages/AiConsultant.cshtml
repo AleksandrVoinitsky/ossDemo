@@ -1,0 +1,44 @@
+@page
+@{
+    ViewData["Title"] = "AI-консультант";
+    ViewData["Nav"] = "Ai";
+}
+
+<section class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <span class="badge text-bg-warning mb-2">Mock AI/RAG</span>
+        <h1 class="section-title mb-1">AI-консультант по базе знаний</h1>
+        <p class="muted-note mb-0">Ответы должны быть трассируемыми до источников или явно сообщать об отсутствии релевантных данных.</p>
+    </div>
+</section>
+
+<section class="row g-4">
+    <div class="col-lg-8">
+        <div class="soft-panel p-4">
+            <div class="chat-message mb-3"><strong>Инспектор</strong><p class="mb-0 mt-1">Какие документы проверить по ПНООЛР для объекта НВОС I?</p></div>
+            <div class="chat-message ai mb-3"><strong>AI-консультант</strong><p class="mb-2 mt-1">Для объекта НВОС I проверьте наличие утвержденного ПНООЛР, соответствие фактических объемов образования и размещения отходов установленным нормативам, а также актуальность паспортов отходов и журналов учета.</p><div class="pill-group"><span class="source-chip">ФЗ-89 ст. 11 п. 2</span><span class="source-chip">Приказ №792</span><span class="classifier-chip">4.3 ПНООЛР</span></div></div>
+
+            <form data-ai-question class="input-group input-group-lg mt-4">
+                <input class="form-control" placeholder="Задайте вопрос по базе знаний" />
+                <button class="btn btn-primary" type="submit">Спросить</button>
+            </form>
+
+            <div class="chat-message ai mt-3 demo-hidden" data-ai-answer hidden>
+                <strong>AI-консультант</strong>
+                <p class="mb-2 mt-1">Вопрос: «<span data-ai-question-text></span>». В demo-режиме показан шаблон ответа: найденные требования будут сопровождаться цитатами, а при отсутствии источника система должна сообщить «релевантный источник не найден».</p>
+                <div class="pill-group"><span class="source-chip">Demo source</span><span class="classifier-chip">требует уточнения</span></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="soft-panel p-4 h-100">
+            <h2 class="h4 section-title">Сценарии показа</h2>
+            <div class="timeline">
+                <div class="timeline-item"><strong>Успешный ответ</strong><div class="small text-muted">Есть цитаты и классификатор.</div></div>
+                <div class="timeline-item"><strong>Неоднозначный вопрос</strong><div class="small text-muted">Ответ просит выбрать объект или раздел.</div></div>
+                <div class="timeline-item"><strong>Нет источника</strong><div class="small text-muted">Система не выдумывает формулировку.</div></div>
+                <div class="timeline-item"><strong>AI недоступен</strong><div class="small text-muted">Основной сценарий чек-листа сохраняется.</div></div>
+            </div>
+        </div>
+    </div>
+</section>

@@ -2,6 +2,18 @@ html {
   font-size: 14px;
 }
 
+:root {
+  --eco-900: #143f3a;
+  --eco-800: #176b5f;
+  --eco-700: #1f7a68;
+  --eco-500: #5aa469;
+  --eco-300: #b8d8ba;
+  --sand-100: #f6f3ea;
+  --water-100: #e8f5f6;
+  --ink-muted: #60716d;
+  --card-shadow: 0 .9rem 2.2rem rgba(20, 63, 58, .08);
+}
+
 @media (min-width: 768px) {
   html {
     font-size: 16px;
@@ -9,7 +21,7 @@ html {
 }
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem rgba(var(--bs-primary-rgb), .35);
 }
 
 html {
@@ -19,6 +31,247 @@ html {
 
 body {
   margin-bottom: 60px;
+  color: #1f2d2a;
+  background:
+    radial-gradient(circle at 10% -10%, rgba(91, 164, 105, .22), transparent 30rem),
+    radial-gradient(circle at 92% 3%, rgba(67, 154, 151, .16), transparent 26rem),
+    linear-gradient(180deg, #f7fbf6 0, #f7f8f1 24rem, #f9faf7 100%);
+}
+
+.app-shell {
+  max-width: 1540px;
+  padding-top: 1.25rem;
+}
+
+.hero-panel {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(20, 63, 58, .95), rgba(31, 122, 104, .88)),
+    linear-gradient(45deg, rgba(123, 182, 97, .25), transparent);
+  border: 1px solid rgba(255, 255, 255, .22);
+  border-radius: 1.5rem;
+  color: #fff;
+  box-shadow: 0 1.2rem 3rem rgba(20, 63, 58, .18);
+}
+
+.hero-panel::after {
+  content: "";
+  position: absolute;
+  right: -8rem;
+  top: -7rem;
+  width: 24rem;
+  height: 24rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, .24), transparent 62%);
+}
+
+.hero-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.feature-card {
+  border: 1px solid rgba(23, 107, 95, .09);
+  border-radius: 1.15rem;
+  box-shadow: var(--card-shadow);
+  background: rgba(255, 255, 255, .86);
+}
+
+.module-card {
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.module-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 1.1rem 2.6rem rgba(20, 63, 58, .13);
+  border-color: rgba(23, 107, 95, .22);
+}
+
+.section-title {
+  color: var(--eco-900);
+  font-weight: 700;
+}
+
+.muted-note {
+  color: var(--ink-muted);
+}
+
+.metric-card {
+  border: 1px solid rgba(23, 107, 95, .1);
+  border-radius: 1rem;
+  padding: 1rem;
+  background: linear-gradient(180deg, #fff, rgba(232, 245, 246, .6));
+}
+
+.metric-value {
+  font-size: 2rem;
+  line-height: 1;
+  font-weight: 800;
+  color: var(--eco-800);
+}
+
+.status-dot {
+  display: inline-block;
+  width: .65rem;
+  height: .65rem;
+  margin-right: .35rem;
+  border-radius: 50%;
+  background: var(--bs-secondary);
+}
+
+.status-ready { background: #2f9e44; }
+.status-warn { background: #f59f00; }
+.status-danger { background: #e03131; }
+.status-info { background: #1971c2; }
+.status-muted { background: #868e96; }
+
+.workflow-step {
+  display: flex;
+  gap: .85rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, .72);
+  border: 1px solid rgba(23, 107, 95, .08);
+}
+
+.step-number {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: .75rem;
+  color: #fff;
+  background: var(--eco-800);
+  font-weight: 700;
+}
+
+.soft-panel {
+  border: 1px solid rgba(23, 107, 95, .1);
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, .78);
+  box-shadow: var(--card-shadow);
+}
+
+.table thead th {
+  color: var(--eco-900);
+  background: rgba(232, 245, 246, .7);
+  border-bottom: 1px solid rgba(23, 107, 95, .12);
+}
+
+.pill-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+}
+
+.classifier-chip,
+.source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .35rem .6rem;
+  border-radius: 999px;
+  background: rgba(23, 107, 95, .08);
+  color: var(--eco-900);
+  font-size: .875rem;
+}
+
+.source-chip {
+  background: rgba(25, 113, 194, .08);
+  color: #1c5b87;
+}
+
+.timeline {
+  position: relative;
+  padding-left: 1.5rem;
+}
+
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: .45rem;
+  top: .2rem;
+  bottom: .2rem;
+  width: 2px;
+  background: rgba(23, 107, 95, .16);
+}
+
+.timeline-item {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.timeline-item::before {
+  content: "";
+  position: absolute;
+  left: -1.37rem;
+  top: .35rem;
+  width: .7rem;
+  height: .7rem;
+  border-radius: 50%;
+  background: var(--eco-500);
+  box-shadow: 0 0 0 .25rem rgba(90, 164, 105, .16);
+}
+
+.eco-map {
+  min-height: 18rem;
+  border-radius: 1.25rem;
+  background:
+    radial-gradient(circle at 25% 35%, rgba(123, 182, 97, .35) 0 7%, transparent 8%),
+    radial-gradient(circle at 60% 45%, rgba(67, 154, 151, .28) 0 9%, transparent 10%),
+    radial-gradient(circle at 75% 70%, rgba(181, 136, 75, .22) 0 8%, transparent 9%),
+    linear-gradient(135deg, #e8f5f6, #f4f0df);
+  border: 1px solid rgba(23, 107, 95, .12);
+}
+
+.tab-panel[hidden],
+.demo-hidden[hidden] {
+  display: none !important;
+}
+
+.demo-progress {
+  height: .9rem;
+  border-radius: 999px;
+  background: rgba(23, 107, 95, .1);
+  overflow: hidden;
+}
+
+.demo-progress-bar {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--eco-500), #2b8a7e);
+  transition: width .35s ease;
+}
+
+.chat-message {
+  border-radius: 1rem;
+  padding: .85rem 1rem;
+  background: #fff;
+  border: 1px solid rgba(23, 107, 95, .08);
+}
+
+.chat-message.ai {
+  background: rgba(232, 245, 246, .72);
+}
+
+.login-shell {
+  max-width: 1080px;
+  margin-inline: auto;
+}
+
+.checklist-row-critical td {
+  background: rgba(224, 49, 49, .05);
+}
+
+.checklist-row-decision td {
+  background: rgba(245, 159, 0, .06);
+}
+
+.checklist-row-control td {
+  background: rgba(25, 113, 194, .05);
 }
 
 .form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
@@ -28,4 +281,14 @@ body {
 
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
   text-align: start;
+}
+
+@media (max-width: 767.98px) {
+  .metric-value {
+    font-size: 1.6rem;
+  }
+
+  .table-responsive {
+    border-radius: 1rem;
+  }
 }

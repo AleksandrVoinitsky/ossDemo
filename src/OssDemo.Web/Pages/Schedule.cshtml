@@ -1,0 +1,45 @@
+@page
+@{
+    ViewData["Title"] = "График проверок";
+    ViewData["Nav"] = "Schedule";
+}
+
+<section class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+        <span class="badge text-bg-primary mb-2">График 2026</span>
+        <h1 class="section-title mb-1">Плановые проверки</h1>
+        <p class="muted-note mb-0">Записи из годового графика сопоставляются со справочником объектов и статусом подготовки чек-листа.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-primary" data-export-demo>Импорт XLSX</button>
+        <a class="btn btn-primary" asp-page="/Checklists/New">Создать чек-лист</a>
+    </div>
+</section>
+
+<section class="row g-4 mb-4">
+    <div class="col-md-3"><div class="metric-card"><div class="metric-value">13</div><div class="small text-muted">объектов в графике</div></div></div>
+    <div class="col-md-3"><div class="metric-card"><div class="metric-value">9</div><div class="small text-muted">сопоставлены</div></div></div>
+    <div class="col-md-3"><div class="metric-card"><div class="metric-value">3</div><div class="small text-muted">готовятся</div></div></div>
+    <div class="col-md-3"><div class="metric-card"><div class="metric-value">1</div><div class="small text-muted">требует создания</div></div></div>
+</section>
+
+<section class="soft-panel p-3 p-lg-4">
+    <div class="row g-3 mb-3">
+        <div class="col-md-4"><input class="form-control" value="Березниковское" aria-label="Фильтр по объекту" /></div>
+        <div class="col-md-3"><select class="form-select" aria-label="Фильтр по месяцу"><option>Август</option><option>Сентябрь</option><option>Октябрь</option></select></div>
+        <div class="col-md-3"><select class="form-select" aria-label="Фильтр по статусу"><option>Все статусы</option><option>Готов к генерации</option><option>Требует создания</option></select></div>
+        <div class="col-md-2"><button class="btn btn-outline-secondary w-100">Фильтр</button></div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead><tr><th>№</th><th>Объект аудита</th><th>Группа критериев</th><th>Месяц</th><th>Ответственный</th><th>Сопоставление</th><th>Статус</th><th></th></tr></thead>
+            <tbody>
+                <tr><td>18</td><td><strong>Березниковское ЛПУМГ</strong><div class="small text-muted">компрессорная станция, НВОС I</div></td><td>Общие, атмосфера, вода, отходы</td><td>Август</td><td>Дулаева Н. И.</td><td><span class="badge text-bg-success">найден</span></td><td><span class="badge text-bg-success">готов к генерации</span></td><td><a class="btn btn-sm btn-primary" asp-page="/Checklists/New">Открыть</a></td></tr>
+                <tr><td>21</td><td><strong>Воткинское ЛПУМГ</strong></td><td>Земля, отходы, общие</td><td>Сентябрь</td><td>Каримов А. В.</td><td><span class="badge text-bg-success">найден</span></td><td><span class="badge text-bg-warning">профиль требует доработки</span></td><td><a class="btn btn-sm btn-outline-primary" asp-page="/Facilities">Профиль</a></td></tr>
+                <tr><td>24</td><td><strong>УАВР №1</strong></td><td>Отходы, вода</td><td>Октябрь</td><td>Иванова Е. С.</td><td><span class="badge text-bg-danger">не найден</span></td><td><span class="badge text-bg-danger">требует создания</span></td><td><a class="btn btn-sm btn-outline-danger" asp-page="/Facilities">Создать</a></td></tr>
+                <tr><td>29</td><td><strong>Пермское ЛПУМГ</strong></td><td>Атмосфера, недра</td><td>Ноябрь</td><td>Соколов П. М.</td><td><span class="badge text-bg-success">найден</span></td><td><span class="badge text-bg-secondary">не начат</span></td><td><a class="btn btn-sm btn-outline-primary" asp-page="/Checklists/New">Подготовить</a></td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>

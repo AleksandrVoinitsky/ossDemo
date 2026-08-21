@@ -1,0 +1,41 @@
+@page
+@{
+    ViewData["Title"] = "Вход инспектора";
+}
+
+<section class="login-shell">
+    <div class="row g-4 align-items-stretch">
+        <div class="col-lg-6">
+            <div class="hero-panel p-4 p-lg-5 h-100 d-flex flex-column justify-content-between">
+                <div>
+                    <span class="badge text-bg-light text-primary mb-3">Demo-доступ</span>
+                    <h1 class="display-6 fw-semibold">Рабочее место инспектора ООС</h1>
+                    <p class="lead text-white-75">Сценарий входа показывает будущую точку авторизации без подключения учетной системы.</p>
+                </div>
+                <div class="row g-3 mt-4">
+                    <div class="col-6"><div class="metric-card text-dark"><div class="metric-value">3</div><div class="small text-muted">роли</div></div></div>
+                    <div class="col-6"><div class="metric-card text-dark"><div class="metric-value">8</div><div class="small text-muted">ключевых экранов</div></div></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="soft-panel p-4 p-lg-5 h-100">
+                <h2 class="section-title h3 mb-3">Вход в стенд</h2>
+                <div class="alert alert-warning">Авторизация имитируется. Для демонстрации используйте любой логин и пароль.</div>
+                <form>
+                    <div class="mb-3">
+                        <label class="form-label" for="login">Пользователь</label>
+                        <input id="login" class="form-control form-control-lg" value="inspector.demo" />
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="password">Пароль</label>
+                        <input id="password" class="form-control form-control-lg" type="password" value="demo" />
+                    </div>
+                    <a class="btn btn-primary btn-lg w-100" asp-page="/Index">Войти в demo-стенд</a>
+                </form>
+                <hr />
+                <div class="small text-muted">Планируемые роли: инспектор, методолог/администратор БЗ, руководитель проверки.</div>
+            </div>
+        </div>
+    </div>
+</section>
