@@ -1,122 +1,58 @@
 @page
 @model IndexModel
-@{
-    ViewData["Title"] = "Экологический контроль";
+@{ 
+    ViewData["Title"] = "Сводка ООС";
     ViewData["Nav"] = "Home";
+    ViewData["Breadcrumb"] = "Главная \\ Сводка";
 }
 
-<section class="hero-panel p-4 p-lg-5 mb-4">
-    <div class="row align-items-center g-4">
-        <div class="col-xl-7">
-            <span class="badge text-bg-primary mb-3">АИ ООС · подготовка плановой проверки</span>
-            <h1 class="display-5 fw-semibold mb-3">Рабочее место инспектора по охране окружающей среды</h1>
-            <p class="lead mb-4 muted-note">
-                Система поддерживает полный путь: от годового графика и профиля объекта до проекта индивидуального чек-листа,
-                спорных пунктов, источников требований и AI-консультации с цитатами.
-            </p>
-            <div class="d-flex flex-wrap gap-2">
-                <a class="btn btn-primary btn-lg" asp-page="/Schedule">Начать с графика</a>
-                <a class="btn btn-outline-primary btn-lg" asp-page="/Checklists/New">Сформировать чек-лист</a>
-            </div>
-        </div>
-        <div class="col-xl-5">
-            <div class="card feature-card text-dark">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-3">
-                        <div>
-                            <div class="text-uppercase text-muted small">Основной сценарий</div>
-                            <h2 class="h5 mb-0">Березниковское ЛПУМГ · НВОС I</h2>
-                        </div>
-                        <span class="badge text-bg-success">готов к генерации</span>
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-6"><div class="metric-card"><div class="metric-value">7</div><div class="small text-muted">разделов классификатора</div></div></div>
-                        <div class="col-6"><div class="metric-card"><div class="metric-value">42</div><div class="small text-muted">пункта в проекте</div></div></div>
-                        <div class="col-6"><div class="metric-card"><div class="metric-value">5</div><div class="small text-muted">источников БЗ</div></div></div>
-                        <div class="col-6"><div class="metric-card"><div class="metric-value">1</div><div class="small text-muted">спорный пункт</div></div></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+<section class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3"><div class="metric-card"><div class="metric-label">Пункты проекта</div><div class="metric-value">42</div><div class="small text-muted">1 требует решения инспектора</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="metric-card"><div class="metric-label">Источники БЗ</div><div class="metric-value">5</div><div class="small text-muted">нормативные и корпоративные документы</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="metric-card"><div class="metric-label">Нарушения</div><div class="metric-value text-danger">1</div><div class="small text-muted">критический просроченный срок</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="metric-card"><div class="metric-label">Разделы</div><div class="metric-value">7</div><div class="small text-muted">активная версия v2026.01</div></div></div>
 </section>
 
-<section class="row g-4 mb-5">
-    <div class="col-lg-8">
-        <div class="soft-panel p-4 h-100">
-            <div class="d-flex flex-wrap justify-content-between gap-3 mb-4">
+<section class="row g-4 mb-4">
+    <div class="col-xl-8">
+        <div class="soft-panel p-3 p-lg-4 h-100">
+            <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
                 <div>
-                    <h2 class="section-title h4 mb-1">Основной рабочий процесс</h2>
-                    <p class="muted-note mb-0">Все разделы доступны из бокового меню и карточек ниже.</p>
+                    <h2 class="section-title h4 mb-1">Текущее состояние подготовки</h2>
+                    <p class="muted-note mb-0">Контрольные данные по основному сценарию без рекламных и вводных блоков.</p>
                 </div>
+                <a class="btn btn-primary" asp-page="/Checklists/New">Открыть мастер</a>
             </div>
-            <div class="row g-3">
-                <div class="col-md-6"><div class="workflow-step"><span class="step-number">1</span><div><strong>Выбор проверки</strong><div class="small text-muted">График 2026, статус подготовки, ответственный.</div></div></div></div>
-                <div class="col-md-6"><div class="workflow-step"><span class="step-number">2</span><div><strong>Цифровой профиль</strong><div class="small text-muted">Тип объекта, НВОС, зоны, технологии, документы.</div></div></div></div>
-                <div class="col-md-6"><div class="workflow-step"><span class="step-number">3</span><div><strong>Источники требований</strong><div class="small text-muted">Классификатор, БЗ, ОРД, нарушения и история.</div></div></div></div>
-                <div class="col-md-6"><div class="workflow-step"><span class="step-number">4</span><div><strong>Результат</strong><div class="small text-muted">Пункты, статусы, причины включения, экспорт.</div></div></div></div>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead><tr><th>Контур</th><th>Состояние</th><th>Влияние на результат</th><th>Действие</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>График</strong><div class="small text-muted">Запись №18</div></td><td><span class="badge text-bg-success">сопоставлен</span></td><td>объект и период проверки определены</td><td><a asp-page="/Schedule">перейти</a></td></tr>
+                        <tr><td><strong>Профиль объекта</strong><div class="small text-muted">Березниковское ЛПУМГ</div></td><td><span class="badge text-bg-success">готов</span></td><td>применимы разделы 1-7 классификатора</td><td><a asp-page="/Facilities">перейти</a></td></tr>
+                        <tr><td><strong>ОРД проверки</strong><div class="small text-muted">3 документа</div></td><td><span class="badge text-bg-warning">есть решение</span></td><td>лицензия по скважине №3 требует проверки</td><td><a asp-page="/Documents">перейти</a></td></tr>
+                        <tr><td><strong>Реестр нарушений</strong><div class="small text-muted">история за 5 лет</div></td><td><span class="badge text-bg-danger">критический пункт</span></td><td>добавлен контроль протоколов выбросов</td><td><a asp-page="/Violations">перейти</a></td></tr>
+                        <tr><td><strong>Результат</strong><div class="small text-muted">проект чек-листа</div></td><td><span class="badge text-bg-primary">в работе</span></td><td>экспорт доступен после подтверждения</td><td><a asp-page="/Checklists/Result">перейти</a></td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
-    <div class="col-lg-4">
-        <div class="soft-panel p-4 h-100">
-            <h2 class="section-title h4 mb-3">Контроль готовности</h2>
-            <div class="timeline">
-                <div class="timeline-item"><strong>Классификатор v2026.01</strong><div class="small text-muted">Активен, 7 групп, есть алиасы разделов.</div></div>
-                <div class="timeline-item"><strong>База знаний индексирована</strong><div class="small text-muted">ФЗ-89, ФЗ-7, приказы, СТО и программа ПЭК.</div></div>
-                <div class="timeline-item"><strong>ОРД загружены</strong><div class="small text-muted">2 документа влияют на результат чек-листа.</div></div>
-                <div class="timeline-item"><strong>Шаблон филиала доступен</strong><div class="small text-muted">Табличная структура результата выбрана в мастере.</div></div>
-                <div class="timeline-item mb-0"><strong>Экспорт подготовлен</strong><div class="small text-muted">PDF, DOCX и XLSX открываются как demo-файлы после утверждения.</div></div>
+    <div class="col-xl-4">
+        <div class="soft-panel p-3 p-lg-4 h-100">
+            <h2 class="section-title h4 mb-3">Оперативные события</h2>
+            <div class="timeline compact-timeline">
+                <div class="timeline-item"><strong>21:15 · Вопрос ИИ</strong><div class="small text-muted">ответ по критическому пункту с цитатами источников</div></div>
+                <div class="timeline-item"><strong>21:13 · Пункт добавлен</strong><div class="small text-muted">ручное требование по журналу учета отходов</div></div>
+                <div class="timeline-item"><strong>21:11 · Эскалация закрыта</strong><div class="small text-muted">пункт по лицензии включён решением инспектора</div></div>
+                <div class="timeline-item mb-0"><strong>21:10 · Проект сформирован</strong><div class="small text-muted">агенты БЗ, ОРД, нарушений и истории завершили анализ</div></div>
             </div>
         </div>
     </div>
 </section>
 
-<section class="row g-4">
-    <div class="col-md-6 col-xl-3">
-        <a class="card feature-card module-card h-100 text-decoration-none text-body" asp-page="/Schedule">
-            <div class="card-body">
-                <div class="mb-3"><span class="status-dot status-info"></span><span class="small text-muted">Планирование</span></div>
-                <h2 class="h5">График проверок</h2>
-                <p class="text-muted mb-0">Выбор записи, сопоставление объекта, старт подготовки чек-листа.</p>
-            </div>
-        </a>
-    </div>
-    <div class="col-md-6 col-xl-3">
-        <a class="card feature-card module-card h-100 text-decoration-none text-body" asp-page="/Facilities">
-            <div class="card-body">
-                <div class="mb-3"><span class="status-dot status-ready"></span><span class="small text-muted">Профили</span></div>
-                <h2 class="h5">Объекты контроля</h2>
-                <p class="text-muted mb-0">Карточки объектов, зоны, аспекты, готовность к генерации.</p>
-            </div>
-        </a>
-    </div>
-    <div class="col-md-6 col-xl-3">
-        <a class="card feature-card module-card h-100 text-decoration-none text-body" asp-page="/Checklists/New">
-            <div class="card-body">
-                <div class="mb-3"><span class="status-dot status-warn"></span><span class="small text-muted">Формирование</span></div>
-                <h2 class="h5">Чек-листы</h2>
-                <p class="text-muted mb-0">Формирование, спорные пункты, ручные правки и выгрузка.</p>
-            </div>
-        </a>
-    </div>
-    <div class="col-md-6 col-xl-3">
-        <a class="card feature-card module-card h-100 text-decoration-none text-body" asp-page="/AiConsultant">
-            <div class="card-body">
-                <div class="mb-3"><span class="status-dot status-muted"></span><span class="small text-muted">Поддержка решений</span></div>
-                <h2 class="h5">AI-консультант</h2>
-                <p class="text-muted mb-0">Ответы по базе знаний с цитатами или честным отсутствием источника.</p>
-            </div>
-        </a>
-    </div>
-</section>
-
-<section class="soft-panel p-4 mt-4">
-    <h2 class="h4 section-title">Критерии готовности demo</h2>
-    <div class="row g-3">
-        <div class="col-md-6 col-xl-3"><span class="badge text-bg-success mb-2">готово</span><div>Happy path от графика до результата.</div></div>
-        <div class="col-md-6 col-xl-3"><span class="badge text-bg-success mb-2">готово</span><div>Четыре агента: БЗ, ОРД, нарушения, история.</div></div>
-        <div class="col-md-6 col-xl-3"><span class="badge text-bg-success mb-2">готово</span><div>Зелёный, синий, красный и жёлтый статусы текстом и цветом.</div></div>
-        <div class="col-md-6 col-xl-3"><span class="badge text-bg-success mb-2">готово</span><div>Подтверждение и экспорт после решения инспектора.</div></div>
-    </div>
+<section class="row g-3">
+    <div class="col-md-6 col-xl-3"><a class="module-link" asp-page="/Classifier"><span>Классификатор</span><strong>65 критериев</strong></a></div>
+    <div class="col-md-6 col-xl-3"><a class="module-link" asp-page="/KnowledgeBase"><span>База знаний</span><strong>5 источников</strong></a></div>
+    <div class="col-md-6 col-xl-3"><a class="module-link" asp-page="/Templates"><span>Шаблоны</span><strong>филиал Пермь v2026</strong></a></div>
+    <div class="col-md-6 col-xl-3"><a class="module-link" asp-page="/AuditLog"><span>Журнал</span><strong>8 событий</strong></a></div>
 </section>

@@ -200,7 +200,7 @@
       if (success) success.hidden = false;
       if (status) {
         status.textContent = 'Готов';
-        status.className = 'badge text-bg-success mb-2';
+        status.className = 'badge text-bg-success align-self-center';
       }
       document.querySelectorAll('[data-export-link]').forEach((link) => {
         link.classList.remove('disabled');
@@ -219,6 +219,59 @@
       const target = document.querySelector(button.dataset.showTarget);
       if (!target) return;
       target.hidden = !target.hidden;
+    });
+  });
+
+  const renderClassifierChips = (container, values, chipClass) => {
+    if (!container) return;
+    container.replaceChildren();
+    values.filter(Boolean).forEach((value) => {
+      const chip = document.createElement('span');
+      chip.className = chipClass;
+      chip.textContent = value;
+      container.appendChild(chip);
+    });
+  };
+
+  document.querySelectorAll('[data-classifier-leaf]').forEach((button) => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('[data-classifier-leaf]').forEach((item) => {
+        item.classList.toggle('active', item === button);
+      });
+
+      const title = document.querySelector('[data-classifier-title]');
+      const path = document.querySelector('[data-classifier-path]');
+      const description = document.querySelector('[data-classifier-description]');
+      if (title) title.textContent = button.dataset.cardTitle || '';
+      if (path) path.textContent = button.dataset.cardPath || '';
+      if (description) description.textContent = button.dataset.cardDescription || '';
+
+      renderClassifierChips(
+        document.querySelector('[data-classifier-sources]'),
+        (button.dataset.cardSources || '').split('|'),
+        'source-chip'
+      );
+      renderClassifierChips(
+        document.querySelector('[data-classifier-links]'),
+        (button.dataset.cardLinks || '').split('|'),
+        'classifier-chip'
+      );
+    });
+  });
+
+  document.querySelectorAll('[data-tree-expand]').forEach((button) => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('.classifier-tree details').forEach((node) => {
+        node.open = true;
+      });
+    });
+  });
+
+  document.querySelectorAll('[data-tree-collapse]').forEach((button) => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('.classifier-tree details').forEach((node) => {
+        node.open = false;
+      });
     });
   });
 
@@ -268,10 +321,10 @@
       if (questionTarget) questionTarget.textContent = question;
       if (answerText && sources) {
         if (normalizedQuestion.includes('крит')) {
-          answerText.textContent = 'Пункт считается критическим, потому что в реестре нарушений есть неустранённое в срок нарушение по протоколам инструментального контроля выбросов. Для demo источник заранее подготовлен: акт от 22.09.2024 и СТО 16-005-2025 п. 4.2.';
+          answerText.textContent = 'Пункт считается критическим, потому что в реестре нарушений есть неустранённое в срок нарушение по протоколам инструментального контроля выбросов. Источник: акт от 22.09.2024 и СТО 16-005-2025 п. 4.2.';
           sources.innerHTML = '<span class="source-chip">Акт 22.09.2024</span><span class="source-chip">СТО 16-005-2025 п. 4.2</span><span class="classifier-chip">2.3 Атмосфера</span>';
         } else if (normalizedQuestion.includes('не найден') || normalizedQuestion.includes('санитар')) {
-          answerText.textContent = 'В подготовленной demo-базе нет релевантного источника по этому вопросу. Система не формирует ответ без подтверждённой цитаты и предлагает обратиться к методологу.';
+          answerText.textContent = 'В базе знаний нет релевантного источника по этому вопросу. Система не формирует ответ без подтверждённой цитаты и предлагает обратиться к методологу.';
           sources.innerHTML = '<span class="classifier-chip">источник не найден</span>';
         }
       }

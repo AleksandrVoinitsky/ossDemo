@@ -1,0 +1,76 @@
+@page
+@{
+    ViewData["Title"] = "Профиль";
+    ViewData["Nav"] = "Profile";
+    ViewData["Breadcrumb"] = "Аккаунт \\ Профиль инспектора";
+}
+
+<section class="row g-4">
+    <div class="col-lg-4">
+        <div class="soft-panel p-3 p-lg-4 h-100">
+            <div class="profile-card-header text-center">
+                <div class="profile-photo mx-auto mb-3">И</div>
+                <h2 class="section-title h4 mb-1">inspector</h2>
+                <p class="muted-note mb-0">Инспектор ООС</p>
+            </div>
+            <hr />
+            <dl class="row mb-0 small">
+                <dt class="col-5 text-muted">Роль</dt>
+                <dd class="col-7">Эксперт проверки</dd>
+                <dt class="col-5 text-muted">Подразделение</dt>
+                <dd class="col-7">Пермский филиал</dd>
+                <dt class="col-5 text-muted">Доступ</dt>
+                <dd class="col-7"><span class="badge text-bg-success">рабочий</span></dd>
+            </dl>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="soft-panel p-3 p-lg-4 mb-4">
+            <h2 class="section-title h4 mb-3">Рабочие данные</h2>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="metric-card h-100">
+                        <div class="metric-label">Текущий объект</div>
+                        <div class="fw-semibold">Березниковское ЛПУМГ</div>
+                        <div class="small text-muted">НВОС I · плановая проверка</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="metric-card h-100">
+                        <div class="metric-label">Активная сессия</div>
+                        <div class="fw-semibold">21.08.2026</div>
+                        <div class="small text-muted">доступ выдан на 8 часов</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="soft-panel p-3 p-lg-4">
+            <h2 class="section-title h4 mb-3">Настройки уведомлений</h2>
+            <div class="list-group list-group-flush profile-settings-list">
+                <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                    <div>
+                        <div class="fw-semibold">Критические нарушения</div>
+                        <div class="small text-muted">Показывать уведомления по просроченным пунктам.</div>
+                    </div>
+                    <span class="badge text-bg-success">включено</span>
+                </div>
+                <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                    <div>
+                        <div class="fw-semibold">Решения инспектора</div>
+                        <div class="small text-muted">Напоминать о пунктах, требующих подтверждения.</div>
+                    </div>
+                    <span class="badge text-bg-success">включено</span>
+                </div>
+                <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                    <div>
+                        <div class="fw-semibold">Экспорт чек-листа</div>
+                        <div class="small text-muted">Сообщать о готовности файлов выгрузки.</div>
+                    </div>
+                    <span class="badge text-bg-secondary">демо</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

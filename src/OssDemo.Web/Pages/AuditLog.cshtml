@@ -2,16 +2,12 @@
 @{
     ViewData["Title"] = "Журнал действий";
     ViewData["Nav"] = "Audit";
+    ViewData["Breadcrumb"] = "Журнал \\ Действия";
 }
 
-<section class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
-    <div>
-        <span class="badge text-bg-dark mb-2">Аудит</span>
-        <h1 class="section-title mb-1">Журнал действий</h1>
-        <p class="muted-note mb-0">Ключевые операции фиксируются для трассируемости процесса.</p>
-    </div>
+<div class="page-actions mb-3">
     <button class="btn btn-outline-primary" data-file-action>Экспорт журнала</button>
-</section>
+</div>
 
 <section class="soft-panel p-3 p-lg-4">
     <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Дата и время</th><th>Пользователь</th><th>Действие</th><th>Сущность</th><th>Описание</th><th>Результат</th></tr></thead><tbody>
@@ -23,6 +19,6 @@
         <tr><td>21.08.2026 21:12</td><td>inspector</td><td>Ручное добавление пункта</td><td>ChecklistItem #43</td><td>Добавлен пункт по журналу учета отходов, дублей не найдено</td><td><span class="badge text-bg-success">успех</span></td></tr>
         <tr><td>21.08.2026 21:13</td><td>inspector</td><td>Подтверждение чек-листа</td><td>Checklist #2026-08-BER</td><td>Статус изменён с «В работе» на «Готов»</td><td><span class="badge text-bg-success">готово</span></td></tr>
         <tr><td>21.08.2026 21:14</td><td>inspector</td><td>Экспорт</td><td>Checklist #2026-08-BER</td><td>Подготовка PDF, DOCX и XLSX</td><td><span class="badge text-bg-success">готово</span></td></tr>
-        <tr><td>21.08.2026 21:15</td><td>inspector</td><td>Вопрос AI</td><td>AiQuestion #7</td><td>Ответ по критическому пункту с цитатой источника</td><td><span class="badge text-bg-success">успех</span></td></tr>
+        <tr><td>21.08.2026 21:15</td><td>inspector</td><td>Вопрос ИИ</td><td>AiQuestion #7</td><td>Ответ по критическому пункту с цитатой источника</td><td><span class="badge text-bg-success">успех</span></td></tr>
     </tbody></table></div>
 </section>

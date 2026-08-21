@@ -2,46 +2,234 @@
 @{
     ViewData["Title"] = "Классификатор";
     ViewData["Nav"] = "Classifier";
+    ViewData["Breadcrumb"] = "Классификатор \\ Критерии контроля";
 }
 
-<section class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
-    <div>
-        <span class="badge text-bg-primary mb-2">Таксономия требований</span>
-        <h1 class="section-title mb-1">Классификатор критериев контроля</h1>
-        <p class="muted-note mb-0">Отдельный структурированный справочник: не хранится как обычный RAG-документ.</p>
-    </div>
+<div class="page-actions mb-3">
     <button class="btn btn-outline-primary" data-file-action>Импортировать XLSX</button>
-</section>
+</div>
 
-<section class="row g-4">
-    <div class="col-lg-5">
-        <div class="soft-panel p-4 h-100">
-            <div class="d-flex justify-content-between mb-3"><h2 class="h4 section-title">Версия v2026.01</h2><span class="badge text-bg-success">активна</span></div>
-            <div class="list-group">
-                <div class="list-group-item"><strong>1 Общие вопросы</strong><div class="small text-muted">документы, ответственность, ПЭК</div></div>
-                <div class="list-group-item"><strong>2 Охрана атмосферного воздуха</strong><div class="small text-muted">источники выбросов, ГОУ, инвентаризация</div></div>
-                <div class="list-group-item"><strong>3 Охрана водных объектов</strong><div class="small text-muted">водопользование, сбросы, КОС</div></div>
-                <div class="list-group-item"><strong>4 Обращение с отходами</strong><div class="small text-muted">ПНООЛР, паспорта, места накопления</div></div>
-                <div class="list-group-item"><strong>5 Землепользование</strong><div class="small text-muted">участки, рекультивация, загрязнение</div></div>
-                <div class="list-group-item"><strong>6 Недропользование</strong><div class="small text-muted">артезианские скважины, лицензии</div></div>
-                <div class="list-group-item"><strong>7 ООПТ, растительный и животный мир</strong><div class="small text-muted">особые зоны и ограничения</div></div>
+<section class="classifier-workspace">
+    <div class="soft-panel classifier-tree-panel">
+        <div class="classifier-panel-header">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <h2 class="h4 section-title mb-0">Версия v2026.01</h2>
+                    <span class="badge text-bg-success">активна</span>
+                </div>
+                <p class="muted-note mb-0">Единый справочник разделов, к которым привязываются требования и пункты чек-листов.</p>
+            </div>
+            <div class="btn-group btn-group-sm" aria-label="Управление деревом классификатора">
+                <button class="btn btn-outline-secondary" type="button" data-tree-expand>Раскрыть всё</button>
+                <button class="btn btn-outline-secondary" type="button" data-tree-collapse>Свернуть всё</button>
             </div>
         </div>
-    </div>
-    <div class="col-lg-7">
-        <div class="soft-panel p-4 mb-4">
-            <h2 class="h4 section-title">Карточка раздела 4.3</h2>
-            <p class="mb-2"><strong>Путь:</strong> 4 Обращение с отходами → 4.3 Нормативы образования отходов и лимиты размещения</p>
-            <p class="muted-note">Используется для пунктов о наличии утвержденного ПНООЛР, соответствии фактических объемов лимитам и корректности мест накопления.</p>
-            <div class="pill-group"><span class="source-chip">ФЗ-89 ст. 11</span><span class="source-chip">Приказ Минприроды №792</span><span class="source-chip">СТО 16-005-2025 п. 5.3.2</span></div>
+
+        <div class="classifier-tree" aria-label="Дерево разделов классификатора">
+            <details class="classifier-node">
+                <summary>
+                    <span class="tree-code">1</span>
+                    <span class="tree-title">Общие вопросы</span>
+                    <span class="tree-meta">9 критериев</span>
+                </summary>
+                <div class="classifier-children">
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 1.1" data-card-path="1 Общие вопросы → 1.1 Организационные документы" data-card-description="Используется для проверки приказов, положений, журналов и распределения экологической ответственности на объекте." data-card-sources="ФЗ-7 ст. 67|СТО 16-001-2025 п. 2.1" data-card-links="Плановая проверка|Самообследование объекта">
+                        <strong>1.1 Организационные документы</strong>
+                        <span>приказы, положения, журналы</span>
+                    </button>
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 1.2" data-card-path="1 Общие вопросы → 1.2 Ответственные лица" data-card-description="Фиксирует требования к назначению ответственных, зонам ответственности и подтверждающим документам." data-card-sources="ФЗ-7 ст. 73|СТО 16-001-2025 п. 2.4" data-card-links="Плановая проверка|Внеплановая проверка">
+                        <strong>1.2 Ответственные лица</strong>
+                        <span>назначение, полномочия, обучение</span>
+                    </button>
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 1.3" data-card-path="1 Общие вопросы → 1.3 Производственный экологический контроль" data-card-description="Задаёт структуру пунктов по программе ПЭК, графикам контроля и подтверждению выполненных мероприятий." data-card-sources="ФЗ-7 ст. 67|Программа ПЭК" data-card-links="Плановая проверка|Годовой контроль">
+                        <strong>1.3 Производственный экологический контроль</strong>
+                        <span>программа ПЭК, графики, отчёты</span>
+                    </button>
+                </div>
+            </details>
+
+            <details class="classifier-node">
+                <summary>
+                    <span class="tree-code">2</span>
+                    <span class="tree-title">Охрана атмосферного воздуха</span>
+                    <span class="tree-meta">14 критериев</span>
+                </summary>
+                <div class="classifier-children">
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 2.1" data-card-path="2 Охрана атмосферного воздуха → 2.1 Источники выбросов" data-card-description="Используется для контроля стационарных источников выбросов, перечня оборудования и соответствия данным инвентаризации." data-card-sources="ФЗ-7 ст. 30|СТО 16-005-2025 п. 4.1" data-card-links="Плановая проверка|Проверка НВОС">
+                        <strong>2.1 Источники выбросов</strong>
+                        <span>стационарные источники, оборудование</span>
+                    </button>
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 2.2" data-card-path="2 Охрана атмосферного воздуха → 2.2 Инвентаризация выбросов" data-card-description="Связывает требования к актуальности инвентаризации, перечню загрязняющих веществ и расчётным материалам." data-card-sources="ФЗ-96 ст. 22|СТО 16-005-2025 п. 4.2" data-card-links="Плановая проверка|Самообследование объекта">
+                        <strong>2.2 Инвентаризация выбросов</strong>
+                        <span>актуальность, вещества, расчёты</span>
+                    </button>
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 2.3" data-card-path="2 Охрана атмосферного воздуха → 2.3 Газоочистные установки" data-card-description="Применяется для проверки эксплуатации ГОУ, технического состояния и результатов инструментального контроля." data-card-sources="ФЗ-96 ст. 16|СТО 16-005-2025 п. 4.5" data-card-links="Плановая проверка|Контроль после нарушения">
+                        <strong>2.3 Газоочистные установки</strong>
+                        <span>эксплуатация, паспорта, эффективность</span>
+                    </button>
+                </div>
+            </details>
+
+            <details class="classifier-node">
+                <summary>
+                    <span class="tree-code">3</span>
+                    <span class="tree-title">Охрана водных объектов</span>
+                    <span class="tree-meta">11 критериев</span>
+                </summary>
+                <div class="classifier-children">
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 3.1" data-card-path="3 Охрана водных объектов → 3.1 Водопользование" data-card-description="Описывает требования к правам водопользования, договорам и условиям использования водного объекта." data-card-sources="ВК РФ ст. 11|ФЗ-7 ст. 39" data-card-links="Плановая проверка|Проверка водопользования">
+                        <strong>3.1 Водопользование</strong>
+                        <span>договоры, решения, условия</span>
+                    </button>
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 3.2" data-card-path="3 Охрана водных объектов → 3.2 Сбросы загрязняющих веществ" data-card-description="Используется для требований по нормативам допустимых сбросов, разрешениям и фактическим показателям контроля." data-card-sources="ФЗ-7 ст. 22|СТО 16-006-2025 п. 3.2" data-card-links="Плановая проверка|Проверка НВОС">
+                        <strong>3.2 Сбросы загрязняющих веществ</strong>
+                        <span>НДС, разрешения, контроль</span>
+                    </button>
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 3.3" data-card-path="3 Охрана водных объектов → 3.3 Очистные сооружения" data-card-description="Формирует пункты проверки эксплуатации КОС, журналов обслуживания и результатов лабораторного контроля." data-card-sources="ФЗ-7 ст. 67|СТО 16-006-2025 п. 3.5" data-card-links="Плановая проверка|Технологический аудит">
+                        <strong>3.3 Очистные сооружения</strong>
+                        <span>КОС, эксплуатация, лабораторный контроль</span>
+                    </button>
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 3.4" data-card-path="3 Охрана водных объектов → 3.4 Производственный контроль сточных вод" data-card-description="Новый раздел версии v2026.01: отделяет контроль сточных вод от общих требований по водопользованию." data-card-sources="СТО 16-006-2025 п. 3.8|Программа ПЭК" data-card-links="Плановая проверка|Годовой контроль">
+                        <strong>3.4 Производственный контроль сточных вод</strong>
+                        <span>графики, пробы, протоколы</span>
+                    </button>
+                </div>
+            </details>
+
+            <details class="classifier-node" open>
+                <summary>
+                    <span class="tree-code">4</span>
+                    <span class="tree-title">Обращение с отходами</span>
+                    <span class="tree-meta">16 критериев</span>
+                </summary>
+                <div class="classifier-children">
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 4.1" data-card-path="4 Обращение с отходами → 4.1 Учёт отходов" data-card-description="Используется для пунктов о движении отходов, журналах учёта, первичных документах и отчётности." data-card-sources="ФЗ-89 ст. 19|Приказ Минприроды №1028" data-card-links="Плановая проверка|Самообследование объекта">
+                        <strong>4.1 Учёт отходов</strong>
+                        <span>движение отходов, журналы, отчётность</span>
+                    </button>
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 4.2" data-card-path="4 Обращение с отходами → 4.2 Паспортизация отходов" data-card-description="Связывает требования к паспортам отходов I–IV классов опасности, ФККО и подтверждающим материалам." data-card-sources="ФЗ-89 ст. 14|ФККО" data-card-links="Плановая проверка|Проверка отходов">
+                        <strong>4.2 Паспортизация отходов</strong>
+                        <span>паспорта, ФККО, классы опасности</span>
+                    </button>
+                    <button class="classifier-leaf active" type="button" data-classifier-leaf data-card-title="Карточка раздела 4.3" data-card-path="4 Обращение с отходами → 4.3 Нормативы образования отходов и лимиты размещения" data-card-description="Используется для пунктов о наличии утверждённого ПНООЛР, соответствии фактических объёмов лимитам и корректности мест накопления." data-card-sources="ФЗ-89 ст. 11|Приказ Минприроды №792|СТО 16-005-2025 п. 5.3.2" data-card-links="Плановая проверка|Внеплановая проверка|Шаблон филиала Иркутск">
+                        <strong>4.3 Нормативы образования отходов и лимиты размещения</strong>
+                        <span>ПНООЛР, лимиты, фактические объёмы</span>
+                    </button>
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 4.4" data-card-path="4 Обращение с отходами → 4.4 Места накопления отходов" data-card-description="Задаёт критерии по обустройству мест накопления, маркировке, срокам хранения и предотвращению загрязнения." data-card-sources="ФЗ-89 ст. 13.4|СанПиН 2.1.3684-21" data-card-links="Плановая проверка|Обход территории">
+                        <strong>4.4 Места накопления отходов</strong>
+                        <span>площадки, маркировка, сроки хранения</span>
+                    </button>
+                </div>
+            </details>
+
+            <details class="classifier-node">
+                <summary>
+                    <span class="tree-code">5</span>
+                    <span class="tree-title">Землепользование</span>
+                    <span class="tree-meta">6 критериев</span>
+                </summary>
+                <div class="classifier-children">
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 5.1" data-card-path="5 Землепользование → 5.1 Земельные участки и санитарные зоны" data-card-description="Используется для проверки границ участков, санитарных зон и ограничений хозяйственной деятельности." data-card-sources="ЗК РФ ст. 42|ФЗ-7 ст. 13" data-card-links="Плановая проверка|Обход территории">
+                        <strong>5.1 Земельные участки и санитарные зоны</strong>
+                        <span>границы, ограничения, документы</span>
+                    </button>
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 5.2" data-card-path="5 Землепользование → 5.2 Загрязнение и рекультивация" data-card-description="Фиксирует требования по предотвращению загрязнения почв, локализации загрязнений и рекультивационным мероприятиям." data-card-sources="ФЗ-7 ст. 78|СТО 16-007-2025 п. 6.1" data-card-links="Плановая проверка|Контроль после нарушения">
+                        <strong>5.2 Загрязнение и рекультивация</strong>
+                        <span>почвы, загрязнение, восстановление</span>
+                    </button>
+                </div>
+            </details>
+
+            <details class="classifier-node">
+                <summary>
+                    <span class="tree-code">6</span>
+                    <span class="tree-title">Недропользование</span>
+                    <span class="tree-meta">5 критериев</span>
+                </summary>
+                <div class="classifier-children">
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 6.1" data-card-path="6 Недропользование → 6.1 Артезианские скважины" data-card-description="Используется для требований по эксплуатации скважин, зонам санитарной охраны и учёту добычи подземных вод." data-card-sources="Закон РФ №2395-1|ВК РФ ст. 19" data-card-links="Плановая проверка|Проверка водопользования">
+                        <strong>6.1 Артезианские скважины</strong>
+                        <span>эксплуатация, ЗСО, учёт воды</span>
+                    </button>
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 6.2" data-card-path="6 Недропользование → 6.2 Лицензии на пользование недрами" data-card-description="Связывает контрольные пункты с условиями лицензий, сроками действия и отчётностью недропользователя." data-card-sources="Закон РФ №2395-1 ст. 11|Лицензионные условия" data-card-links="Плановая проверка|Внеплановая проверка">
+                        <strong>6.2 Лицензии на пользование недрами</strong>
+                        <span>условия, сроки, отчётность</span>
+                    </button>
+                </div>
+            </details>
+
+            <details class="classifier-node">
+                <summary>
+                    <span class="tree-code">7</span>
+                    <span class="tree-title">ООПТ, растительный и животный мир</span>
+                    <span class="tree-meta">4 критерия</span>
+                </summary>
+                <div class="classifier-children">
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 7.1" data-card-path="7 ООПТ, растительный и животный мир → 7.1 Особые зоны и ограничения" data-card-description="Используется для проверки расположения объекта относительно ООПТ, водоохранных зон и иных территорий с особыми условиями." data-card-sources="ФЗ-33 ст. 15|ФЗ-7 ст. 60" data-card-links="Плановая проверка|Предпроверочный анализ">
+                        <strong>7.1 Особые зоны и ограничения</strong>
+                        <span>ООПТ, охранные зоны, ограничения</span>
+                    </button>
+                    <button class="classifier-leaf" type="button" data-classifier-leaf data-card-title="Карточка раздела 7.2" data-card-path="7 ООПТ, растительный и животный мир → 7.2 Мероприятия по сохранению биоразнообразия" data-card-description="Формирует пункты по защитным мероприятиям, сезонным ограничениям и выполнению природоохранных условий." data-card-sources="ФЗ-7 ст. 60|СТО 16-008-2025 п. 7.2" data-card-links="Плановая проверка|Обход территории">
+                        <strong>7.2 Мероприятия по сохранению биоразнообразия</strong>
+                        <span>мероприятия, ограничения, контроль</span>
+                    </button>
+                </div>
+            </details>
         </div>
-        <div class="soft-panel p-4">
+    </div>
+
+    <aside class="classifier-detail-panel">
+        <div class="soft-panel classifier-card">
+            <span class="badge text-bg-primary mb-3">Выбранный узел дерева</span>
+            <h2 class="h4 section-title" data-classifier-title>Карточка раздела 4.3</h2>
+            <p class="mb-2"><strong>Путь:</strong> <span data-classifier-path>4 Обращение с отходами → 4.3 Нормативы образования отходов и лимиты размещения</span></p>
+            <p class="muted-note" data-classifier-description>Используется для пунктов о наличии утверждённого ПНООЛР, соответствии фактических объёмов лимитам и корректности мест накопления.</p>
+            <div class="pill-group mb-4" data-classifier-sources>
+                <span class="source-chip">ФЗ-89 ст. 11</span>
+                <span class="source-chip">Приказ Минприроды №792</span>
+                <span class="source-chip">СТО 16-005-2025 п. 5.3.2</span>
+            </div>
+
+            <div class="classifier-card-grid">
+                <div class="metric-card">
+                    <div class="metric-value">42</div>
+                    <div class="small text-muted">пункта чек-листов используют классификатор</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">7</div>
+                    <div class="small text-muted">верхнеуровневых разделов</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value">65</div>
+                    <div class="small text-muted">критериев контроля в активной версии</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="soft-panel classifier-card">
+            <h2 class="h4 section-title">Где используется</h2>
+            <p class="muted-note">При генерации чек-листа система берёт раздел из дерева и подбирает требования, источники и историю нарушений только в пределах применимой ветки.</p>
+            <div class="pill-group" data-classifier-links>
+                <span class="classifier-chip">Плановая проверка</span>
+                <span class="classifier-chip">Внеплановая проверка</span>
+                <span class="classifier-chip">Шаблон филиала Иркутск</span>
+            </div>
+        </div>
+
+        <div class="soft-panel classifier-card">
             <h2 class="h4 section-title">Сравнение версий</h2>
-            <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Изменение</th><th>Раздел</th><th>Действие</th></tr></thead><tbody>
-                <tr><td><span class="badge text-bg-success">добавлен</span></td><td>3.4 Производственный контроль сточных вод</td><td>перепроверить привязки БЗ</td></tr>
-                <tr><td><span class="badge text-bg-warning">изменен</span></td><td>4.3 ПНООЛР</td><td>пересчитать шаблоны чек-листов</td></tr>
-                <tr><td><span class="badge text-bg-secondary">алиас</span></td><td>Атмосфера / атмосферный контроль</td><td>сохранить сопоставление</td></tr>
-            </tbody></table></div>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead>
+                        <tr><th>Изменение</th><th>Раздел</th><th>Действие</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="badge text-bg-success">добавлен</span></td><td>3.4 Производственный контроль сточных вод</td><td>перепроверить привязки БЗ</td></tr>
+                        <tr><td><span class="badge text-bg-warning">изменен</span></td><td>4.3 ПНООЛР</td><td>пересчитать шаблоны чек-листов</td></tr>
+                        <tr><td><span class="badge text-bg-secondary">алиас</span></td><td>Атмосфера / атмосферный контроль</td><td>сохранить сопоставление</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
-    </div>
+    </aside>
 </section>

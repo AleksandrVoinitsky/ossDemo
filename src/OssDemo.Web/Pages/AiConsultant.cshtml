@@ -1,20 +1,14 @@
 @page
 @{
-    ViewData["Title"] = "AI-консультант";
+    ViewData["Title"] = "ИИ-консультант";
     ViewData["Nav"] = "Ai";
+    ViewData["Breadcrumb"] = "ИИ-консультант \\ База знаний";
 }
-
-<section class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
-    <div>
-        <h1 class="section-title mb-1">AI-консультант по базе знаний</h1>
-        <p class="muted-note mb-0">Ответы должны быть трассируемыми до источников или явно сообщать об отсутствии релевантных данных.</p>
-    </div>
-</section>
 
 <section class="chat-shell soft-panel">
     <div class="chat-header">
         <div>
-            <h2 class="h5 section-title mb-1">Чат с AI</h2>
+            <h2 class="h5 section-title mb-1">Запрос к ИИ-консультанту</h2>
             <div class="small muted-note">Контекст: Березниковское ЛПУМГ, НВОС I, подготовка проверки</div>
         </div>
         <span class="badge text-bg-success">онлайн</span>
@@ -26,21 +20,21 @@
             <p>Почему пункт по протоколам инструментального контроля считается критическим?</p>
         </div>
         <div class="chat-bubble assistant">
-            <div class="chat-author">AI-консультант</div>
-            <p>Пункт критический, потому что нарушение по протоколам инструментального контроля выбросов не закрыто в срок 10.10.2024. В demo это подтверждается актом от 22.09.2024 и требованием СТО 16-005-2025 п. 4.2.</p>
+            <div class="chat-author">ИИ-консультант</div>
+            <p>Пункт критический, потому что нарушение по протоколам инструментального контроля выбросов не закрыто в срок 10.10.2024. Это подтверждается актом от 22.09.2024 и требованием СТО 16-005-2025 п. 4.2.</p>
             <div class="pill-group"><span class="source-chip">Акт 22.09.2024</span><span class="source-chip">СТО 16-005-2025 п. 4.2</span><span class="classifier-chip">2.3 Атмосфера</span></div>
         </div>
     </div>
 
     <form data-ai-question class="chat-input">
-        <input class="form-control form-control-lg" placeholder="Напишите вопрос" aria-label="Вопрос AI-консультанту" />
+        <input class="form-control form-control-lg" placeholder="Введите вопрос по источникам" aria-label="Вопрос ИИ-консультанту" />
         <button class="btn btn-primary btn-lg" type="submit">Отправить</button>
     </form>
 </section>
 
 <template data-ai-answer-template>
     <div class="chat-bubble assistant">
-        <div class="chat-author">AI-консультант</div>
+        <div class="chat-author">ИИ-консультант</div>
         <p data-ai-answer-text>По вопросу «<span data-ai-question-text></span>» проверьте применимые требования в базе знаний. Если релевантный источник не найден, ответ должен быть уточнен инспектором или методологом.</p>
         <div class="pill-group" data-ai-sources><span class="source-chip">База знаний</span><span class="classifier-chip">требует проверки</span></div>
     </div>

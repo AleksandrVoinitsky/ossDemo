@@ -1,3 +1,6 @@
+@{
+    var breadcrumb = ViewData["Breadcrumb"] as string ?? ViewData["Title"] as string ?? "АИ ООС";
+}
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -11,31 +14,98 @@
 </head>
 <body>
     <div class="app-frame">
-        <aside class="app-sidebar" aria-label="Основное меню">
-            <a class="app-brand" asp-area="" asp-page="/Index">
-                <span class="brand-mark">ООС</span>
-                <span>АИ ООС</span>
-            </a>
-            <nav class="sidebar-nav">
-                <a class="sidebar-link @(ViewData["Nav"] as string == "Home" ? "active" : "")" asp-area="" asp-page="/Index">Главная</a>
-                <a class="sidebar-link @(ViewData["Nav"] as string == "Schedule" ? "active" : "")" asp-area="" asp-page="/Schedule">График</a>
-                <a class="sidebar-link @(ViewData["Nav"] as string == "Facilities" ? "active" : "")" asp-area="" asp-page="/Facilities">Объекты</a>
-                <a class="sidebar-link @(ViewData["Nav"] as string == "Classifier" ? "active" : "")" asp-area="" asp-page="/Classifier">Классификатор</a>
-                <a class="sidebar-link @(ViewData["Nav"] as string == "Knowledge" ? "active" : "")" asp-area="" asp-page="/KnowledgeBase">База знаний</a>
-                <a class="sidebar-link @(ViewData["Nav"] as string == "Documents" ? "active" : "")" asp-area="" asp-page="/Documents">ОРД</a>
-                <a class="sidebar-link @(ViewData["Nav"] as string == "Violations" ? "active" : "")" asp-area="" asp-page="/Violations">Нарушения</a>
-                <a class="sidebar-link @(ViewData["Nav"] as string == "Templates" ? "active" : "")" asp-area="" asp-page="/Templates">Шаблоны</a>
-                <a class="sidebar-link @(ViewData["Nav"] as string == "Checklist" ? "active" : "")" asp-area="" asp-page="/Checklists/New">Чек-лист</a>
-                <a class="sidebar-link @(ViewData["Nav"] as string == "Ai" ? "active" : "")" asp-area="" asp-page="/AiConsultant">AI-консультант</a>
-                <a class="sidebar-link @(ViewData["Nav"] as string == "Audit" ? "active" : "")" asp-area="" asp-page="/AuditLog">Журнал</a>
+        <header class="app-topbar">
+            <nav class="navbar navbar-expand-xl navbar-light bg-white" aria-label="Основное меню">
+                <div class="container-fluid app-navbar-container">
+                    <a class="navbar-brand app-brand" asp-area="" asp-page="/Index">
+                        <span class="brand-mark">ООС</span>
+                        <span>АИ ООС</span>
+                    </a>
+
+                    <div class="d-flex align-items-center gap-2 order-xl-3 topbar-tools">
+                        <div class="topbar-data-status" aria-label="Статус актуальности данных">
+                            <span class="status-dot status-ready"></span>
+                            <span>Данные актуальны</span>
+                            <span class="text-muted">21.08.2026 21:15</span>
+                        </div>
+
+                        <div class="dropdown notification-menu">
+                            <button class="btn btn-light notification-button" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Уведомления">
+                                <svg class="notification-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6h-1V10a6 6 0 0 0-4.5-5.8V3a1.5 1.5 0 0 0-3 0v1.2A6 6 0 0 0 6 10v6H5a1 1 0 0 0 0 2h14a1 1 0 1 0 0-2Z" />
+                                </svg>
+                                <span class="notification-dot"></span>
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end notification-dropdown">
+                                <div class="notification-dropdown-header">
+                                    <strong>Уведомления</strong>
+                                    <span class="badge text-bg-primary">3</span>
+                                </div>
+                                <div class="notification-list">
+                                    <a class="dropdown-item notification-item" asp-area="" asp-page="/Checklists/Result">
+                                        <span class="notification-item-title">Пункт требует решения</span>
+                                        <span class="notification-item-text">Лицензия по скважине №3 ожидает подтверждения инспектора.</span>
+                                        <span class="notification-item-time">21:15</span>
+                                    </a>
+                                    <a class="dropdown-item notification-item" asp-area="" asp-page="/Violations">
+                                        <span class="notification-item-title">Критическое нарушение</span>
+                                        <span class="notification-item-text">Просрочен контроль протоколов инструментального контроля.</span>
+                                        <span class="notification-item-time">21:12</span>
+                                    </a>
+                                    <a class="dropdown-item notification-item" asp-area="" asp-page="/AuditLog">
+                                        <span class="notification-item-title">Экспорт подготовлен</span>
+                                        <span class="notification-item-text">Файлы DOCX, PDF и XLSX доступны после подтверждения чек-листа.</span>
+                                        <span class="notification-item-time">21:10</span>
+                                    </a>
+                                </div>
+                                <div class="notification-dropdown-footer">Временные демонстрационные данные</div>
+                            </div>
+                        </div>
+
+                        <div class="dropdown account-menu">
+                            <button class="btn btn-outline-primary dropdown-toggle profile-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <span class="profile-avatar">И</span>
+                                <span class="d-none d-sm-inline">inspector</span>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><h6 class="dropdown-header">Аккаунт инспектора</h6></li>
+                                <li><a class="dropdown-item @(ViewData["Nav"] as string == "Profile" ? "active" : "")" asp-area="" asp-page="/Profile">Профиль</a></li>
+                                <li><hr class="dropdown-divider" /></li>
+                                <li>
+                                    <form method="post" asp-page="/Login" asp-page-handler="Logout">
+                                        <button class="dropdown-item" type="submit">Выйти</button>
+                                    </form>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Переключить меню">
+                            <span class="navbar-toggler-icon"></span>
+                        </button>
+                    </div>
+
+                    <div class="collapse navbar-collapse order-xl-2" id="mainNavbar">
+                        <ul class="navbar-nav me-auto mb-2 mb-xl-0 app-nav">
+                            <li class="nav-item"><a class="nav-link @(ViewData["Nav"] as string == "Home" ? "active" : "")" asp-area="" asp-page="/Index">Главная</a></li>
+                            <li class="nav-item"><a class="nav-link @(ViewData["Nav"] as string == "Schedule" ? "active" : "")" asp-area="" asp-page="/Schedule">График</a></li>
+                            <li class="nav-item"><a class="nav-link @(ViewData["Nav"] as string == "Facilities" ? "active" : "")" asp-area="" asp-page="/Facilities">Объекты</a></li>
+                            <li class="nav-item"><a class="nav-link @(ViewData["Nav"] as string == "Classifier" ? "active" : "")" asp-area="" asp-page="/Classifier">Классификатор</a></li>
+                            <li class="nav-item"><a class="nav-link @(ViewData["Nav"] as string == "Knowledge" ? "active" : "")" asp-area="" asp-page="/KnowledgeBase">База знаний</a></li>
+                            <li class="nav-item"><a class="nav-link @(ViewData["Nav"] as string == "Documents" ? "active" : "")" asp-area="" asp-page="/Documents">ОРД</a></li>
+                            <li class="nav-item"><a class="nav-link @(ViewData["Nav"] as string == "Violations" ? "active" : "")" asp-area="" asp-page="/Violations">Нарушения</a></li>
+                            <li class="nav-item"><a class="nav-link @(ViewData["Nav"] as string == "Templates" ? "active" : "")" asp-area="" asp-page="/Templates">Шаблоны</a></li>
+                            <li class="nav-item"><a class="nav-link @(ViewData["Nav"] as string == "Checklist" ? "active" : "")" asp-area="" asp-page="/Checklists/New">Чек-лист</a></li>
+                            <li class="nav-item"><a class="nav-link @(ViewData["Nav"] as string == "Ai" ? "active" : "")" asp-area="" asp-page="/AiConsultant">ИИ-консультант</a></li>
+                            <li class="nav-item"><a class="nav-link @(ViewData["Nav"] as string == "Audit" ? "active" : "")" asp-area="" asp-page="/AuditLog">Журнал</a></li>
+                        </ul>
+                    </div>
+                </div>
             </nav>
-            <div class="sidebar-footer">
-                <div class="small text-muted mb-2">Пользователь: inspector</div>
-                <form method="post" asp-page="/Login" asp-page-handler="Logout">
-                    <button class="btn btn-outline-secondary btn-sm w-100" type="submit">Выйти</button>
-                </form>
-            </div>
-        </aside>
+        </header>
+
+        <div class="app-breadcrumb-bar" aria-label="Текущее расположение">
+            <div class="app-breadcrumb-container">@breadcrumb</div>
+        </div>
 
         <div class="app-content">
             <main role="main" class="app-shell">

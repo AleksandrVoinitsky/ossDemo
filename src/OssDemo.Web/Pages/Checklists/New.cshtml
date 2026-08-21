@@ -2,16 +2,12 @@
 @{
     ViewData["Title"] = "Новый чек-лист";
     ViewData["Nav"] = "Checklist";
+    ViewData["Breadcrumb"] = "Чек-лист \\ Формирование";
 }
 
-<section class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
-    <div>
-        <span class="badge text-bg-primary mb-2">Мастер · happy path demo</span>
-        <h1 class="section-title mb-1">Формирование индивидуального чек-листа</h1>
-        <p class="muted-note mb-0">Последовательный маршрут: запись графика, профиль объекта, ОРД, шаблон филиала и предсказуемая генерация четырьмя агентами.</p>
-    </div>
+<div class="page-actions mb-3">
     <a class="btn btn-outline-primary" asp-page="/Checklists/Result">Открыть готовый результат</a>
-</section>
+</div>
 
 <section class="row g-4">
     <div class="col-xl-8">
@@ -44,12 +40,12 @@
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
                 <div>
                     <h2 class="h4 section-title mb-1">2. ОРД проверки</h2>
-                    <p class="muted-note mb-0">Для demo используются заранее подготовленные документы, но интерфейс показывает загрузку и влияние на чек-лист.</p>
+                    <p class="muted-note mb-0">Документы проверки распознаются и влияют на состав индивидуального чек-листа.</p>
                 </div>
                 <button class="btn btn-outline-primary" data-show-target="#ordUploadPanel" type="button">Загрузить ОРД</button>
             </div>
             <div id="ordUploadPanel" class="alert alert-info state-hidden" hidden>
-                Drag-and-drop зона: PDF/DOCX/JPG. В demo документы уже распознаны, поэтому повторная загрузка не требуется.
+                Зона загрузки PDF/DOCX/JPG. Документы текущей проверки уже распознаны, повторная загрузка не требуется.
             </div>
             <div class="table-responsive">
                 <table class="table align-middle mb-0">
@@ -71,7 +67,7 @@
                     <select class="form-select form-select-lg" data-template-select>
                         <option value="">Не выбран — генерация будет заблокирована</option>
                         <option value="company">Уровень Общества v2026</option>
-                        <option value="branch" selected>Уровень филиала Пермь v2026 · выбран для demo</option>
+                        <option value="branch" selected>Уровень филиала Пермь v2026 · выбран</option>
                     </select>
                 </div>
                 <div class="col-md-4">
@@ -120,7 +116,7 @@
             <ul class="small muted-note mb-0">
                 <li>Профиль Воткинского ЛПУМГ недоступен для генерации, пока не заполнен.</li>
                 <li>Пустой шаблон блокирует кнопку генерации с понятным сообщением.</li>
-                <li>Отсутствие новых ОРД не ломает demo: используются подготовленные документы.</li>
+                <li>При отсутствии новых ОРД используются документы текущей проверки.</li>
             </ul>
         </div>
     </div>

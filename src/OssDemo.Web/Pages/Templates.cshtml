@@ -2,16 +2,12 @@
 @{
     ViewData["Title"] = "Шаблоны чек-листов";
     ViewData["Nav"] = "Templates";
+    ViewData["Breadcrumb"] = "Шаблоны \\ Чек-листы";
 }
 
-<section class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
-    <div>
-        <span class="badge text-bg-primary mb-2">Структура результата</span>
-        <h1 class="section-title mb-1">Шаблоны чек-листов</h1>
-        <p class="muted-note mb-0">Для demo доступны шаблоны двух уровней: Общества и филиала. Генерация без выбранного шаблона блокируется.</p>
-    </div>
+<div class="page-actions mb-3">
     <a class="btn btn-primary" asp-page="/Checklists/New">Выбрать в мастере</a>
-</section>
+</div>
 
 <section class="row g-4">
     <div class="col-lg-5">
@@ -28,7 +24,7 @@
                 <button class="list-group-item list-group-item-action active" type="button" data-panel-group="templates" data-panel-target="template-branch" aria-selected="true">
                     <div class="d-flex justify-content-between gap-3">
                         <strong>Уровень филиала Пермь v2026</strong>
-                        <span class="badge text-bg-success">выбран для demo</span>
+                        <span class="badge text-bg-success">выбран</span>
                     </div>
                     <div class="small text-muted">Расширен разделами по компрессорным станциям, водным объектам и недрам.</div>
                 </button>
@@ -57,7 +53,7 @@
                         <tr><td>Основание</td><td>Нормативный, ОРД или исторический источник</td><td><span class="badge text-bg-success">экспорт</span></td></tr>
                         <tr><td>Да/Нет/Не применяется</td><td>Итог проверки на объекте</td><td><span class="badge text-bg-success">экспорт</span></td></tr>
                         <tr><td>Примечание</td><td>Комментарий инспектора</td><td><span class="badge text-bg-success">экспорт</span></td></tr>
-                        <tr><td>Статус, источник, причина</td><td>Служебные поля для прозрачности demo</td><td><span class="badge text-bg-info">интерфейс + XLSX</span></td></tr>
+                        <tr><td>Статус, источник, причина</td><td>Служебные поля для трассируемости результата</td><td><span class="badge text-bg-info">интерфейс + XLSX</span></td></tr>
                     </tbody>
                 </table>
             </div>
