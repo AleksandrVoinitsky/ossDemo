@@ -1,0 +1,164 @@
+@page "/Facilities/Card/{id?}"
+@{
+    var id = (RouteData.Values["id"] as string ?? "berezniki").ToLowerInvariant();
+    var facility = id switch
+    {
+        "votkinsk" => new FacilityCard(
+            "votkinsk",
+            "Воткинское ЛПУМГ",
+            "Линейное производственное управление магистральных газопроводов",
+            "Удмуртская Республика, район г. Воткинск",
+            "57.0518, 53.9872",
+            "НВОС II",
+            "Профиль требует доработки",
+            "text-bg-warning",
+            "Профиль заполнен частично: требуется подтвердить водный блок и статус проекта СЗЗ перед генерацией чек-листа.",
+            new[] { "производственная площадка", "места накопления отходов", "земельный участок" },
+            new[] { "1 Общие вопросы", "4 Отходы", "5 Земля" },
+            new[] { "проект нормативов образования отходов", "договоры на вывоз отходов", "паспорта отходов" },
+            new[] { "Выбрать применимость раздела 3 Вода", "Подтвердить статус санитарно-защитной зоны", "Назначить ответственного за актуализацию" }),
+        "itc" => new FacilityCard(
+            "itc",
+            "ИТЦ",
+            "Инженерно-технический центр, административная площадка",
+            "г. Пермь, административная площадка",
+            "58.0105, 56.2502",
+            "офисный объект",
+            "Профиль готов",
+            "text-bg-success",
+            "Объект с минимальным набором экологических аспектов; используется как пример низкорискового профиля.",
+            new[] { "административные помещения", "места временного накопления отходов" },
+            new[] { "1 Общие вопросы", "4 Отходы" },
+            new[] { "инструкция обращения с отходами", "договор на обслуживание офисных отходов" },
+            new[] { "Периодически актуализировать договоры", "Проверить обучение ответственных лиц" }),
+        "uavr" => new FacilityCard(
+            "uavr",
+            "УАВР №1",
+            "Участок аварийно-восстановительных работ",
+            "Пермский край, линейный производственный участок",
+            "58.1385, 56.3269",
+            "требует классификации",
+            "Карточка создаётся",
+            "text-bg-danger",
+            "Объект найден в графике проверок, но отсутствует в справочнике. Показана заглушка будущего цифрового паспорта.",
+            new[] { "ремонтная база", "склад материалов", "временные площадки работ" },
+            new[] { "1 Общие вопросы", "3 Вода", "4 Отходы" },
+            new[] { "план аварийно-восстановительных работ", "журнал образования отходов", "распоряжение о назначении ответственных" },
+            new[] { "Заполнить категорию НВОС", "Проверить координаты площадок", "Подтвердить применимые разделы классификатора" }),
+        _ => new FacilityCard(
+            "berezniki",
+            "Березниковское ЛПУМГ",
+            "Компрессорная станция, филиал ПАО",
+            "Пермский край, район г. Березники",
+            "59.4072, 56.8040",
+            "НВОС I",
+            "Профиль готов",
+            "text-bg-success",
+            "Основной demo-объект: цифровой паспорт заполнен и может автоматически подставляться при создании чек-листа из графика.",
+            new[] { "санитарно-защитная зона", "водоохранная зона", "производственная площадка", "места накопления отходов", "скважины" },
+            new[] { "1 Общие вопросы", "2 Атмосфера", "3 Вода", "4 Отходы", "5 Земля", "6 Недра", "7 ООПТ" },
+            new[] { "программа производственного экологического контроля", "ПНООЛР", "проект СЗЗ", "разрешительная документация по выбросам", "материалы по скважинам" },
+            new[] { "Профиль готов к генерации чек-листа", "Документы проиндексированы в базе знаний", "Нарушения за 5 лет привязаны к разделам классификатора" })
+    };
+
+    ViewData["Title"] = facility.Name;
+    ViewData["Nav"] = "Facilities";
+    ViewData["Breadcrumb"] = $"Объекты \\ Карточка \\ {facility.Name}";
+}
+
+<div class="page-actions mb-3">
+    <a class="btn btn-outline-primary" asp-page="/Facilities">Назад к объектам</a>
+    <a class="btn btn-primary" asp-page="/Checklists/New">Создать чек-лист</a>
+</div>
+
+<section class="soft-panel p-4 mb-4">
+    <div class="d-flex flex-wrap justify-content-between gap-3 mb-4">
+        <div>
+            <h1 class="section-title h2 mb-1">@facility.Name</h1>
+            <p class="muted-note mb-0">@facility.Type</p>
+        </div>
+        <span class="badge @facility.BadgeClass align-self-start">@facility.Status</span>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="metric-card h-100"><div class="metric-label">Категория</div><strong>@facility.Category</strong></div></div>
+        <div class="col-md-3"><div class="metric-card h-100"><div class="metric-label">Адрес</div><strong>@facility.Address</strong></div></div>
+        <div class="col-md-3"><div class="metric-card h-100"><div class="metric-label">Координаты</div><strong>@facility.Coordinates</strong></div></div>
+        <div class="col-md-3"><div class="metric-card h-100"><div class="metric-label">Роль в сценарии</div><strong>цифровой паспорт объекта</strong></div></div>
+    </div>
+
+    <div class="alert alert-info mb-0">@facility.Description</div>
+</section>
+
+<section class="row g-4">
+    <div class="col-lg-7">
+        <div class="soft-panel p-4 h-100">
+            <h2 class="section-title h4 mb-3">Основная информация</h2>
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <h3 class="h6">Функциональные зоны</h3>
+                    <div class="pill-group">
+                        @foreach (var zone in facility.Zones)
+                        {
+                            <span class="classifier-chip">@zone</span>
+                        }
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h3 class="h6">Применимые разделы классификатора</h3>
+                    <div class="pill-group">
+                        @foreach (var classifierItem in facility.Classifier)
+                        {
+                            <span class="classifier-chip">@classifierItem</span>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <h3 class="h6">Документы, влияющие на будущий чек-лист</h3>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead><tr><th>Документ</th><th>Статус</th><th>Использование</th></tr></thead>
+                    <tbody>
+                        @foreach (var document in facility.Documents)
+                        {
+                            <tr><td>@document</td><td><span class="badge text-bg-success">заглушка загружена</span></td><td>источник требований для генерации</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <aside class="soft-panel p-4 h-100">
+            <h2 class="section-title h4 mb-3">Готовность к проверке</h2>
+            <div class="timeline compact-timeline">
+                @foreach (var action in facility.Actions)
+                {
+                    <div class="timeline-item"><strong>@action</strong><div class="small text-muted">Демонстрационная запись карточки объекта.</div></div>
+                }
+            </div>
+            <hr />
+            <h3 class="h6">Связь со сценарием</h3>
+            <p class="muted-note mb-0">При создании чек-листа система подставляет этот профиль, ответственного инспектора, применимые разделы классификатора и связанные документы.</p>
+        </aside>
+    </div>
+</section>
+
+@functions {
+    private sealed record FacilityCard(
+        string Id,
+        string Name,
+        string Type,
+        string Address,
+        string Coordinates,
+        string Category,
+        string Status,
+        string BadgeClass,
+        string Description,
+        string[] Zones,
+        string[] Classifier,
+        string[] Documents,
+        string[] Actions);
+}

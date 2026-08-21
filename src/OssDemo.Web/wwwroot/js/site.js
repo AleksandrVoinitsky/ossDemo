@@ -1,4 +1,25 @@
 (() => {
+  const updateFacilityMap = (button) => {
+    const mapUrl = button.dataset.facilityMapUrl;
+    if (!mapUrl) return;
+
+    const frame = document.querySelector('[data-facility-map-frame]');
+    const externalLink = document.querySelector('[data-facility-map-link-target]');
+    const name = document.querySelector('[data-facility-map-name]');
+    const address = document.querySelector('[data-facility-map-address]');
+    const coordinates = document.querySelector('[data-facility-map-coordinates]');
+    const facilityName = button.dataset.facilityName || 'Выбранный объект';
+
+    if (frame) {
+      frame.src = mapUrl;
+      frame.title = `${facilityName} на карте`;
+    }
+    if (externalLink) externalLink.href = button.dataset.facilityMapLink || mapUrl;
+    if (name) name.textContent = facilityName;
+    if (address) address.textContent = button.dataset.facilityAddress || '';
+    if (coordinates) coordinates.textContent = button.dataset.facilityCoordinates || '';
+  };
+
   const activatePanel = (button) => {
     const group = button.dataset.panelGroup;
     const target = button.dataset.panelTarget;
@@ -12,6 +33,8 @@
     document.querySelectorAll(`[data-panel-owner="${group}"]`).forEach((panel) => {
       panel.hidden = panel.id !== target;
     });
+
+    updateFacilityMap(button);
   };
 
   document.querySelectorAll('[data-panel-target]').forEach((button) => {

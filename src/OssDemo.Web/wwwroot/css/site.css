@@ -557,6 +557,303 @@ a {
   gap: .5rem;
 }
 
+.knowledge-page {
+  min-width: 0;
+}
+
+.knowledge-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: .7rem .85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.knowledge-breadcrumb {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: auto;
+  white-space: nowrap;
+}
+
+.knowledge-crumb {
+  padding: .25rem .35rem;
+  border: 0;
+  color: var(--primary);
+  background: transparent;
+  font-weight: 650;
+}
+
+.knowledge-crumb.current {
+  color: var(--ink);
+}
+
+.knowledge-crumb-separator {
+  color: var(--ink-muted);
+  font-size: 1.25rem;
+}
+
+.knowledge-search {
+  width: min(100%, 21rem);
+}
+
+.knowledge-file-manager {
+  min-height: 40rem;
+  overflow: hidden;
+}
+
+.knowledge-content-header {
+  display: flex;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .75rem 1rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.knowledge-content-header {
+  align-items: center;
+}
+
+.knowledge-items {
+  display: grid;
+}
+
+.knowledge-item {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+  align-items: center;
+  gap: .9rem;
+  width: 100%;
+  padding: 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--ink);
+  background: var(--surface);
+  text-align: left;
+}
+
+.knowledge-item:hover {
+  background: var(--surface-muted);
+}
+
+.knowledge-item-main {
+  display: grid;
+  gap: .15rem;
+  min-width: 0;
+}
+
+.knowledge-item-main strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.knowledge-items-grid {
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  padding: 1rem;
+  gap: 1rem;
+}
+
+.knowledge-items-grid .knowledge-item {
+  grid-template-columns: 1fr;
+  align-items: center;
+  justify-items: center;
+  min-height: 10rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.knowledge-items-grid .knowledge-item > .badge,
+.knowledge-items-grid .knowledge-item > .muted-note {
+  grid-column: 1;
+}
+
+.knowledge-items-grid .knowledge-item-main strong {
+  white-space: normal;
+}
+
+.knowledge-items-list {
+  grid-template-columns: 1fr;
+}
+
+.knowledge-empty {
+  padding: 3rem 1rem;
+  color: var(--ink-muted);
+  text-align: center;
+}
+
+.knowledge-folder-icon,
+.knowledge-file-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 3.25rem;
+  height: 3.25rem;
+}
+
+.knowledge-folder-icon svg,
+.knowledge-file-icon svg,
+.knowledge-icon-button svg {
+  width: 100%;
+  height: 100%;
+}
+
+.knowledge-folder-icon .folder-tab {
+  fill: #5aa9ff;
+}
+
+.knowledge-folder-icon .folder-body {
+  fill: #1f7ed6;
+}
+
+.knowledge-file-icon .file-sheet {
+  fill: #ffffff;
+  stroke: #8fa1b3;
+  stroke-width: 2;
+}
+
+.knowledge-file-icon .file-corner,
+.knowledge-file-icon .file-line {
+  fill: none;
+  stroke: #5f6c7a;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.knowledge-file-icon-large {
+  width: 3rem;
+  height: 3.5rem;
+  font-size: .85rem;
+}
+
+.knowledge-view-actions {
+  display: inline-flex;
+  gap: .35rem;
+}
+
+.knowledge-icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  padding: .52rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--ink-muted);
+  background: var(--surface);
+}
+
+.knowledge-icon-button:hover,
+.knowledge-icon-button:focus,
+.knowledge-icon-button.active {
+  color: var(--primary-dark);
+  border-color: #8fa1b3;
+  background: var(--primary-soft);
+}
+
+.knowledge-icon-button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+  background: var(--surface-muted);
+}
+
+.knowledge-icon-button svg {
+  fill: currentColor;
+}
+
+.knowledge-document-meta {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+
+.knowledge-document-modal .modal-header {
+  position: relative;
+  padding-right: 6.5rem;
+}
+
+.knowledge-modal-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  position: absolute;
+  top: .75rem;
+  right: .75rem;
+}
+
+.markdown-preview {
+  color: var(--ink);
+  line-height: 1.55;
+}
+
+.markdown-preview h3,
+.markdown-preview h4 {
+  margin-top: 1.1rem;
+  color: var(--primary-dark);
+}
+
+.markdown-preview p {
+  margin-bottom: .7rem;
+}
+
+.markdown-preview blockquote {
+  margin: 1rem 0 0;
+  padding: .7rem .85rem;
+  border-left: 3px solid var(--primary);
+  color: var(--ink-muted);
+  background: var(--surface-muted);
+  font-size: .9rem;
+}
+
+@media (max-width: 700px) {
+  .knowledge-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .knowledge-search {
+    width: 100%;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  .knowledge-document-modal,
+  .knowledge-document-modal * {
+    visibility: visible !important;
+  }
+
+  .knowledge-document-modal {
+    position: static !important;
+  }
+
+  .knowledge-document-modal .modal-dialog,
+  .knowledge-document-modal .modal-content,
+  .knowledge-document-modal .modal-body {
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .knowledge-document-modal .modal-header,
+  .knowledge-document-modal .modal-footer,
+  .modal-backdrop {
+    display: none !important;
+  }
+}
+
 .module-link {
   display: grid;
   gap: .25rem;
@@ -864,6 +1161,56 @@ a {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: #eef2f6;
+}
+
+.facility-list-panel {
+  min-height: 100%;
+}
+
+.facility-list-item {
+  display: grid;
+  gap: .25rem;
+  padding: .85rem .95rem;
+}
+
+.facility-list-item-title {
+  display: block;
+  font-weight: 750;
+}
+
+.facility-list-item-meta {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink-muted);
+  font-size: .82rem;
+  font-weight: 650;
+}
+
+.facility-map-shell {
+  position: relative;
+  width: min(100%, 42rem);
+  margin-inline: auto;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.facility-yandex-map {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.facility-map-caption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .9rem;
+  padding: .75rem .9rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
 }
 
 .tab-panel[hidden],
