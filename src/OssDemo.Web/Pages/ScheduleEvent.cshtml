@@ -1,0 +1,224 @@
+@page "/Schedule/Event/{id?}"
+@using System.Globalization
+@{
+    var id = (RouteData.Values["id"] as string ?? "sch-18").ToLowerInvariant();
+    var events = new[]
+    {
+        new ScheduleEvent(
+            "sch-18",
+            "Березниковское ЛПУМГ: плановая проверка",
+            new DateTime(2026, 8, 21, 10, 0, 0),
+            new DateTime(2026, 8, 21, 13, 30, 0),
+            "Готово к генерации",
+            "text-bg-success",
+            "Проверка",
+            "Березниковское ЛПУМГ",
+            "Компрессорная станция, НВОС I",
+            "Дулаева Н. И.",
+            "Общие, атмосфера, вода, отходы, недра",
+            "Профиль подставлен автоматически, пакет ОРД найден",
+            "Демо-сценарий: запуск генерации чек-листа по готовому объектному профилю.",
+            "Создать чек-лист",
+            "/Checklists/New"),
+        new ScheduleEvent(
+            "doc-ber-2026",
+            "Березниковское ЛПУМГ: сверка ОРД",
+            new DateTime(2026, 8, 20, 15, 0, 0),
+            new DateTime(2026, 8, 20, 16, 0, 0),
+            "Готово к генерации",
+            "text-bg-success",
+            "ОРД и документы",
+            "Березниковское ЛПУМГ",
+            "Пакет приказов и лицензий",
+            "Смирнова Е. А.",
+            "Приказ ПЭК, распоряжение, приложение к лицензии",
+            "Документы распознаны, неоднозначность по скважине №3 вынесена в решение",
+            "Событие показывает подготовительный этап до проверки.",
+            "Открыть ОРД",
+            "/Documents"),
+        new ScheduleEvent(
+            "gen-ber-2026",
+            "Березниковское ЛПУМГ: генерация чек-листа",
+            new DateTime(2026, 8, 21, 14, 30, 0),
+            new DateTime(2026, 8, 21, 15, 15, 0),
+            "Готово к генерации",
+            "text-bg-success",
+            "Генерация чек-листа",
+            "Березниковское ЛПУМГ",
+            "Формирование проекта чек-листа",
+            "inspector",
+            "42 пункта из базы знаний, ОРД, нарушений и архива",
+            "4 агента завершили анализ источников",
+            "Быстрый переход ведет на мастер создания чек-листа.",
+            "Перейти к генерации",
+            "/Checklists/New"),
+        new ScheduleEvent(
+            "sch-21",
+            "Воткинское ЛПУМГ: проверка профиля",
+            new DateTime(2026, 9, 9, 9, 30, 0),
+            new DateTime(2026, 9, 9, 12, 0, 0),
+            "Профиль требует доработки",
+            "text-bg-warning",
+            "Проверка",
+            "Воткинское ЛПУМГ",
+            "Линейное производственное управление",
+            "Каримов А. В.",
+            "Земля, отходы, общие",
+            "Объект найден, но профиль требует уточнения категорий НВОС",
+            "Перед генерацией чек-листа нужно подтвердить профиль объекта.",
+            "Доработать профиль",
+            "/Facilities"),
+        new ScheduleEvent(
+            "doc-vot-2026",
+            "Воткинское ЛПУМГ: загрузить приложение к лицензии",
+            new DateTime(2026, 9, 5, 11, 0, 0),
+            new DateTime(2026, 9, 5, 12, 0, 0),
+            "Профиль требует доработки",
+            "text-bg-warning",
+            "ОРД и документы",
+            "Воткинское ЛПУМГ",
+            "Подготовка документов",
+            "Каримов А. В.",
+            "Недостающие приложения и зона ответственности",
+            "Найден приказ ПЭК, приложение к лицензии отсутствует",
+            "Событие подсвечивает причину желтого статуса в календаре.",
+            "Открыть документы",
+            "/Documents"),
+        new ScheduleEvent(
+            "sch-24",
+            "УАВР №1: создать профиль объекта",
+            new DateTime(2026, 10, 6, 10, 0, 0),
+            new DateTime(2026, 10, 6, 11, 30, 0),
+            "Требует создания",
+            "text-bg-danger",
+            "Проверка",
+            "УАВР №1",
+            "Аварийно-восстановительное подразделение",
+            "Иванова Е. С.",
+            "Отходы, вода",
+            "Профиль не найден в реестре объектов",
+            "Красный статус показывает блокер перед плановой проверкой.",
+            "Создать профиль",
+            "/Facilities"),
+        new ScheduleEvent(
+            "ctrl-31",
+            "Контроль устранения: протоколы инструментального контроля",
+            new DateTime(2026, 10, 14, 16, 0, 0),
+            new DateTime(2026, 10, 14, 17, 0, 0),
+            "Контрольный срок",
+            "text-bg-info",
+            "Контроль нарушения",
+            "Березниковское ЛПУМГ",
+            "Предписание по акту 2025",
+            "Дулаева Н. И.",
+            "Атмосфера, инструментальный контроль выбросов",
+            "Просроченное устранение подтянуто из реестра нарушений",
+            "Контрольные события позволяют видеть не только проверки, но и критичные сроки.",
+            "Открыть нарушение",
+            "/Violations"),
+        new ScheduleEvent(
+            "sch-29",
+            "Пермское ЛПУМГ: подготовить проверку",
+            new DateTime(2026, 11, 12, 9, 0, 0),
+            new DateTime(2026, 11, 12, 12, 0, 0),
+            "В подготовке",
+            "text-bg-secondary",
+            "Проверка",
+            "Пермское ЛПУМГ",
+            "Линейное производственное управление",
+            "Соколов П. М.",
+            "Атмосфера, недра",
+            "Профиль найден, пакет документов еще не проверен",
+            "Событие находится в подготовке, но уже доступно в календарном плане.",
+            "Подготовить чек-лист",
+            "/Checklists/New"),
+        new ScheduleEvent(
+            "ctrl-perm-2026",
+            "Пермское ЛПУМГ: срок обновления ПНООЛР",
+            new DateTime(2026, 11, 18, 15, 0, 0),
+            new DateTime(2026, 11, 18, 16, 0, 0),
+            "Контрольный срок",
+            "text-bg-info",
+            "Контроль нарушения",
+            "Пермское ЛПУМГ",
+            "Контроль нормативной документации",
+            "Соколов П. М.",
+            "Отходы, лимиты и фактические объемы",
+            "Срок найден при анализе ОРД и прошлых чек-листов",
+            "Контрольный срок автоматически попадает в график подготовки.",
+            "Посмотреть ОРД",
+            "/Documents")
+    };
+    var currentEvent = events.FirstOrDefault(item => item.Id == id) ?? events[0];
+    var ruCulture = CultureInfo.GetCultureInfo("ru-RU");
+
+    ViewData["Title"] = currentEvent.Title;
+    ViewData["Nav"] = "Schedule";
+    ViewData["Breadcrumb"] = $"График \\ Событие \\ {currentEvent.Object}";
+}
+
+<div class="page-actions mb-3">
+    <a class="btn btn-outline-primary" asp-page="/Schedule">Назад к графику</a>
+    <a class="btn btn-primary" href="@currentEvent.ActionUrl">@currentEvent.ActionLabel</a>
+</div>
+
+<section class="soft-panel p-4 mb-4">
+    <div class="d-flex flex-wrap justify-content-between gap-3 mb-4">
+        <div>
+            <h1 class="section-title h2 mb-1">@currentEvent.Title</h1>
+            <p class="muted-note mb-0">@currentEvent.ObjectType</p>
+        </div>
+        <span class="badge @currentEvent.BadgeClass align-self-start">@currentEvent.Status</span>
+    </div>
+
+    <dl class="row g-3 mb-4">
+        <div class="col-md-3"><dt class="small text-muted">Дата и время</dt><dd class="fw-semibold mb-0">@currentEvent.Start.ToString("dd MMMM yyyy, HH:mm", ruCulture)</dd></div>
+        <div class="col-md-3"><dt class="small text-muted">Окончание</dt><dd class="fw-semibold mb-0">@currentEvent.End.ToString("dd MMMM yyyy, HH:mm", ruCulture)</dd></div>
+        <div class="col-md-3"><dt class="small text-muted">Тип события</dt><dd class="fw-semibold mb-0">@currentEvent.Category</dd></div>
+        <div class="col-md-3"><dt class="small text-muted">Ответственный</dt><dd class="fw-semibold mb-0">@currentEvent.Responsible</dd></div>
+    </dl>
+
+    <div class="alert alert-info mb-0">@currentEvent.Note</div>
+</section>
+
+<section class="row g-4">
+    <div class="col-lg-7">
+        <div class="soft-panel p-4 h-100">
+            <h2 class="section-title h4 mb-3">Данные события</h2>
+            <dl class="schedule-detail-list">
+                <div><dt>Объект</dt><dd>@currentEvent.Object</dd></div>
+                <div><dt>Критерии</dt><dd>@currentEvent.Criteria</dd></div>
+                <div><dt>Сопоставление</dt><dd>@currentEvent.Match</dd></div>
+            </dl>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <aside class="soft-panel p-4 h-100">
+            <h2 class="section-title h4 mb-3">Действие</h2>
+            <p class="muted-note">Перейдите к следующему рабочему шагу по этому событию.</p>
+            <div class="d-grid">
+                <a class="btn btn-primary btn-lg" href="@currentEvent.ActionUrl">@currentEvent.ActionLabel</a>
+            </div>
+        </aside>
+    </div>
+</section>
+
+@functions {
+    private sealed record ScheduleEvent(
+        string Id,
+        string Title,
+        DateTime Start,
+        DateTime End,
+        string Status,
+        string BadgeClass,
+        string Category,
+        string Object,
+        string ObjectType,
+        string Responsible,
+        string Criteria,
+        string Match,
+        string Note,
+        string ActionLabel,
+        string ActionUrl);
+}

@@ -80,12 +80,12 @@
         <span class="badge @facility.BadgeClass align-self-start">@facility.Status</span>
     </div>
 
-    <div class="row g-3 mb-4">
-        <div class="col-md-3"><div class="metric-card h-100"><div class="metric-label">Категория</div><strong>@facility.Category</strong></div></div>
-        <div class="col-md-3"><div class="metric-card h-100"><div class="metric-label">Адрес</div><strong>@facility.Address</strong></div></div>
-        <div class="col-md-3"><div class="metric-card h-100"><div class="metric-label">Координаты</div><strong>@facility.Coordinates</strong></div></div>
-        <div class="col-md-3"><div class="metric-card h-100"><div class="metric-label">Роль в сценарии</div><strong>цифровой паспорт объекта</strong></div></div>
-    </div>
+    <dl class="row g-3 mb-4">
+        <div class="col-md-3"><dt class="small text-muted">Категория</dt><dd class="fw-semibold mb-0">@facility.Category</dd></div>
+        <div class="col-md-3"><dt class="small text-muted">Адрес</dt><dd class="fw-semibold mb-0">@facility.Address</dd></div>
+        <div class="col-md-3"><dt class="small text-muted">Координаты</dt><dd class="fw-semibold mb-0">@facility.Coordinates</dd></div>
+        <div class="col-md-3"><dt class="small text-muted">Роль в сценарии</dt><dd class="fw-semibold mb-0">цифровой паспорт объекта</dd></div>
+    </dl>
 
     <div class="alert alert-info mb-0">@facility.Description</div>
 </section>

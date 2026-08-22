@@ -2,38 +2,84 @@
 @{
     ViewData["Title"] = "График проверок";
     ViewData["Nav"] = "Schedule";
-    ViewData["Breadcrumb"] = "График \\ Плановые проверки";
+    ViewData["Breadcrumb"] = "График \\ Календарь событий";
 }
 
-<div class="page-actions mb-3">
-    <button class="btn btn-outline-primary" data-file-action>Импорт XLSX</button>
-    <a class="btn btn-primary" asp-page="/Checklists/New">Создать чек-лист</a>
-</div>
+@section Styles {
+    <link rel="preload" href="~/lib/fullcalendar/index.global.min.js" as="script" />
+}
 
-<section class="row g-4 mb-4">
-    <div class="col-md-3"><div class="metric-card"><div class="metric-value">13</div><div class="small text-muted">объектов в графике</div></div></div>
-    <div class="col-md-3"><div class="metric-card"><div class="metric-value">9</div><div class="small text-muted">сопоставлены</div></div></div>
-    <div class="col-md-3"><div class="metric-card"><div class="metric-value">3</div><div class="small text-muted">готовятся</div></div></div>
-    <div class="col-md-3"><div class="metric-card"><div class="metric-value">1</div><div class="small text-muted">требует создания</div></div></div>
+<section class="soft-panel schedule-toolbar p-3 p-lg-4 mb-4" aria-label="Фильтры календаря">
+    <div class="row g-3 align-items-end">
+        <div class="col-lg-4">
+            <label class="form-label" for="scheduleSearch">Объект или ответственный</label>
+            <input id="scheduleSearch" class="form-control" value="" placeholder="Например: Березниковское" data-schedule-search aria-label="Поиск по графику" />
+        </div>
+        <div class="col-md-4 col-lg-3">
+            <label class="form-label" for="scheduleStatus">Статус</label>
+            <select id="scheduleStatus" class="form-select" data-schedule-status>
+                <option value="all">Все статусы</option>
+                <option value="ready">Готово к генерации</option>
+                <option value="profile">Профиль требует доработки</option>
+                <option value="missing">Требует создания</option>
+                <option value="control">Контрольный срок</option>
+                <option value="draft">В подготовке</option>
+            </select>
+        </div>
+        <div class="col-md-4 col-lg-3">
+            <label class="form-label" for="scheduleCategory">Тип события</label>
+            <select id="scheduleCategory" class="form-select" data-schedule-category>
+                <option value="all">Все типы</option>
+                <option value="inspection">Проверка</option>
+                <option value="documents">ОРД и документы</option>
+                <option value="generation">Генерация чек-листа</option>
+                <option value="control">Контроль нарушения</option>
+            </select>
+        </div>
+        <div class="col-md-4 col-lg-2">
+            <button class="btn btn-outline-secondary w-100" type="button" data-schedule-reset>Сбросить</button>
+        </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 mt-3" aria-label="Легенда статусов">
+        <span class="schedule-legend-item"><span class="legend-dot ready"></span>Готово</span>
+        <span class="schedule-legend-item"><span class="legend-dot profile"></span>Доработать профиль</span>
+        <span class="schedule-legend-item"><span class="legend-dot missing"></span>Требует создания</span>
+        <span class="schedule-legend-item"><span class="legend-dot control"></span>Контрольный срок</span>
+        <span class="schedule-legend-item"><span class="legend-dot draft"></span>В подготовке</span>
+    </div>
 </section>
 
-<section class="soft-panel p-3 p-lg-4">
-    <div class="row g-3 mb-3">
-        <div class="col-md-4"><input class="form-control" value="Березниковское" aria-label="Фильтр по объекту" /></div>
-        <div class="col-md-3"><select class="form-select" aria-label="Фильтр по месяцу"><option>Август</option><option>Сентябрь</option><option>Октябрь</option></select></div>
-        <div class="col-md-3"><select class="form-select" aria-label="Фильтр по статусу"><option>Все статусы</option><option>Готов к генерации</option><option>Требует создания</option></select></div>
-        <div class="col-md-2"><button class="btn btn-outline-secondary w-100">Фильтр</button></div>
+<section class="schedule-workspace">
+    <div class="soft-panel schedule-calendar-panel p-3 p-lg-4">
+        <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
+            <div>
+                <h2 class="h4 section-title mb-1">План-график</h2>
+                <p class="muted-note mb-0" data-schedule-result>Загружаем календарь...</p>
+            </div>
+            <span class="badge text-bg-info align-self-start">FullCalendar</span>
+        </div>
+        <div id="scheduleCalendar" class="schedule-calendar" aria-label="Календарь проверок"></div>
     </div>
 
-    <div class="table-responsive">
-        <table class="table align-middle mb-0">
-            <thead><tr><th>№</th><th>Объект аудита</th><th>Группа критериев</th><th>Месяц</th><th>Ответственный</th><th>Сопоставление</th><th>Статус</th><th></th></tr></thead>
-            <tbody>
-                <tr><td>18</td><td><strong>Березниковское ЛПУМГ</strong><div class="small text-muted">компрессорная станция, НВОС I</div></td><td>Общие, атмосфера, вода, отходы, недра</td><td>Август</td><td>Дулаева Н. И.</td><td><span class="badge text-bg-success">профиль подставлен</span></td><td><span class="badge text-bg-success">готов к генерации</span></td><td><a class="btn btn-sm btn-primary" asp-page="/Checklists/New">Создать чек-лист</a></td></tr>
-                <tr><td>21</td><td><strong>Воткинское ЛПУМГ</strong></td><td>Земля, отходы, общие</td><td>Сентябрь</td><td>Каримов А. В.</td><td><span class="badge text-bg-success">найден</span></td><td><span class="badge text-bg-warning">профиль требует доработки</span></td><td><a class="btn btn-sm btn-outline-primary" asp-page="/Facilities">Профиль</a></td></tr>
-                <tr><td>24</td><td><strong>УАВР №1</strong></td><td>Отходы, вода</td><td>Октябрь</td><td>Иванова Е. С.</td><td><span class="badge text-bg-danger">не найден</span></td><td><span class="badge text-bg-danger">требует создания</span></td><td><a class="btn btn-sm btn-outline-danger" asp-page="/Facilities">Создать</a></td></tr>
-                <tr><td>29</td><td><strong>Пермское ЛПУМГ</strong></td><td>Атмосфера, недра</td><td>Ноябрь</td><td>Соколов П. М.</td><td><span class="badge text-bg-success">найден</span></td><td><span class="badge text-bg-secondary">не начат</span></td><td><a class="btn btn-sm btn-outline-primary" asp-page="/Checklists/New">Подготовить</a></td></tr>
-            </tbody>
-        </table>
-    </div>
+    <aside class="schedule-side-stack" aria-label="Ближайшие события">
+        <div class="soft-panel p-3 p-lg-4">
+            <div class="d-flex justify-content-between gap-3 mb-3">
+                <div>
+                    <h2 class="h4 section-title mb-1">Ближайшие события</h2>
+                    <p class="muted-note mb-0">Список синхронизирован с фильтрами.</p>
+                </div>
+                <span class="badge text-bg-secondary" data-schedule-upcoming-count>0</span>
+            </div>
+            <div class="schedule-upcoming-list" data-schedule-upcoming></div>
+        </div>
+    </aside>
 </section>
+
+@section VendorScripts {
+    <script src="~/lib/fullcalendar/index.global.min.js"></script>
+    <script src="~/lib/fullcalendar/locales-all.global.min.js"></script>
+}
+
+@section Scripts {
+    <script src="~/js/schedule-calendar.js" asp-append-version="true"></script>
+}
