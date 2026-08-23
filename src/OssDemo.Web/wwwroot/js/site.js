@@ -628,7 +628,8 @@
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const thread = document.querySelector('[data-chat-thread]');
+      const chatShell = form.closest('.chat-shell') || document;
+      const thread = chatShell.querySelector('[data-chat-thread]');
       const messageTemplate = document.querySelector('[data-chat-message-template]');
       if (!thread || !messageTemplate || !input || !sendButton) return;
 
