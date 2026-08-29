@@ -1,7 +1,17 @@
+using System.Net.Http.Headers;
+using System.Net.Mime;
+using System.Text;
+using System.Text.Json;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorPages();
+builder.Services.AddHttpClient("AmveraInference", client =>
+{
+    client.BaseAddress = new Uri("https://inference.waw0.amvera.ru/");
+    client.Timeout = TimeSpan.FromSeconds(60);
+});
 
 var app = builder.Build();
 
@@ -46,10 +56,113 @@ app.MapGet("/exports/checklist.docx", () => ExportFiles.CreateDocx())
    .WithName("ExportChecklistDocx");
 app.MapGet("/exports/checklist.pdf", () => ExportFiles.CreatePdf())
    .WithName("ExportChecklistPdf");
+app.MapPost("/api/ai/chat", async (
+    ChatRequest request,
+    IHttpClientFactory httpClientFactory,
+    IConfiguration configuration,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    const int maxMessageLength = 4_000;
+    const int maxConversationMessages = 6;
+    const string model = "qwen3_30b";
+
+    if (string.IsNullOrWhiteSpace(request.Message) || request.Message.Length > maxMessageLength)
+    {
+        return Results.BadRequest(new { error = "Сообщение должно содержать от 1 до 4000 символов." });
+    }
+
+    var apiToken = configuration["AI:ApiToken"];
+    if (string.IsNullOrWhiteSpace(apiToken))
+    {
+        logger.LogError("Не настроен секрет AI__ApiToken для Amvera LLM Inference.");
+        return Results.Problem(
+            title: "ИИ-консультант пока не настроен",
+            detail: "Добавьте секрет AI__ApiToken в переменные Amvera и перезапустите приложение.",
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    var messages = new List<InferenceMessage>
+    {
+        new("system", "Ты ИИ-консультант demo-системы АИ ООС. Отвечай по-русски, кратко и понятно. " +
+            "Сейчас это общий тест модели без подключенной базы знаний: не выдавай ответы за юридические или нормативные заключения и не придумывай источники, документы, статьи или факты.")
+    };
+
+    foreach (var message in request.Conversation
+                 .Where(item => item.Role is "user" or "assistant")
+                 .TakeLast(maxConversationMessages))
+    {
+        if (!string.IsNullOrWhiteSpace(message.Content))
+        {
+            messages.Add(new InferenceMessage(message.Role, message.Content[..Math.Min(message.Content.Length, maxMessageLength)]));
+        }
+    }
+
+    messages.Add(new InferenceMessage("user", request.Message.Trim()));
+
+    using var upstreamRequest = new HttpRequestMessage(HttpMethod.Post, "v1/chat/completions")
+    {
+        Content = new StringContent(
+            JsonSerializer.Serialize(new { model, messages, temperature = 0.3 }),
+            Encoding.UTF8,
+            MediaTypeNames.Application.Json)
+    };
+    upstreamRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiToken);
+
+    try
+    {
+        using var response = await httpClientFactory.CreateClient("AmveraInference")
+            .SendAsync(upstreamRequest, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogWarning("Amvera LLM Inference вернул статус {StatusCode}.", (int)response.StatusCode);
+            return Results.Problem(
+                title: "Сервис ИИ временно недоступен",
+                detail: "Повторите запрос позже.",
+                statusCode: StatusCodes.Status502BadGateway);
+        }
+
+        await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var payload = await JsonDocument.ParseAsync(contentStream, cancellationToken: cancellationToken);
+        var answer = payload.RootElement
+            .GetProperty("choices")[0]
+            .GetProperty("message")
+            .GetProperty("content")
+            .GetString();
+
+        if (string.IsNullOrWhiteSpace(answer))
+        {
+            logger.LogWarning("Amvera LLM Inference вернул пустой ответ.");
+            return Results.Problem(title: "ИИ не вернул ответ", statusCode: StatusCodes.Status502BadGateway);
+        }
+
+        return Results.Ok(new { answer, sources = Array.Empty<object>(), model });
+    }
+    catch (HttpRequestException exception)
+    {
+        logger.LogError(exception, "Не удалось подключиться к Amvera LLM Inference.");
+        return Results.Problem(title: "Сервис ИИ временно недоступен", detail: "Повторите запрос позже.", statusCode: StatusCodes.Status502BadGateway);
+    }
+    catch (JsonException exception)
+    {
+        logger.LogError(exception, "Amvera LLM Inference вернул ответ в неожиданном формате.");
+        return Results.Problem(title: "Сервис ИИ вернул некорректный ответ", statusCode: StatusCodes.Status502BadGateway);
+    }
+});
 app.MapRazorPages()
    .WithStaticAssets();
 
 app.Run();
+
+internal sealed record ChatRequest(string? Message, IReadOnlyList<ChatHistoryMessage>? Conversation)
+{
+    public IReadOnlyList<ChatHistoryMessage> Conversation { get; init; } = Conversation ?? Array.Empty<ChatHistoryMessage>();
+}
+
+internal sealed record ChatHistoryMessage(string Role, string Content);
+
+internal sealed record InferenceMessage(string role, string content);
 
 internal static class ExportFiles
 {
