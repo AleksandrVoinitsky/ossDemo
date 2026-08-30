@@ -83,7 +83,10 @@ internal sealed class RagService(
 
         if (!hasDatabase || !hasEmbeddings)
         {
-            return new(false, hasDatabase, hasEmbeddings, 0, 0, Array.Empty<RagDocumentStatus>(), Model);
+            var problem = !hasDatabase
+                ? "Не задана строка подключения ConnectionStrings__OssDatabase."
+                : "Не задана конфигурация embedding-сервиса: Embeddings__BaseUrl или Embeddings__ApiKey.";
+            return new(false, hasDatabase, hasEmbeddings, 0, 0, Array.Empty<RagDocumentStatus>(), Model, problem);
         }
 
         try
@@ -111,12 +114,12 @@ internal sealed class RagService(
                     reader.GetInt32(3)));
             }
 
-            return new(_initialized && chunkCount > 0, true, true, chunkCount, documents.Count, documents, Model);
+            return new(_initialized && chunkCount > 0, true, true, chunkCount, documents.Count, documents, Model, null);
         }
         catch (Exception exception) when (exception is NpgsqlException or HttpRequestException or JsonException or InvalidOperationException)
         {
             logger.LogError(exception, "Не удалось получить статус RAG.");
-            return new(false, hasDatabase, hasEmbeddings, 0, 0, Array.Empty<RagDocumentStatus>(), Model);
+            return new(false, hasDatabase, hasEmbeddings, 0, 0, Array.Empty<RagDocumentStatus>(), Model, DescribeStatusFailure(exception));
         }
     }
 
@@ -244,6 +247,19 @@ internal sealed class RagService(
     private static string ToVectorLiteral(IEnumerable<float> values) =>
         $"[{string.Join(',', values.Select(value => value.ToString("R", CultureInfo.InvariantCulture)))}]";
 
+    private static string DescribeStatusFailure(Exception exception) => exception switch
+    {
+        PostgresException { SqlState: "42501" } => "У пользователя PostgreSQL недостаточно прав для создания расширения vector или таблиц базы знаний.",
+        PostgresException { SqlState: "0A000" } => "Расширение pgvector недоступно в этом экземпляре PostgreSQL.",
+        PostgresException { SqlState: "3D000" } => "База данных из строки подключения не найдена.",
+        PostgresException => "PostgreSQL отклонил запрос инициализации. Проверьте журнал ossDemo.",
+        NpgsqlException => "Не удалось подключиться к PostgreSQL. Проверьте внутренний хост, имя базы, пользователя и пароль.",
+        HttpRequestException => "Embedding-сервис недоступен или ключ Embeddings__ApiKey не совпадает с EMBEDDINGS_API_KEY в minilm.",
+        JsonException => "Embedding-сервис вернул ответ в неожиданном формате.",
+        InvalidOperationException => "Embedding-сервис не настроен либо вернул вектор с неверной моделью или размерностью.",
+        _ => "Не удалось инициализировать RAG. Проверьте журнал ossDemo."
+    };
+
     private sealed record DemoDocument(string Title, string SourceType, string SourceLabel, string Text);
 }
 
@@ -256,4 +272,5 @@ internal sealed record RagStatus(
     int ChunkCount,
     int DocumentCount,
     IReadOnlyList<RagDocumentStatus> Documents,
-    string Model);
+    string Model,
+    string? Problem);

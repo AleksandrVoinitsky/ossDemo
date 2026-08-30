@@ -73,7 +73,8 @@ app.MapGet("/api/rag/status", async (RagService ragService, CancellationToken ca
         status.ChunkCount,
         status.DocumentCount,
         status.Documents,
-        status.Model
+        status.Model,
+        status.Problem
     });
 });
 app.MapPost("/api/rag/embedding-check", async (
@@ -311,6 +312,9 @@ internal static class RagStatusFormatter
             ? "Пока нет проиндексированных документов."
             : string.Join("\n", status.Documents.Select(document =>
                 $"- `{document.Title}` — статус: {document.Status}, фрагментов: {document.ChunkCount}."));
+        var problem = string.IsNullOrWhiteSpace(status.Problem)
+            ? string.Empty
+            : $"\n### Требуется исправление\n{status.Problem}\n";
 
         return $"""
             ## Статус базы знаний
@@ -327,6 +331,7 @@ internal static class RagStatusFormatter
 
             ### Документы
             {documents}
+            {problem}
 
             Команда `!status` не вызывает Qwen и не раскрывает ключи, пароли, строки подключения или внутренние адреса.
             """;
