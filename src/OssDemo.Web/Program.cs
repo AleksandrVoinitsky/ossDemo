@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Net.Mime;
 using System.Text;
 using System.Text.Json;
@@ -11,6 +12,10 @@ builder.Services.AddHttpClient("AmveraInference", client =>
 {
     client.BaseAddress = new Uri("https://inference.waw0.amvera.ru/");
     client.Timeout = TimeSpan.FromSeconds(60);
+});
+builder.Services.AddHttpClient("Embeddings", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
 });
 
 var app = builder.Build();
@@ -56,6 +61,89 @@ app.MapGet("/exports/checklist.docx", () => ExportFiles.CreateDocx())
    .WithName("ExportChecklistDocx");
 app.MapGet("/exports/checklist.pdf", () => ExportFiles.CreatePdf())
    .WithName("ExportChecklistPdf");
+app.MapGet("/api/rag/status", (IConfiguration configuration) =>
+{
+    var baseUrl = configuration["Embeddings:BaseUrl"];
+    var apiKey = configuration["Embeddings:ApiKey"];
+    var model = configuration["Embeddings:Model"] ?? "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2";
+
+    return Results.Ok(new
+    {
+        configured = Uri.TryCreate(baseUrl, UriKind.Absolute, out _)
+            && !string.IsNullOrWhiteSpace(apiKey),
+        model,
+        dimensions = 384,
+        stage = "Embedding-сервис подключается отдельно; поиск по документам будет доступен после создания pgvector-индекса и загрузки документов."
+    });
+});
+app.MapPost("/api/rag/embedding-check", async (
+    IHttpClientFactory httpClientFactory,
+    IConfiguration configuration,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    var baseUrl = configuration["Embeddings:BaseUrl"];
+    var apiKey = configuration["Embeddings:ApiKey"];
+    var configuredModel = configuration["Embeddings:Model"] ?? "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2";
+
+    if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var serviceUri) || string.IsNullOrWhiteSpace(apiKey))
+    {
+        return Results.Problem(
+            title: "Embedding-сервис не настроен",
+            detail: "Задайте Embeddings__BaseUrl и Embeddings__ApiKey в секретах Amvera.",
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(serviceUri, "embed"))
+    {
+        Content = JsonContent.Create(new { inputs = new[] { "Проверка подключения embedding-сервиса." } })
+    };
+    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+    try
+    {
+        using var response = await httpClientFactory.CreateClient("Embeddings").SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogWarning("Embedding-сервис вернул статус {StatusCode}.", (int)response.StatusCode);
+            return Results.Problem(title: "Embedding-сервис временно недоступен", statusCode: StatusCodes.Status502BadGateway);
+        }
+
+        await using var content = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var payload = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
+        var root = payload.RootElement;
+        var embeddings = root.GetProperty("embeddings");
+        var vector = embeddings.GetArrayLength() == 1 ? embeddings[0] : default;
+        var dimensions = vector.ValueKind == JsonValueKind.Array ? vector.GetArrayLength() : 0;
+        var validVector = dimensions == 384 && vector.EnumerateArray().All(value =>
+            value.ValueKind == JsonValueKind.Number && double.IsFinite(value.GetDouble()));
+
+        if (!validVector)
+        {
+            logger.LogWarning("Embedding-сервис вернул вектор неожиданной размерности или с некорректными значениями.");
+            return Results.Problem(title: "Embedding-сервис вернул некорректный вектор", statusCode: StatusCodes.Status502BadGateway);
+        }
+
+        var model = root.TryGetProperty("model", out var modelElement) ? modelElement.GetString() : null;
+        if (!string.Equals(model, configuredModel, StringComparison.Ordinal))
+        {
+            logger.LogWarning("Embedding-сервис вернул модель {ActualModel} вместо настроенной {ExpectedModel}.", model, configuredModel);
+            return Results.Problem(title: "Embedding-сервис использует другую модель", statusCode: StatusCodes.Status502BadGateway);
+        }
+
+        return Results.Ok(new { ready = true, model, dimensions });
+    }
+    catch (HttpRequestException exception)
+    {
+        logger.LogError(exception, "Не удалось подключиться к embedding-сервису.");
+        return Results.Problem(title: "Embedding-сервис временно недоступен", statusCode: StatusCodes.Status502BadGateway);
+    }
+    catch (JsonException exception)
+    {
+        logger.LogError(exception, "Embedding-сервис вернул ответ в неожиданном формате.");
+        return Results.Problem(title: "Embedding-сервис вернул некорректный ответ", statusCode: StatusCodes.Status502BadGateway);
+    }
+});
 app.MapPost("/api/ai/chat", async (
     ChatRequest request,
     IHttpClientFactory httpClientFactory,
