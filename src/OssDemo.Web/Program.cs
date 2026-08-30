@@ -199,24 +199,11 @@ app.MapPost("/api/ai/chat", async (
         return Results.Problem(title: "Поиск по базе знаний временно недоступен", statusCode: StatusCodes.Status502BadGateway);
     }
 
-    if (matches.Count == 0)
-    {
-        return Results.Ok(new
-        {
-            answer = "В проиндексированных документах не найден подтверждённый источник по этому вопросу.",
-            grounded = false,
-            sources = Array.Empty<object>(),
-            model
-        });
-    }
-
     var context = string.Join("\n\n", matches.Select((match, index) =>
         $"[S{index + 1}] Документ: {match.DocumentTitle}\nРаздел: {match.SourceLabel}\nТекст: {match.Text}"));
     var messages = new List<InferenceMessage>
     {
-        new("system", "Ты ИИ-консультант demo-системы АИ ООС. Отвечай по-русски, кратко и понятно. " +
-            "Используй только приведённые ниже источники. Не выдумывай факты, документы, статьи или ссылки. " +
-            "Каждый фактический вывод сопровождай ссылкой [S1], [S2] и так далее.\n\n" + context)
+        new("system", ChatPrompt.BuildSystemMessage(context, matches.Count > 0))
     };
 
     foreach (var message in request.Conversation
@@ -268,13 +255,25 @@ app.MapPost("/api/ai/chat", async (
             return Results.Problem(title: "ИИ не вернул ответ", statusCode: StatusCodes.Status502BadGateway);
         }
 
-        var sources = matches.Select((match, index) => new
-        {
-            title = $"[S{index + 1}] {match.DocumentTitle}, {match.SourceLabel}",
-            quote = match.Text,
-            similarity = Math.Round(match.Similarity, 3)
-        });
-        return Results.Ok(new { answer, grounded = true, sources, model });
+        var sources = matches.Count > 0
+            ? matches.Select((match, index) => new
+            {
+                title = $"[S{index + 1}] {match.DocumentTitle}, {match.SourceLabel}",
+                quote = match.Text,
+                similarity = Math.Round(match.Similarity, 3),
+                kind = "source"
+            })
+            : new[]
+            {
+                new
+                {
+                    title = "Общий ответ ИИ — требуется проверка",
+                    quote = string.Empty,
+                    similarity = 0d,
+                    kind = "classifier"
+                }
+            };
+        return Results.Ok(new { answer, grounded = matches.Count > 0, sources, model });
     }
     catch (HttpRequestException exception)
     {
@@ -300,6 +299,31 @@ internal sealed record ChatRequest(string? Message, IReadOnlyList<ChatHistoryMes
 internal sealed record ChatHistoryMessage(string Role, string Content);
 
 internal sealed record InferenceMessage(string role, string content);
+
+internal static class ChatPrompt
+{
+    public static string BuildSystemMessage(string context, bool hasSources) => hasSources
+        ? """
+            Ты ИИ-консультант demo-системы АИ ООС. Отвечай по-русски, кратко и понятно.
+            Ниже приведены фрагменты проиндексированной базы знаний. Используй их как
+            приоритетный и проверяемый контекст. Не выдумывай документы, статьи, ссылки
+            или факты, которых нет в фрагментах. Каждый вывод, основанный на базе знаний,
+            сопровождай ссылкой [S1], [S2] и так далее. Если в источниках недостаточно
+            данных, прямо скажи об этом и при необходимости дай общий ответ, явно пометив
+            его как требующий проверки.
+
+            ## Фрагменты базы знаний
+            """ + context
+        : """
+            Ты ИИ-консультант demo-системы АИ ООС. Отвечай по-русски, кратко и понятно.
+            В проиндексированной базе знаний нет подтверждающих фрагментов по текущему
+            вопросу, поэтому дай полезный общий консультационный ответ. Начни ответ с
+            пометки: «Общий ответ ИИ, требуется проверка». Не утверждай, что опираешься
+            на документы базы знаний, не выдумывай документы, статьи, ссылки, точные
+            нормативные требования или результаты проверок. Для юридически значимых и
+            экологических выводов рекомендуй свериться с актуальными первоисточниками.
+            """;
+}
 
 internal static class RagStatusFormatter
 {
