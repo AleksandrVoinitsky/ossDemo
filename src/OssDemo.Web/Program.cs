@@ -17,6 +17,7 @@ builder.Services.AddHttpClient("Embeddings", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);
 });
+builder.Services.AddSingleton<RagService>();
 
 var app = builder.Build();
 
@@ -61,20 +62,10 @@ app.MapGet("/exports/checklist.docx", () => ExportFiles.CreateDocx())
    .WithName("ExportChecklistDocx");
 app.MapGet("/exports/checklist.pdf", () => ExportFiles.CreatePdf())
    .WithName("ExportChecklistPdf");
-app.MapGet("/api/rag/status", (IConfiguration configuration) =>
+app.MapGet("/api/rag/status", async (RagService ragService, CancellationToken cancellationToken) =>
 {
-    var baseUrl = configuration["Embeddings:BaseUrl"];
-    var apiKey = configuration["Embeddings:ApiKey"];
-    var model = configuration["Embeddings:Model"] ?? "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2";
-
-    return Results.Ok(new
-    {
-        configured = Uri.TryCreate(baseUrl, UriKind.Absolute, out _)
-            && !string.IsNullOrWhiteSpace(apiKey),
-        model,
-        dimensions = 384,
-        stage = "Embedding-сервис подключается отдельно; поиск по документам будет доступен после создания pgvector-индекса и загрузки документов."
-    });
+    var status = await ragService.GetStatusAsync(cancellationToken);
+    return Results.Ok(new { status.Ready, status.DatabaseConfigured, status.EmbeddingsConfigured, status.ChunkCount, status.Model });
 });
 app.MapPost("/api/rag/embedding-check", async (
     IHttpClientFactory httpClientFactory,
@@ -146,6 +137,7 @@ app.MapPost("/api/rag/embedding-check", async (
 });
 app.MapPost("/api/ai/chat", async (
     ChatRequest request,
+    RagService ragService,
     IHttpClientFactory httpClientFactory,
     IConfiguration configuration,
     ILogger<Program> logger,
@@ -170,10 +162,35 @@ app.MapPost("/api/ai/chat", async (
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 
+    IReadOnlyList<RagMatch> matches;
+    try
+    {
+        matches = await ragService.SearchAsync(request.Message.Trim(), cancellationToken);
+    }
+    catch (Exception exception) when (exception is Npgsql.NpgsqlException or HttpRequestException or JsonException or InvalidOperationException)
+    {
+        logger.LogError(exception, "Не удалось выполнить поиск по базе знаний.");
+        return Results.Problem(title: "Поиск по базе знаний временно недоступен", statusCode: StatusCodes.Status502BadGateway);
+    }
+
+    if (matches.Count == 0)
+    {
+        return Results.Ok(new
+        {
+            answer = "В проиндексированных документах не найден подтверждённый источник по этому вопросу.",
+            grounded = false,
+            sources = Array.Empty<object>(),
+            model
+        });
+    }
+
+    var context = string.Join("\n\n", matches.Select((match, index) =>
+        $"[S{index + 1}] Документ: {match.DocumentTitle}\nРаздел: {match.SourceLabel}\nТекст: {match.Text}"));
     var messages = new List<InferenceMessage>
     {
         new("system", "Ты ИИ-консультант demo-системы АИ ООС. Отвечай по-русски, кратко и понятно. " +
-            "Сейчас это общий тест модели без подключенной базы знаний: не выдавай ответы за юридические или нормативные заключения и не придумывай источники, документы, статьи или факты.")
+            "Используй только приведённые ниже источники. Не выдумывай факты, документы, статьи или ссылки. " +
+            "Каждый фактический вывод сопровождай ссылкой [S1], [S2] и так далее.\n\n" + context)
     };
 
     foreach (var message in request.Conversation
@@ -225,7 +242,13 @@ app.MapPost("/api/ai/chat", async (
             return Results.Problem(title: "ИИ не вернул ответ", statusCode: StatusCodes.Status502BadGateway);
         }
 
-        return Results.Ok(new { answer, sources = Array.Empty<object>(), model });
+        var sources = matches.Select((match, index) => new
+        {
+            title = $"[S{index + 1}] {match.DocumentTitle}, {match.SourceLabel}",
+            quote = match.Text,
+            similarity = Math.Round(match.Similarity, 3)
+        });
+        return Results.Ok(new { answer, grounded = true, sources, model });
     }
     catch (HttpRequestException exception)
     {
