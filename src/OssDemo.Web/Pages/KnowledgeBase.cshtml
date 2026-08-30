@@ -8,11 +8,18 @@
 <div class="knowledge-page" data-knowledge-workspace>
     <section class="knowledge-toolbar" aria-label="Панель инструментов базы знаний">
         <div class="knowledge-breadcrumb" data-workspace-breadcrumb></div>
-        <div class="input-group knowledge-search">
-            <span class="input-group-text">⌕</span>
-            <input class="form-control" type="search" placeholder="Поиск файлов и папок" aria-label="Поиск файлов и папок" data-workspace-search />
+        <div class="knowledge-toolbar-actions">
+            <form class="knowledge-upload" data-knowledge-upload>
+                <input class="form-control form-control-sm" type="file" accept=".pdf,.docx,.xlsx" aria-label="Файл PDF, DOCX или XLSX" data-upload-file />
+                <button class="btn btn-primary btn-sm" type="submit" data-upload-submit>Загрузить</button>
+            </form>
+            <div class="input-group knowledge-search">
+                <span class="input-group-text">⌕</span>
+                <input class="form-control" type="search" placeholder="Поиск файлов" aria-label="Поиск файлов" data-workspace-search />
+            </div>
         </div>
     </section>
+    <div class="knowledge-upload-status d-none" role="status" data-upload-status></div>
 
     <section class="knowledge-file-manager soft-panel" aria-label="Проводник базы знаний">
         <div class="knowledge-content-header">
@@ -62,35 +69,5 @@
 </div>
 
 @section Scripts {
-    <script>
-        window.knowledgeWorkspace = {
-            name: "База знаний",
-            type: "folder",
-            children: [
-                {
-                    name: "Нормативные документы",
-                    type: "folder",
-                    children: [
-                        { name: "Федеральные законы", type: "folder", children: [
-                            { name: "7-ФЗ Об охране окружающей среды.md", type: "file", status: "Индексировано", updated: "21.08.2026", content: "# 7-ФЗ «Об охране окружающей среды»\n\n## Область применения\nДокумент содержит базовые требования по охране окружающей среды и производственному экологическому контролю.\n\n## Фрагмент для поиска\nПриродопользователь обязан соблюдать утверждённые нормативы и вести учёт воздействия на окружающую среду.\n\n> Источник: статья 67, демонстрационная выдержка." },
-                            { name: "89-ФЗ Об отходах производства и потребления.md", type: "file", status: "Индексировано", updated: "21.08.2026", content: "# 89-ФЗ «Об отходах производства и потребления»\n\n## Область применения\nДокумент используется для требований к образованию, накоплению и размещению отходов.\n\n## Фрагмент для поиска\nОрганизация должна обеспечивать учёт отходов и соблюдение установленных требований при обращении с ними.\n\n> Источник: статья 11, демонстрационная выдержка." }
-                        ]},
-                        { name: "Стандарты и СТО", type: "folder", children: [
-                            { name: "СТО 16-005-2025 Обращение с отходами.md", type: "file", status: "Индексировано", updated: "20.08.2026", content: "# СТО 16-005-2025\n\n## Контроль обращения с отходами\nПроверяется наличие мест накопления, маркировки контейнеров и документов учёта.\n\n## Связь с классификатором\nРаздел 4.3 — нормативы образования отходов и лимиты размещения.\n\n> Источник: раздел 5.3.2, демонстрационная выдержка." }
-                        ]}
-                    ]
-                },
-                {
-                    name: "Корпоративные документы",
-                    type: "folder",
-                    children: [
-                        { name: "Программа ПЭК Березниковского ЛПУМГ.md", type: "file", status: "Индексировано", updated: "18.08.2026", content: "# Программа ПЭК Березниковского ЛПУМГ\n\n## Назначение\nПрограмма определяет порядок производственного экологического контроля на объекте.\n\n## Контрольные действия\nРезультаты измерений, журналы и ответственные лица должны быть доступны для проверки.\n\n> Связанные разделы: 1.1, 2.2 и 3.2." },
-                        { name: "Приказ о проведении инвентаризации.md", type: "file", status: "Не индексировано", updated: "17.08.2026", content: "# Приказ о проведении инвентаризации\n\n## Задача\nПровести инвентаризацию источников выбросов до 30.09.2026.\n\n## Ответственный\nНазначен инженер по охране окружающей среды.\n\n> Документ подготовлен для демонстрации обработки ОРД." }
-                    ]
-                },
-                { name: "README.md", type: "file", status: "Индексировано", updated: "21.08.2026", content: "# Рабочая область базы знаний\n\nЭта папка содержит демонстрационные Markdown-документы.\n\nRAG использует индексированные фрагменты документов для поиска оснований и подготовки ответов ИИ-консультанта.\n\nКаждый документ можно связать с разделом классификатора и пунктом чек-листа." }
-            ]
-        };
-    </script>
     <script src="~/js/knowledge-base.js" asp-append-version="true"></script>
 }

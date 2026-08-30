@@ -17,6 +17,10 @@ builder.Services.AddHttpClient("Embeddings", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);
 });
+builder.Services.AddHttpClient("Docling", client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(5);
+});
 builder.Services.AddSingleton<RagService>();
 
 var app = builder.Build();
@@ -76,6 +80,65 @@ app.MapGet("/api/rag/status", async (RagService ragService, CancellationToken ca
         status.Model,
         status.Problem
     });
+});
+app.MapGet("/api/knowledge/documents", async (
+    RagService ragService,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var documents = await ragService.GetKnowledgeDocumentsAsync(cancellationToken);
+        return Results.Ok(documents);
+    }
+    catch (Exception exception) when (exception is Npgsql.NpgsqlException or HttpRequestException or JsonException or InvalidOperationException)
+    {
+        logger.LogError(exception, "Не удалось получить список документов базы знаний.");
+        return Results.Problem(title: "База знаний временно недоступна", statusCode: StatusCodes.Status502BadGateway);
+    }
+});
+app.MapGet("/api/knowledge/documents/{id:guid}", async (
+    Guid id,
+    RagService ragService,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var document = await ragService.GetKnowledgeDocumentAsync(id, cancellationToken);
+        return document is null ? Results.NotFound() : Results.Ok(document);
+    }
+    catch (Exception exception) when (exception is Npgsql.NpgsqlException or HttpRequestException or JsonException or InvalidOperationException)
+    {
+        logger.LogError(exception, "Не удалось получить документ {DocumentId} из базы знаний.", id);
+        return Results.Problem(title: "База знаний временно недоступна", statusCode: StatusCodes.Status502BadGateway);
+    }
+});
+app.MapPost("/api/knowledge/documents", async (
+    IFormFile? file,
+    RagService ragService,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    if (file is null)
+    {
+        return Results.BadRequest(new { error = "Выберите файл для загрузки." });
+    }
+
+    try
+    {
+        var document = await ragService.IngestAsync(file, cancellationToken);
+        return Results.Ok(document);
+    }
+    catch (RagIngestionException exception)
+    {
+        return Results.Problem(title: exception.Message, statusCode: exception.StatusCode);
+    }
+    catch (Exception exception) when (exception is Npgsql.NpgsqlException or HttpRequestException or JsonException or InvalidOperationException)
+    {
+        logger.LogError(exception, "Не удалось загрузить документ {FileName} в базу знаний.", Path.GetFileName(file.FileName));
+        return Results.Problem(title: "Не удалось обработать документ", detail: "Повторите попытку позже.", statusCode: StatusCodes.Status502BadGateway);
+    }
 });
 app.MapPost("/api/rag/embedding-check", async (
     IHttpClientFactory httpClientFactory,
