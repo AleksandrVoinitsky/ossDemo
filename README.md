@@ -99,9 +99,11 @@ OpenAI-совместимый endpoint `POST https://inference.waw0.amvera.ru/v1
 ### Настройка в Amvera
 
 Автодеплой по push и секреты настраиваются независимо: Amvera берёт код из Git,
-а значения хранит в проекте, вне репозитория. Файл `amvera.yaml` не поддерживает
-безопасные ссылки на секреты, поэтому не добавляйте реальные значения в YAML,
-`.env` или `appsettings.json`. Шаблон имён находится в [`.env.example`](.env.example).
+а реальные ключи, токены и пароли хранятся в проекте, вне репозитория. В Git
+добавлен [`.env`](.env) только с несекретными настройками embedding-сервиса;
+Amvera подхватывает его при запуске контейнера. Файл `amvera.yaml` не поддерживает
+безопасные ссылки на секреты. Шаблон полного локального набора имён находится в
+[`.env.example`](.env.example), но не содержит рабочих значений.
 
 В проекте `ossDemo` откройте «Переменные и секреты» и создайте:
 
@@ -110,8 +112,8 @@ OpenAI-совместимый endpoint `POST https://inference.waw0.amvera.ru/v1
 | `AI__ApiToken` | секрет | токен Amvera LLM для Qwen3-30B |
 | `Embeddings__ApiKey` | секрет | то же значение, что `EMBEDDINGS_API_KEY` в `minilm` |
 | `ConnectionStrings__OssDatabase` | секрет | внутренняя строка подключения к PostgreSQL |
-| `Embeddings__BaseUrl` | переменная | `http://amvera-minilm-run-aleksandr12224411/` |
-| `Embeddings__Model` | переменная | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` |
+| `Embeddings__BaseUrl` | не требуется | уже передаётся из отслеживаемого `.env` |
+| `Embeddings__Model` | не требуется | уже передаётся из отслеживаемого `.env` |
 
 После изменения значений перезапустите или передеплойте приложение. Amvera не
 предоставляет переменные на этапе сборки Docker, они доступны только запущенному
