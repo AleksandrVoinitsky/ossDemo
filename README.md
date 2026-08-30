@@ -143,7 +143,7 @@ dotnet run --project src/OssDemo.Web/OssDemo.Web.csproj
 В переменных и секретах приложения `ossDemo` задайте:
 
 ```text
-Embeddings__BaseUrl=http://amvera-minilm-run-aleksandr12224411/  # переменная
+Embeddings__BaseUrl=http://amvera-aleksandr12224411-run-minilm/  # переменная
 Embeddings__ApiKey=<то же значение, что EMBEDDINGS_API_KEY в minilm>  # секрет
 Embeddings__Model=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2  # переменная
 ```
