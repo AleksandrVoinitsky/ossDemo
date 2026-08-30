@@ -49,6 +49,7 @@ internal sealed class RagService(
                     original_file_name text NULL,
                     content_type text NULL,
                     size_bytes bigint NULL,
+                    source_hash text NULL,
                     created_at timestamptz NOT NULL DEFAULT now(),
                     updated_at timestamptz NOT NULL DEFAULT now()
                 );
@@ -56,6 +57,7 @@ internal sealed class RagService(
                 ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS original_file_name text NULL;
                 ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS content_type text NULL;
                 ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS size_bytes bigint NULL;
+                ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS source_hash text NULL;
                 CREATE TABLE IF NOT EXISTS knowledge_chunks (
                     id uuid PRIMARY KEY,
                     document_id uuid NOT NULL REFERENCES knowledge_documents(id) ON DELETE CASCADE,
@@ -255,7 +257,28 @@ internal sealed class RagService(
             reader.GetInt32(8));
     }
 
-    public async Task<KnowledgeDocumentSummary> IngestAsync(IFormFile file, CancellationToken cancellationToken)
+    public async Task<bool> IsSourceImportedAsync(string fileName, string sourceHash, CancellationToken cancellationToken)
+    {
+        await InitializeAsync(cancellationToken);
+        if (!_initialized)
+        {
+            return false;
+        }
+
+        await using var connection = new NpgsqlConnection(configuration.GetConnectionString("OssDatabase"));
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT EXISTS (
+                SELECT 1 FROM knowledge_documents
+                WHERE original_file_name = @fileName AND source_hash = @sourceHash AND status = 'indexed'
+            );
+            """, connection);
+        command.Parameters.AddWithValue("fileName", fileName);
+        command.Parameters.AddWithValue("sourceHash", sourceHash);
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken) ?? false);
+    }
+
+    public async Task<KnowledgeDocumentSummary> IngestAsync(IFormFile file, string? sourceHash, CancellationToken cancellationToken)
     {
         const long maxFileSize = 20 * 1024 * 1024;
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
@@ -311,15 +334,16 @@ internal sealed class RagService(
         }
 
         await using (var upsertDocument = new NpgsqlCommand("""
-            INSERT INTO knowledge_documents (id, title, source_type, status, markdown, original_file_name, content_type, size_bytes)
-            VALUES (@id, @title, 'uploaded', 'indexed', @markdown, @fileName, @contentType, @sizeBytes)
+            INSERT INTO knowledge_documents (id, title, source_type, status, markdown, original_file_name, content_type, size_bytes, source_hash)
+            VALUES (@id, @title, 'volume', 'indexed', @markdown, @fileName, @contentType, @sizeBytes, @sourceHash)
             ON CONFLICT (title) DO UPDATE SET
-                source_type = EXCLUDED.source_type,
+                source_type = 'volume',
                 status = EXCLUDED.status,
                 markdown = EXCLUDED.markdown,
                 original_file_name = EXCLUDED.original_file_name,
                 content_type = EXCLUDED.content_type,
                 size_bytes = EXCLUDED.size_bytes,
+                source_hash = EXCLUDED.source_hash,
                 updated_at = now();
             """, connection, transaction))
         {
@@ -329,6 +353,7 @@ internal sealed class RagService(
             upsertDocument.Parameters.AddWithValue("fileName", Path.GetFileName(file.FileName));
             upsertDocument.Parameters.AddWithValue("contentType", string.IsNullOrWhiteSpace(file.ContentType) ? MediaTypeNames.Application.Octet : file.ContentType);
             upsertDocument.Parameters.AddWithValue("sizeBytes", file.Length);
+            upsertDocument.Parameters.AddWithValue("sourceHash", (object?)sourceHash ?? DBNull.Value);
             await upsertDocument.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -355,8 +380,8 @@ internal sealed class RagService(
         }
 
         await transaction.CommitAsync(cancellationToken);
-        logger.LogInformation("Загружен и проиндексирован документ {Title}: {ChunkCount} фрагментов.", title, chunks.Count);
-        return new KnowledgeDocumentSummary(documentId, title, "uploaded", "indexed", Path.GetFileName(file.FileName), DateTimeOffset.UtcNow, file.Length, chunks.Count);
+        logger.LogInformation("Импортирован и проиндексирован документ {Title}: {ChunkCount} фрагментов.", title, chunks.Count);
+        return new KnowledgeDocumentSummary(documentId, title, "volume", "indexed", Path.GetFileName(file.FileName), DateTimeOffset.UtcNow, file.Length, chunks.Count);
     }
 
     private async Task SeedDemoDocumentsAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
