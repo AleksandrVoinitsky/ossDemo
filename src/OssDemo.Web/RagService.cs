@@ -254,10 +254,11 @@ internal sealed class RagService(
         PostgresException { SqlState: "3D000" } => "База данных из строки подключения не найдена.",
         PostgresException => "PostgreSQL отклонил запрос инициализации. Проверьте журнал ossDemo.",
         NpgsqlException => "Не удалось подключиться к PostgreSQL. Проверьте внутренний хост, имя базы, пользователя и пароль.",
+        ArgumentException => "Строка подключения PostgreSQL имеет неверный формат. Если пароль содержит ;, кавычку или пробел, заключите значение Password в двойные кавычки и экранируйте двойную кавычку повтором.",
         HttpRequestException => "Embedding-сервис недоступен или ключ Embeddings__ApiKey не совпадает с EMBEDDINGS_API_KEY в minilm.",
         JsonException => "Embedding-сервис вернул ответ в неожиданном формате.",
         InvalidOperationException => "Embedding-сервис не настроен либо вернул вектор с неверной моделью или размерностью.",
-        _ => "Не удалось инициализировать RAG. Проверьте журнал ossDemo."
+        _ => "Ошибка инициализации RAG неизвестного типа. Проверьте журнал ossDemo."
     };
 
     private sealed record DemoDocument(string Title, string SourceType, string SourceLabel, string Text);
