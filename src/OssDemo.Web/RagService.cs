@@ -116,7 +116,7 @@ internal sealed class RagService(
 
             return new(_initialized && chunkCount > 0, true, true, chunkCount, documents.Count, documents, Model, null);
         }
-        catch (Exception exception) when (exception is NpgsqlException or HttpRequestException or JsonException or InvalidOperationException)
+        catch (Exception exception)
         {
             logger.LogError(exception, "Не удалось получить статус RAG.");
             return new(false, hasDatabase, hasEmbeddings, 0, 0, Array.Empty<RagDocumentStatus>(), Model, DescribeStatusFailure(exception));
