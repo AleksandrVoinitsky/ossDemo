@@ -36,6 +36,9 @@ _ReSharper*/
 appsettings.Local.json
 appsettings.*.Local.json
 secrets.json
+.env
+.env.*
+!.env.example
 
 # Logs and temporary files
 *.log

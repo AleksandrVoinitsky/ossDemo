@@ -98,15 +98,25 @@ OpenAI-совместимый endpoint `POST https://inference.waw0.amvera.ru/v1
 
 ### Настройка в Amvera
 
-1. В проекте `ossDemo` откройте «Переменные и секреты».
-2. Создайте **секрет** с именем `AI__ApiToken` и вставьте токен из раздела LLM
-   Amvera для подключённого пакета Qwen3-30B.
-3. Перезапустите или передеплойте приложение.
-4. Откройте «ИИ-консультант» и отправьте сообщение.
+Автодеплой по push и секреты настраиваются независимо: Amvera берёт код из Git,
+а значения хранит в проекте, вне репозитория. Файл `amvera.yaml` не поддерживает
+безопасные ссылки на секреты, поэтому не добавляйте реальные значения в YAML,
+`.env` или `appsettings.json`. Шаблон имён находится в [`.env.example`](.env.example).
 
-Двойное подчёркивание в имени секрета обязательно: .NET преобразует
-`AI__ApiToken` в настройку `AI:ApiToken`. Не добавляйте токен в `appsettings.json`,
-`.env`, исходный код, Git или клиентский JavaScript.
+В проекте `ossDemo` откройте «Переменные и секреты» и создайте:
+
+| Имя | Тип | Значение |
+| --- | --- | --- |
+| `AI__ApiToken` | секрет | токен Amvera LLM для Qwen3-30B |
+| `Embeddings__ApiKey` | секрет | то же значение, что `EMBEDDINGS_API_KEY` в `minilm` |
+| `ConnectionStrings__OssDatabase` | секрет | внутренняя строка подключения к PostgreSQL |
+| `Embeddings__BaseUrl` | переменная | `http://amvera-minilm-run-aleksandr12224411/` |
+| `Embeddings__Model` | переменная | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` |
+
+После изменения значений перезапустите или передеплойте приложение. Amvera не
+предоставляет переменные на этапе сборки Docker, они доступны только запущенному
+контейнеру. Двойное подчёркивание обязательно: .NET преобразует, например,
+`AI__ApiToken` в настройку `AI:ApiToken`.
 
 ### Локальный запуск
 
@@ -128,12 +138,12 @@ dotnet run --project src/OssDemo.Web/OssDemo.Web.csproj
 `ossDemo` он должен быть успешно развёрнут в Amvera и иметь секрет
 `EMBEDDINGS_API_KEY`.
 
-В секретах приложения `ossDemo` задайте:
+В переменных и секретах приложения `ossDemo` задайте:
 
 ```text
-Embeddings__BaseUrl=http://amvera-minilm-run-aleksandr12224411/
-Embeddings__ApiKey=<то же значение, что EMBEDDINGS_API_KEY в minilm>
-Embeddings__Model=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+Embeddings__BaseUrl=http://amvera-minilm-run-aleksandr12224411/  # переменная
+Embeddings__ApiKey=<то же значение, что EMBEDDINGS_API_KEY в minilm>  # секрет
+Embeddings__Model=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2  # переменная
 ```
 
 Внутренний адрес используется только между приложениями Amvera; не добавляйте
