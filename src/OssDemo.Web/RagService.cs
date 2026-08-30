@@ -83,7 +83,7 @@ internal sealed class RagService(
 
         if (!hasDatabase || !hasEmbeddings)
         {
-            return new(false, hasDatabase, hasEmbeddings, 0, Model);
+            return new(false, hasDatabase, hasEmbeddings, 0, 0, Array.Empty<RagDocumentStatus>(), Model);
         }
 
         try
@@ -93,12 +93,30 @@ internal sealed class RagService(
             await connection.OpenAsync(cancellationToken);
             await using var command = new NpgsqlCommand("SELECT count(*) FROM knowledge_chunks;", connection);
             var chunkCount = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
-            return new(_initialized && chunkCount > 0, true, true, chunkCount, Model);
+            var documents = new List<RagDocumentStatus>();
+            await using var documentsCommand = new NpgsqlCommand("""
+                SELECT d.title, d.source_type, d.status, count(c.id)
+                FROM knowledge_documents d
+                LEFT JOIN knowledge_chunks c ON c.document_id = d.id
+                GROUP BY d.id, d.title, d.source_type, d.status
+                ORDER BY d.title;
+                """, connection);
+            await using var reader = await documentsCommand.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                documents.Add(new RagDocumentStatus(
+                    reader.GetString(0),
+                    reader.GetString(1),
+                    reader.GetString(2),
+                    reader.GetInt32(3)));
+            }
+
+            return new(_initialized && chunkCount > 0, true, true, chunkCount, documents.Count, documents, Model);
         }
-        catch (Exception exception) when (exception is NpgsqlException or HttpRequestException or JsonException)
+        catch (Exception exception) when (exception is NpgsqlException or HttpRequestException or JsonException or InvalidOperationException)
         {
             logger.LogError(exception, "Не удалось получить статус RAG.");
-            return new(false, hasDatabase, hasEmbeddings, 0, Model);
+            return new(false, hasDatabase, hasEmbeddings, 0, 0, Array.Empty<RagDocumentStatus>(), Model);
         }
     }
 
@@ -230,4 +248,12 @@ internal sealed class RagService(
 }
 
 internal sealed record RagMatch(string DocumentTitle, string SourceLabel, string Text, double Similarity);
-internal sealed record RagStatus(bool Ready, bool DatabaseConfigured, bool EmbeddingsConfigured, int ChunkCount, string Model);
+internal sealed record RagDocumentStatus(string Title, string SourceType, string Status, int ChunkCount);
+internal sealed record RagStatus(
+    bool Ready,
+    bool DatabaseConfigured,
+    bool EmbeddingsConfigured,
+    int ChunkCount,
+    int DocumentCount,
+    IReadOnlyList<RagDocumentStatus> Documents,
+    string Model);

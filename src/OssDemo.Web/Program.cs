@@ -65,7 +65,16 @@ app.MapGet("/exports/checklist.pdf", () => ExportFiles.CreatePdf())
 app.MapGet("/api/rag/status", async (RagService ragService, CancellationToken cancellationToken) =>
 {
     var status = await ragService.GetStatusAsync(cancellationToken);
-    return Results.Ok(new { status.Ready, status.DatabaseConfigured, status.EmbeddingsConfigured, status.ChunkCount, status.Model });
+    return Results.Ok(new
+    {
+        status.Ready,
+        status.DatabaseConfigured,
+        status.EmbeddingsConfigured,
+        status.ChunkCount,
+        status.DocumentCount,
+        status.Documents,
+        status.Model
+    });
 });
 app.MapPost("/api/rag/embedding-check", async (
     IHttpClientFactory httpClientFactory,
@@ -150,6 +159,22 @@ app.MapPost("/api/ai/chat", async (
     if (string.IsNullOrWhiteSpace(request.Message) || request.Message.Length > maxMessageLength)
     {
         return Results.BadRequest(new { error = "Сообщение должно содержать от 1 до 4000 символов." });
+    }
+
+    if (string.Equals(request.Message.Trim(), "!status", StringComparison.OrdinalIgnoreCase))
+    {
+        var status = await ragService.GetStatusAsync(cancellationToken);
+        return Results.Ok(new
+        {
+            answer = RagStatusFormatter.BuildAnswer(status),
+            grounded = false,
+            sources = status.Documents.Select(document => new
+            {
+                title = $"{document.Title} — {document.ChunkCount} фр.",
+                kind = "classifier"
+            }),
+            model
+        });
     }
 
     var apiToken = configuration["AI:ApiToken"];
@@ -274,6 +299,39 @@ internal sealed record ChatRequest(string? Message, IReadOnlyList<ChatHistoryMes
 internal sealed record ChatHistoryMessage(string Role, string Content);
 
 internal sealed record InferenceMessage(string role, string content);
+
+internal static class RagStatusFormatter
+{
+    public static string BuildAnswer(RagStatus status)
+    {
+        var database = status.DatabaseConfigured ? "настроено" : "не настроено";
+        var embeddings = status.EmbeddingsConfigured ? "настроено" : "не настроено";
+        var state = status.Ready ? "**готова к поиску**" : "**не готова к поиску**";
+        var documents = status.Documents.Count == 0
+            ? "Пока нет проиндексированных документов."
+            : string.Join("\n", status.Documents.Select(document =>
+                $"- `{document.Title}` — статус: {document.Status}, фрагментов: {document.ChunkCount}."));
+
+        return $"""
+            ## Статус базы знаний
+
+            Система {state}.
+
+            | Проверка | Состояние |
+            | --- | --- |
+            | Подключение к PostgreSQL | {database} |
+            | Embedding-сервис | {embeddings} |
+            | Модель | `{status.Model}` |
+            | Документов | {status.DocumentCount} |
+            | Проиндексированных фрагментов | {status.ChunkCount} |
+
+            ### Документы
+            {documents}
+
+            Команда `!status` не вызывает Qwen и не раскрывает ключи, пароли, строки подключения или внутренние адреса.
+            """;
+    }
+}
 
 internal static class ExportFiles
 {
