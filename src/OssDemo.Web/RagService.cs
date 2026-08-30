@@ -255,7 +255,10 @@ internal sealed class RagService(
         PostgresException => "PostgreSQL отклонил запрос инициализации. Проверьте журнал ossDemo.",
         NpgsqlException => "Не удалось подключиться к PostgreSQL. Проверьте внутренний хост, имя базы, пользователя и пароль.",
         ArgumentException => "Строка подключения PostgreSQL имеет неверный формат. Если пароль содержит ;, кавычку или пробел, заключите значение Password в двойные кавычки и экранируйте двойную кавычку повтором.",
-        HttpRequestException => "Embedding-сервис недоступен или ключ Embeddings__ApiKey не совпадает с EMBEDDINGS_API_KEY в minilm.",
+        HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized } => "Embedding-сервис ответил 401: ключ Embeddings__ApiKey не совпадает с EMBEDDINGS_API_KEY в minilm.",
+        HttpRequestException { StatusCode: System.Net.HttpStatusCode.ServiceUnavailable } => "Embedding-сервис ответил 503: minilm ещё загружает модель либо не запущен.",
+        HttpRequestException { StatusCode: not null } httpException => $"Embedding-сервис ответил HTTP {(int)httpException.StatusCode.Value}. Проверьте журнал minilm.",
+        HttpRequestException => "Не удалось установить соединение с embedding-сервисом. Проверьте, что minilm запущен и использует внутренний адрес Amvera.",
         JsonException => "Embedding-сервис вернул ответ в неожиданном формате.",
         InvalidOperationException => "Embedding-сервис не настроен либо вернул вектор с неверной моделью или размерностью.",
         _ => "Ошибка инициализации RAG неизвестного типа. Проверьте журнал ossDemo."
