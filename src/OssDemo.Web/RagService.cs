@@ -137,14 +137,20 @@ internal sealed class RagService(
         await using var connection = new NpgsqlConnection(configuration.GetConnectionString("OssDatabase"));
         await connection.OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand("""
-            SELECT d.title, c.source_label, c.text, 1 - (c.embedding <=> CAST(@embedding AS vector)) AS similarity
+            SELECT d.title,
+                   c.source_label,
+                   c.text,
+                   1 - (c.embedding <=> CAST(@embedding AS vector)) AS similarity,
+                   position(lower(@question) in lower(d.title)) > 0 AS title_match
             FROM knowledge_chunks c
             INNER JOIN knowledge_documents d ON d.id = c.document_id
             WHERE d.status = 'indexed' AND c.embedding_model = @model
-            ORDER BY c.embedding <=> CAST(@embedding AS vector)
+            ORDER BY position(lower(@question) in lower(d.title)) > 0 DESC,
+                     c.embedding <=> CAST(@embedding AS vector)
             LIMIT 5;
             """, connection);
         command.Parameters.AddWithValue("embedding", vector);
+        command.Parameters.AddWithValue("question", question);
         command.Parameters.AddWithValue("model", Model);
 
         var matches = new List<RagMatch>();
@@ -152,9 +158,10 @@ internal sealed class RagService(
         while (await reader.ReadAsync(cancellationToken))
         {
             var similarity = reader.GetDouble(3);
-            if (similarity >= 0.35)
+            var titleMatch = reader.GetBoolean(4);
+            if (titleMatch || similarity >= 0.35)
             {
-                matches.Add(new RagMatch(reader.GetString(0), reader.GetString(1), reader.GetString(2), similarity));
+                matches.Add(new RagMatch(reader.GetString(0), reader.GetString(1), reader.GetString(2), titleMatch ? 1 : similarity));
             }
         }
 
