@@ -292,9 +292,9 @@ internal sealed class RagService(
             throw new RagIngestionException(StatusCodes.Status400BadRequest, "Размер файла не должен превышать 20 МБ.");
         }
 
-        if (extension is not ".pdf" and not ".docx" and not ".xlsx" and not ".txt")
+        if (extension is not ".pdf" and not ".docx" and not ".xlsx" and not ".txt" and not ".md")
         {
-            throw new RagIngestionException(StatusCodes.Status400BadRequest, "Поддерживаются файлы PDF, DOCX, XLSX и TXT.");
+            throw new RagIngestionException(StatusCodes.Status400BadRequest, "Поддерживаются файлы PDF, DOCX, XLSX, TXT и Markdown.");
         }
 
         var title = Path.GetFileNameWithoutExtension(file.FileName).Trim();
@@ -303,7 +303,7 @@ internal sealed class RagService(
             throw new RagIngestionException(StatusCodes.Status400BadRequest, "У файла должно быть имя.");
         }
 
-        var markdown = extension == ".txt"
+        var markdown = extension is ".txt" or ".md"
             ? await ReadPlainTextAsync(file, cancellationToken)
             : await ConvertToMarkdownAsync(file, cancellationToken);
         var chunks = SplitMarkdown(markdown);

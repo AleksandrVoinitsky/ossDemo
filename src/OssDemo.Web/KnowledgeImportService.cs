@@ -53,9 +53,9 @@ internal sealed class KnowledgeImportService(
     private async Task ImportFileAsync(string path, CancellationToken cancellationToken)
     {
         var extension = Path.GetExtension(path).ToLowerInvariant();
-        if (extension is not ".pdf" and not ".docx" and not ".xlsx" and not ".txt")
+        if (extension != ".md")
         {
-            logger.LogInformation("Пропущен файл {FileName}: поддерживаются PDF, DOCX, XLSX и TXT.", Path.GetFileName(path));
+            logger.LogInformation("Пропущен файл {FileName}: bundled-документы должны быть в формате Markdown.", Path.GetFileName(path));
             return;
         }
 
@@ -93,6 +93,7 @@ internal sealed class KnowledgeImportService(
         ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         ".txt" => "text/plain",
+        ".md" => "text/markdown",
         _ => "application/octet-stream"
     };
 }
