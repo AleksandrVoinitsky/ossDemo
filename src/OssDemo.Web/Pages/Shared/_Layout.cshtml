@@ -136,17 +136,6 @@
                 </div>
                 <div class="modal-body p-0">
                     <section class="chat-shell ai-widget-chat" aria-label="Чат с ИИ-консультантом">
-                        <div class="chat-header">
-                            <div>
-                                <h3 class="h6 section-title mb-1">Запрос к ИИ-консультанту</h3>
-                                <div class="small muted-note">Поиск по базе знаний с последующим ответом Qwen3-30B.</div>
-                            </div>
-                            <div class="chat-header-actions">
-                                <span class="badge text-bg-success">онлайн</span>
-                                <span class="chat-model-label">Qwen3-30B · Markdown</span>
-                            </div>
-                        </div>
-
                         <div class="chat-thread" data-chat-thread aria-live="polite" aria-label="История сообщений">
                             <article class="chat-message chat-message-user" data-chat-message data-role="user">
                                 <div class="chat-avatar" aria-hidden="true">И</div>
@@ -184,9 +173,8 @@
 
                         <form data-ai-question data-ai-endpoint="/api/ai/chat" class="chat-input" autocomplete="off">
                             <label class="visually-hidden" for="ai-question-input">Вопрос ИИ-консультанту</label>
-                            <textarea id="ai-question-input" class="form-control chat-textarea" data-chat-input rows="1" placeholder="Введите вопрос по источникам. Enter — отправить, Shift+Enter — новая строка." aria-label="Вопрос ИИ-консультанту"></textarea>
+                            <textarea id="ai-question-input" class="form-control chat-textarea" data-chat-input rows="1" placeholder="Введите вопрос..." aria-label="Вопрос ИИ-консультанту"></textarea>
                             <div class="chat-composer-actions">
-                                <div class="chat-input-hint">Ответ формируется только при наличии найденных источников.</div>
                                 <button class="btn btn-primary" data-chat-send type="submit">Отправить</button>
                             </div>
                         </form>

@@ -2021,31 +2021,22 @@ a {
 .chat-input {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: .75rem;
-  align-items: end;
+  gap: .6rem;
+  align-items: center;
   padding: 1rem 1.25rem;
   border-top: 1px solid var(--border);
   background: var(--surface);
 }
 
 .chat-textarea {
-  max-height: 10rem;
-  min-height: 3rem;
+  max-height: 8rem;
+  min-height: 2.75rem;
   resize: none;
   line-height: 1.45;
 }
 
 .chat-composer-actions {
-  display: grid;
-  gap: .45rem;
-  justify-items: end;
-}
-
-.chat-input-hint {
-  color: var(--ink-muted);
-  font-size: .78rem;
-  line-height: 1.2;
-  text-align: right;
+  display: flex;
 }
 
 .chat-typing {
@@ -2460,12 +2451,7 @@ a {
   }
 
   .chat-composer-actions {
-    grid-template-columns: 1fr;
-    justify-items: stretch;
-  }
-
-  .chat-input-hint {
-    text-align: left;
+    display: block;
   }
 
   .classifier-panel-header {
