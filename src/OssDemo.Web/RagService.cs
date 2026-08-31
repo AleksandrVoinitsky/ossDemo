@@ -81,9 +81,8 @@ internal sealed class RagService(
                 WHERE c.document_id = d.id AND c.ordinal = 1 AND d.markdown IS NULL;
                 """, cancellationToken);
 
-            await SeedDemoDocumentsAsync(connection, cancellationToken);
             _initialized = true;
-            logger.LogInformation("RAG-схема готова, demo-источники проиндексированы.");
+            logger.LogInformation("RAG-схема готова.");
         }
         finally
         {
@@ -386,52 +385,6 @@ internal sealed class RagService(
         return new KnowledgeDocumentSummary(documentId, title, "volume", "indexed", Path.GetFileName(file.FileName), DateTimeOffset.UtcNow, file.Length, chunks.Count);
     }
 
-    private async Task SeedDemoDocumentsAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
-    {
-        var documents = new[]
-        {
-            new DemoDocument("7-ФЗ «Об охране окружающей среды»", "federal_law", "статья 67", "Производственный экологический контроль осуществляется в целях обеспечения соблюдения требований в области охраны окружающей среды. Природопользователь обязан соблюдать утверждённые нормативы и вести учёт воздействия на окружающую среду."),
-            new DemoDocument("89-ФЗ «Об отходах производства и потребления»", "federal_law", "статья 11", "Организация должна обеспечивать учёт отходов и соблюдать установленные требования при обращении с отходами, включая накопление, размещение и документирование операций."),
-            new DemoDocument("СТО 16-005-2025 «Обращение с отходами»", "corporate_standard", "раздел 5.3.2", "При инспекционном контроле обращения с отходами проверяется наличие мест накопления, маркировка контейнеров, документы учёта и соблюдение нормативов образования отходов и лимитов размещения."),
-            new DemoDocument("Программа ПЭК Березниковского ЛПУМГ", "ord", "раздел «Контрольные действия»", "Программа производственного экологического контроля устанавливает порядок контроля на объекте. Результаты измерений, журналы и сведения об ответственных лицах должны быть доступны для проверки."),
-            new DemoDocument("Акт проверки от 22.09.2024", "violation_material", "нарушение по протоколам", "Нарушение по протоколам инструментального контроля выбросов не устранено в установленный срок до 10.10.2024. Пункт подлежит включению в чек-лист как критический до подтверждения устранения нарушения.")
-        };
-
-        foreach (var document in documents)
-        {
-            await using var existsCommand = new NpgsqlCommand("SELECT id FROM knowledge_documents WHERE title = @title;", connection);
-            existsCommand.Parameters.AddWithValue("title", document.Title);
-            var existingId = await existsCommand.ExecuteScalarAsync(cancellationToken);
-            if (existingId is not null)
-            {
-                continue;
-            }
-
-            var documentId = Guid.NewGuid();
-            var embedding = await CreateEmbeddingAsync(document.Text, cancellationToken);
-            await using var insertDocument = new NpgsqlCommand("""
-                INSERT INTO knowledge_documents (id, title, source_type, status)
-                VALUES (@id, @title, @sourceType, 'indexed');
-                """, connection);
-            insertDocument.Parameters.AddWithValue("id", documentId);
-            insertDocument.Parameters.AddWithValue("title", document.Title);
-            insertDocument.Parameters.AddWithValue("sourceType", document.SourceType);
-            await insertDocument.ExecuteNonQueryAsync(cancellationToken);
-
-            await using var insertChunk = new NpgsqlCommand("""
-                INSERT INTO knowledge_chunks (id, document_id, ordinal, source_label, text, embedding, embedding_model)
-                VALUES (@id, @documentId, 1, @sourceLabel, @text, CAST(@embedding AS vector), @model);
-                """, connection);
-            insertChunk.Parameters.AddWithValue("id", Guid.NewGuid());
-            insertChunk.Parameters.AddWithValue("documentId", documentId);
-            insertChunk.Parameters.AddWithValue("sourceLabel", document.SourceLabel);
-            insertChunk.Parameters.AddWithValue("text", document.Text);
-            insertChunk.Parameters.AddWithValue("embedding", ToVectorLiteral(embedding));
-            insertChunk.Parameters.AddWithValue("model", Model);
-            await insertChunk.ExecuteNonQueryAsync(cancellationToken);
-        }
-    }
-
     private async Task<string> ConvertToMarkdownAsync(IFormFile file, CancellationToken cancellationToken)
     {
         var baseUrl = configuration["Docling:BaseUrl"];
@@ -607,7 +560,6 @@ internal sealed class RagService(
         _ => "Ошибка инициализации RAG неизвестного типа. Проверьте журнал ossDemo."
     };
 
-    private sealed record DemoDocument(string Title, string SourceType, string SourceLabel, string Text);
     private sealed record MarkdownChunk(string SourceLabel, string Text);
 }
 
