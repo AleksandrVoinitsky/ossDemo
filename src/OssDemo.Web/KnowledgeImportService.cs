@@ -12,32 +12,40 @@ internal sealed class KnowledgeImportService(
     {
         await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken);
 
-        var directory = configuration["KnowledgeImport:Directory"] ?? "/data/inbox";
-        if (!Directory.Exists(directory))
+        var volumeDirectory = configuration["KnowledgeImport:Directory"] ?? "/data/inbox";
+        if (!Directory.Exists(volumeDirectory))
         {
-            Directory.CreateDirectory(directory);
-            logger.LogInformation("Создана папка для импорта базы знаний: {Directory}.", directory);
-            return;
+            Directory.CreateDirectory(volumeDirectory);
+            logger.LogInformation("Создана папка для импорта базы знаний: {Directory}.", volumeDirectory);
         }
 
-        foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.TopDirectoryOnly))
+        var directories = new[]
         {
-            if (stoppingToken.IsCancellationRequested)
-            {
-                return;
-            }
+            volumeDirectory,
+            Path.Combine(AppContext.BaseDirectory, "knowledge-inbox")
+        }.Distinct(StringComparer.OrdinalIgnoreCase);
 
-            try
+        foreach (var directory in directories.Where(Directory.Exists))
+        {
+            foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.TopDirectoryOnly))
             {
-                await ImportFileAsync(path, stoppingToken);
-            }
-            catch (RagIngestionException exception)
-            {
-                logger.LogWarning("Файл {FileName} не импортирован: {Message}", Path.GetFileName(path), exception.Message);
-            }
-            catch (Exception exception)
-            {
-                logger.LogError(exception, "Не удалось импортировать файл {FileName} из volume базы знаний.", Path.GetFileName(path));
+                if (stoppingToken.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                try
+                {
+                    await ImportFileAsync(path, stoppingToken);
+                }
+                catch (RagIngestionException exception)
+                {
+                    logger.LogWarning("Файл {FileName} не импортирован: {Message}", Path.GetFileName(path), exception.Message);
+                }
+                catch (Exception exception)
+                {
+                    logger.LogError(exception, "Не удалось импортировать файл {FileName} из папки базы знаний.", Path.GetFileName(path));
+                }
             }
         }
     }
@@ -45,9 +53,9 @@ internal sealed class KnowledgeImportService(
     private async Task ImportFileAsync(string path, CancellationToken cancellationToken)
     {
         var extension = Path.GetExtension(path).ToLowerInvariant();
-        if (extension is not ".pdf" and not ".docx" and not ".xlsx")
+        if (extension is not ".pdf" and not ".docx" and not ".xlsx" and not ".txt")
         {
-            logger.LogInformation("Пропущен файл {FileName}: поддерживаются PDF, DOCX и XLSX.", Path.GetFileName(path));
+            logger.LogInformation("Пропущен файл {FileName}: поддерживаются PDF, DOCX, XLSX и TXT.", Path.GetFileName(path));
             return;
         }
 
@@ -84,6 +92,7 @@ internal sealed class KnowledgeImportService(
         ".pdf" => "application/pdf",
         ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".txt" => "text/plain",
         _ => "application/octet-stream"
     };
 }

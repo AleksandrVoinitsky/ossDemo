@@ -292,9 +292,9 @@ internal sealed class RagService(
             throw new RagIngestionException(StatusCodes.Status400BadRequest, "Размер файла не должен превышать 20 МБ.");
         }
 
-        if (extension is not ".pdf" and not ".docx" and not ".xlsx")
+        if (extension is not ".pdf" and not ".docx" and not ".xlsx" and not ".txt")
         {
-            throw new RagIngestionException(StatusCodes.Status400BadRequest, "Поддерживаются файлы PDF, DOCX и XLSX.");
+            throw new RagIngestionException(StatusCodes.Status400BadRequest, "Поддерживаются файлы PDF, DOCX, XLSX и TXT.");
         }
 
         var title = Path.GetFileNameWithoutExtension(file.FileName).Trim();
@@ -303,11 +303,13 @@ internal sealed class RagService(
             throw new RagIngestionException(StatusCodes.Status400BadRequest, "У файла должно быть имя.");
         }
 
-        var markdown = await ConvertToMarkdownAsync(file, cancellationToken);
+        var markdown = extension == ".txt"
+            ? await ReadPlainTextAsync(file, cancellationToken)
+            : await ConvertToMarkdownAsync(file, cancellationToken);
         var chunks = SplitMarkdown(markdown);
         if (chunks.Count == 0)
         {
-            throw new RagIngestionException(StatusCodes.Status422UnprocessableEntity, "Docling не извлёк текст для индексации.");
+            throw new RagIngestionException(StatusCodes.Status422UnprocessableEntity, "Файл не содержит текста для индексации.");
         }
 
         await InitializeAsync(cancellationToken);
@@ -478,6 +480,13 @@ internal sealed class RagService(
         }
 
         return markdown.Trim();
+    }
+
+    private static async Task<string> ReadPlainTextAsync(IFormFile file, CancellationToken cancellationToken)
+    {
+        await using var stream = file.OpenReadStream();
+        using var reader = new StreamReader(stream, detectEncodingFromByteOrderMarks: true);
+        return (await reader.ReadToEndAsync(cancellationToken)).Trim();
     }
 
     private static List<MarkdownChunk> SplitMarkdown(string markdown)
