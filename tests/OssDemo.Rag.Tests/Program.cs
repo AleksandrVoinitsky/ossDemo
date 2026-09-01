@@ -23,19 +23,6 @@ AssertEqual("Минприроды России", order.Issuer);
 var freeText = DocumentReferenceParser.Parse("Как организовать производственный экологический контроль?");
 AssertTrue(!freeText.HasRequisites);
 
-var contextualQuery = ChatSearchQuery.Build(
-    new[]
-    {
-        new ChatHistoryMessage("user", "Перечень значимых экологических аспектов филиала ПАО «Ташпом» при эксплуатации что это?"),
-        new ChatHistoryMessage("assistant", "Неподтверждённая реплика модели не должна влиять на поиск."),
-        new ChatHistoryMessage("user", "Карасайский")
-    },
-    "Расскажи где искать",
-    4_000);
-AssertTrue(contextualQuery.Contains("значимых экологических аспектов", StringComparison.Ordinal));
-AssertTrue(contextualQuery.Contains("Карасайский", StringComparison.Ordinal));
-AssertTrue(!contextualQuery.Contains("Неподтверждённая", StringComparison.Ordinal));
-
 var first = new RankedChunk(Guid.NewGuid(), "А", "Раздел", "текст", 0);
 var second = new RankedChunk(Guid.NewGuid(), "Б", "Раздел", "текст", 0);
 var fused = ReciprocalRankFusion.Merge(new[] { first, second }, new[] { second, first }, take: 2);
@@ -50,8 +37,6 @@ AssertTrue(!weakSemantic.IsRelevant);
 AssertTrue(!lexicalMatch.IsRelevant);
 AssertTrue(hybridMatch.IsRelevant);
 AssertTrue(exactDocumentMatch.IsRelevant);
-AssertTrue(!RagSearchSelection.HasSources(new[] { new RagSearchResult(new[] { weakSemantic }, false, Array.Empty<string>()) }));
-AssertTrue(RagSearchSelection.HasSources(new[] { new RagSearchResult(new[] { hybridMatch }, false, Array.Empty<string>()) }));
 
 Console.WriteLine("RAG parser and RRF checks passed.");
 

@@ -1351,6 +1351,27 @@ a {
   color: var(--primary-dark);
 }
 
+.chat-source-debug {
+  display: block;
+  width: 100%;
+  margin-top: .45rem;
+  cursor: pointer;
+}
+
+.chat-source-debug summary {
+  cursor: pointer;
+}
+
+.chat-source-debug-quote {
+  margin-top: .55rem;
+  padding-top: .55rem;
+  border-top: 1px solid var(--border-soft);
+  color: var(--ink-muted);
+  font-size: .85rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
 .classifier-workspace {
   display: grid;
   grid-template-columns: minmax(34rem, 1.18fr) minmax(28rem, .82fr);

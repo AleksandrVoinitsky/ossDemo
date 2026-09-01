@@ -267,71 +267,19 @@ app.MapPost("/api/ai/chat", async (
     }
 
     var userQuestion = request.Message.Trim();
-    var ragQuestion = ChatSearchQuery.Build(request.Conversation, userQuestion, maxMessageLength);
-    var searchResults = new List<RagSearchResult>();
-    var attemptedQueries = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ragQuestion };
+    // Для диагностики и точного FTS используем дословно текущую реплику, не смешивая её с историей.
+    var ragQuestion = userQuestion;
+    RagSearchResult searchResult = RagSearchResult.Empty;
     try
     {
-        searchResults.Add(await ragService.SearchAsync(ragQuestion, cancellationToken));
+        searchResult = await ragService.SearchAsync(ragQuestion, cancellationToken);
     }
     catch (Exception exception) when (exception is not OperationCanceledException)
     {
         logger.LogWarning(exception, "Не удалось выполнить исходный поиск по базе знаний. Query={Query}", ragQuestion);
     }
 
-    for (var cycle = 1; cycle <= OosSearchAgent.MaxCycles
-         && !RagSearchSelection.HasSources(searchResults)
-         && !searchResults.Any(result => result.IsAmbiguous); cycle++)
-    {
-        var fallbackQueries = await OosSearchAgent.PlanAsync(
-            httpClientFactory,
-            apiToken,
-            model,
-            request.Conversation,
-            userQuestion,
-            attemptedQueries,
-            cycle,
-            logger,
-            cancellationToken);
-
-        foreach (var query in fallbackQueries.Where(attemptedQueries.Add))
-        {
-            try
-            {
-                var result = await ragService.SearchAsync(query, cancellationToken);
-                searchResults.Add(result);
-                if (result.IsAmbiguous)
-                {
-                    break;
-                }
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                logger.LogWarning(exception, "Не удалось выполнить расширенный поиск по базе знаний. Query={Query}", query);
-            }
-        }
-
-        if (fallbackQueries.Count == 0)
-        {
-            logger.LogWarning("Цикл {Cycle} расширенного поиска не дал новых запросов.", cycle);
-            break;
-        }
-    }
-
-    var ambiguousDocuments = searchResults.SelectMany(result => result.AmbiguousDocuments).Distinct(StringComparer.Ordinal).ToArray();
-    var matches = RagSearchSelection.SelectBest(searchResults, take: 5);
-    var searchResult = new RagSearchResult(matches, ambiguousDocuments.Length > 0, ambiguousDocuments);
-
-    var hasGrounding = matches.Count > 0 || searchResult.IsAmbiguous;
-    if (!hasGrounding)
-    {
-        logger.LogWarning("RAG не нашёл подтверждающих фрагментов после {QueryCount} запросов.", attemptedQueries.Count);
-        return Results.Problem(
-            title: "В базе знаний не найден подтверждающий источник",
-            detail: "Поиск выполнен в нескольких вариантах формулировки. Уточните документ, объект, период или ключевые термины.",
-            statusCode: StatusCodes.Status404NotFound);
-    }
-
+    var matches = searchResult.Matches;
     var context = string.Join("\n\n", matches.Select((match, index) =>
         $"[S{index + 1}] Документ: {match.DocumentTitle}\nРаздел: {match.SourceLabel}\nТекст: {match.Text}"));
     var messages = new List<InferenceMessage>
@@ -383,14 +331,16 @@ app.MapPost("/api/ai/chat", async (
                 $"[S{index + 1}] {match.DocumentTitle}, {match.SourceLabel}",
                 match.Text,
                 Math.Round(match.Similarity, 3),
+                match.HasLexicalMatch,
+                match.IsRelevant,
                 "source"))
             : searchResult.IsAmbiguous
-                ? searchResult.AmbiguousDocuments.Select((title, index) => new ChatSource($"[S{index + 1}] {title}", string.Empty, 0d, "ambiguous"))
+                ? searchResult.AmbiguousDocuments.Select((title, index) => new ChatSource($"[S{index + 1}] {title}", string.Empty, 0d, false, true, "ambiguous"))
                 : Enumerable.Empty<ChatSource>();
 
         if (request.Stream)
         {
-            await ChatStreaming.WriteAsync(httpResponse, response, sources, hasGrounding, cancellationToken);
+            await ChatStreaming.WriteAsync(httpResponse, response, sources, matches.Count > 0 || searchResult.IsAmbiguous, cancellationToken);
             return Results.Empty;
         }
 
@@ -408,7 +358,7 @@ app.MapPost("/api/ai/chat", async (
             return Results.Problem(title: "ИИ не вернул ответ", statusCode: StatusCodes.Status502BadGateway);
         }
 
-        return Results.Ok(new { answer, grounded = hasGrounding, sources, model });
+        return Results.Ok(new { answer, grounded = matches.Count > 0 || searchResult.IsAmbiguous, sources, model });
     }
     catch (HttpRequestException exception)
     {
@@ -440,7 +390,7 @@ internal sealed record KnowledgeFileSummary(
     int ChunkCount);
 
 internal sealed record InferenceMessage(string role, string content);
-internal sealed record ChatSource(string title, string quote, double similarity, string kind);
+internal sealed record ChatSource(string title, string quote, double similarity, bool lexical, bool relevant, string kind);
 
 internal static class ChatSearchQuery
 {
@@ -456,134 +406,6 @@ internal static class ChatSearchQuery
         var query = string.Join("\n", priorQuestions.Distinct(StringComparer.Ordinal));
         return query.Length <= maxLength ? query : query[^maxLength..];
     }
-}
-
-internal static class OosSearchAgent
-{
-    public const int MaxCycles = 5;
-    private const int MaxQueries = 20;
-    private const int MaxQueryLength = 500;
-
-    public static async Task<IReadOnlyList<string>> PlanAsync(
-        IHttpClientFactory httpClientFactory,
-        string apiToken,
-        string model,
-        IReadOnlyList<ChatHistoryMessage> conversation,
-        string userQuestion,
-        IReadOnlySet<string> attemptedQueries,
-        int cycle,
-        ILogger logger,
-        CancellationToken cancellationToken)
-    {
-        var history = conversation
-            .Where(message => message.Role == "user" && !string.IsNullOrWhiteSpace(message.Content))
-            .TakeLast(3)
-            .Select(message => message.Content.Trim())
-            .ToArray();
-        var messages = new[]
-        {
-            new InferenceMessage("system", """
-                Ты планировщик расширенного поиска АИ ООС. Исходный поиск по внутренней базе знаний не нашёл достаточно
-                релевантных фрагментов. Не отвечай на вопрос пользователя и не выдумывай факты, документы, сайты или требования.
-                Верни только JSON без Markdown по схеме:
-                {"queries":["..."]}
-
-                Правила:
-                - Дай от 15 до 20 коротких, неповторяющихся поисковых формулировок на русском языке.
-                - Каждый запрос должен отличаться по смысловому углу поиска, а не только порядком слов.
-                - Охвати широкий спектр перефразирований в рамках темы: точные реквизиты, варианты названия,
-                  профессиональные синонимы, процессы, документы, объект и действие пользователя.
-                - Сохраняй каждый явный номер, ГОСТ, дату, орган-издатель и название организации отдельным запросом.
-                - Не добавляй неупомянутые реквизиты, названия документов, организации или факты.
-                - Используй историю только для восстановления темы; текущий явный запрос приоритетнее.
-                - Ищи в контексте ООС и документов. Для расплывчатого запроса о постановлениях, регламентах,
-                  требованиях или документах обязательно добавь варианты с предметом: «охрана окружающей среды»,
-                  «экологические требования», «федеральные требования», «корпоративные требования», «СЭМ»,
-                  «ПЭК», «инспекционный контроль» — только если они согласуются с текущим вопросом или историей.
-                - Для СЭМ используй также полную форму «система экологического менеджмента»; не подменяй её
-                  экологическим мониторингом. Ищи связанные внутренние стандарты, порядок, требования,
-                  планирование, мониторинг, внутренний аудит и документы СЭМ.
-                - Для правового запроса используй варианты типа документа: постановление Правительства РФ,
-                  приказ, федеральный закон, ГОСТ, СТО, регламент, порядок, требования. Не угадывай номер.
-                - Не повторяй ранее выполненные запросы: ищи новый угол, термин, синоним или вид документа.
-                """),
-            new InferenceMessage("user", $"Цикл поиска: {cycle} из {MaxCycles}\n\nИстория запросов инспектора:\n{string.Join("\n", history)}\n\nТекущий запрос:\n{userQuestion}\n\nУже выполненные запросы, не повторяй их:\n{FormatAttemptedQueries(attemptedQueries)}")
-        };
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, "v1/chat/completions")
-        {
-            Content = new StringContent(
-                JsonSerializer.Serialize(new { model, messages, temperature = 0, response_format = new { type = "json_object" } }),
-                Encoding.UTF8,
-                MediaTypeNames.Application.Json)
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiToken);
-
-        try
-        {
-            using var response = await httpClientFactory.CreateClient("AmveraInference").SendAsync(request, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogWarning("Планировщик расширенного поиска вернул HTTP {StatusCode}.", (int)response.StatusCode);
-                return Array.Empty<string>();
-            }
-
-            await using var content = await response.Content.ReadAsStreamAsync(cancellationToken);
-            using var payload = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
-            var planContent = payload.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
-            if (string.IsNullOrWhiteSpace(planContent))
-            {
-                return Array.Empty<string>();
-            }
-
-            using var plan = JsonDocument.Parse(planContent);
-            var root = plan.RootElement;
-            var queries = root.TryGetProperty("queries", out var queriesElement) && queriesElement.ValueKind == JsonValueKind.Array
-                ? queriesElement.EnumerateArray()
-                    .Where(element => element.ValueKind == JsonValueKind.String)
-                    .Select(element => element.GetString()?.Trim())
-                    .Where(query => !string.IsNullOrWhiteSpace(query) && query.Length <= MaxQueryLength)
-                    .Select(query => query!)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Where(query => !attemptedQueries.Contains(query))
-                    .Take(MaxQueries)
-                    .ToArray()
-                : Array.Empty<string>();
-
-            if (queries.Length > 0)
-            {
-                logger.LogInformation("Планировщик расширенного поиска создал {QueryCount} запросов для цикла {Cycle}.", queries.Length, cycle);
-                return queries;
-            }
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            logger.LogWarning(exception, "Планировщик расширенного поиска недоступен.");
-        }
-
-        return Array.Empty<string>();
-    }
-
-    private static string FormatAttemptedQueries(IReadOnlySet<string> queries) => string.Join(
-        "\n",
-        queries.TakeLast(80).Select(query => $"- {query[..Math.Min(query.Length, 160)]}"));
-}
-
-internal static class RagSearchSelection
-{
-    public static bool HasSources(IEnumerable<RagSearchResult> results) =>
-        results.SelectMany(result => result.Matches).Any(match => match.IsRelevant);
-
-    public static IReadOnlyList<RagMatch> SelectBest(IEnumerable<RagSearchResult> results, int take) =>
-        results.SelectMany(result => result.Matches)
-            .Where(match => match.IsRelevant)
-            .DistinctBy(match => (match.DocumentTitle, match.SourceLabel, match.Text))
-            .OrderByDescending(match => match.IsExactDocumentMatch)
-            .ThenByDescending(match => match.HasLexicalMatch)
-            .ThenByDescending(match => match.Similarity)
-            .ThenByDescending(match => match.RankingScore)
-            .Take(take)
-            .ToArray();
 }
 
 internal static class ChatPrompt
@@ -628,36 +450,10 @@ internal static class ChatPrompt
             практический ответ, затем — не более пяти структурированных пунктов. Не добавляй
             вводные фразы «конечно», «с радостью помогу» и не повторяй один и тот же вопрос.
 
-            В этом запросе нет подтверждающих фрагментов базы знаний. На приветствия, благодарности
-            и вопросы о возможностях помощника отвечай естественно, без предупреждений. Для общих
-            понятий можно дать только нейтральное объяснение из предметной области. Но факты о
-            конкретных организациях, объектах, документах, требованиях и терминах с несколькими
-            возможными значениями допустимы только при подтверждающих источниках. Не расшифровывай
-            аббревиатуру по догадке: например, в данном продукте СЭМ обычно означает «система
-            экологического менеджмента», но при отсутствии источника или контекста сначала уточни,
-            о какой СЭМ идёт речь.
-            Когда пользователь просит чек-лист без источников, можешь создать только нейтральный
-            рабочий черновик: что проверить в документах, на объекте, в подтверждающих материалах
-            и в действиях по отклонениям. Не добавляй в такой черновик названия нормативов,
-            разрешений, информационных систем, форм отчётности, сроков или обязательных
-            периодичностей — они требуют источника. Не выдавай черновик за полный нормативный
-            перечень.
-            Если вопрос слишком общий для рабочего ответа, не составляй универсальный список и
-            не рассуждай о посторонних сферах: задай один короткий вопрос, который сузит тему.
-            Предлагай варианты только из области ООС: воздух, вода, отходы, ПЭК, СЭМ, отчётность,
-            объект проверки или реквизиты документа.
-            Не утверждай, что опираешься на документы базы знаний. Не выдумывай и не подтверждай
-            существование конкретных организаций, филиалов, объектов, стран, регионов, ведомств,
-            сайтов, реестров, документов, статей, ссылок, точных нормативных требований или
-            результатов проверок. Не продолжай неподтверждённое предположение из предыдущих
-            реплик как установленный факт. Если вопрос относится к конкретной организации,
-            документу или объекту, прямо скажи, что в доступных источниках это не подтверждено,
-            и попроси исходный документ либо идентификаторы. Если вопрос требует юридически
-            значимого, экологического или нормативного вывода, объясни, что ответ носит общий
-            характер, и предложи свериться с актуальным первоисточником. Если пользователь,
-            вероятно, ищет документ или сведения по объекту, но данных недостаточно, задай от
-            одного до трёх конкретных уточняющих вопросов вместо догадки: например, о типе и
-            номере документа, дате, органе-издателе, объекте, периоде или регионе.
+            По этому точному запросу RAG не вернул фрагментов. Кратко сообщи, что в текущей
+            выдаче нет подходящих фрагментов, и задай один конкретный уточняющий вопрос: о
+            реквизитах, периоде, объекте или ключевом термине. Не давай справочный, нормативный
+            или фактический ответ и не выдумывай документы.
             """ + (string.IsNullOrWhiteSpace(clarification)
                 ? string.Empty
                 : $"\n\n## Обязательное действие в этом ответе\n{clarification}");

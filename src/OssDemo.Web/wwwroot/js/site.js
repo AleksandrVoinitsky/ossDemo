@@ -469,9 +469,23 @@
     container.replaceChildren();
     sources.filter(Boolean).forEach((source, index) => {
       const item = typeof source === 'string' ? { title: source } : source;
-      const chip = item.url ? document.createElement('a') : document.createElement('span');
+      const hasQuote = Boolean(item.quote);
+      const chip = hasQuote ? document.createElement('details') : item.url ? document.createElement('a') : document.createElement('span');
       chip.className = item.kind === 'classifier' ? 'classifier-chip' : 'source-chip';
-      chip.textContent = item.title || item.name || item.label || '';
+
+      if (hasQuote) {
+        chip.classList.add('chat-source-debug');
+        const summary = document.createElement('summary');
+        const score = Number.isFinite(Number(item.similarity)) ? ` · vector ${Number(item.similarity).toFixed(3)}` : '';
+        const signals = [item.lexical ? 'FTS' : '', item.relevant ? 'релевантный' : 'только для диагностики'].filter(Boolean).join(', ');
+        summary.textContent = `${item.title || item.name || item.label || ''}${score} · ${signals}`;
+        const quote = document.createElement('div');
+        quote.className = 'chat-source-debug-quote';
+        quote.textContent = item.quote;
+        chip.append(summary, quote);
+      } else {
+        chip.textContent = item.title || item.name || item.label || '';
+      }
 
       if (animate) {
         chip.classList.add('chat-source-appear');

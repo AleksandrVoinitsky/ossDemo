@@ -190,8 +190,7 @@ internal sealed class RagService(
         var fused = ReciprocalRankFusion.Merge(lexical, semantic, take: 8);
         var reranked = await reranker.RerankAsync(question, fused, cancellationToken) ?? fused;
         var matches = reranked
-            .Where(chunk => exactDocumentId is not null || RagMatch.HasSufficientSignal(chunk.SemanticSimilarity, chunk.LexicalScore > 0))
-            .Take(5)
+            .Take(8)
             .Select(chunk => new RagMatch(
                 chunk.DocumentTitle,
                 chunk.SourceLabel,
@@ -201,7 +200,7 @@ internal sealed class RagService(
                 exactDocumentId is not null,
                 chunk.Score))
             .ToArray();
-        logger.LogInformation("RAG: route={Route}, Kind={Kind}, Number={Number}, Issuer={Issuer}, ExactCandidates={ExactCandidates}, FtsCandidates={FtsCandidates}, VectorCandidates={VectorCandidates}, RelevantCandidates={RelevantCandidates}.", exactDocumentId is null ? "hybrid_rrf" : "exact_document_hybrid", reference.Kind, reference.Number, reference.Issuer, exactDocuments.Count, lexical.Count, semantic.Count, matches.Length);
+        logger.LogInformation("RAG: route={Route}, Kind={Kind}, Number={Number}, Issuer={Issuer}, ExactCandidates={ExactCandidates}, FtsCandidates={FtsCandidates}, VectorCandidates={VectorCandidates}, ReturnedChunks={ReturnedChunks}, RelevantChunks={RelevantChunks}.", exactDocumentId is null ? "hybrid_rrf" : "exact_document_hybrid", reference.Kind, reference.Number, reference.Issuer, exactDocuments.Count, lexical.Count, semantic.Count, matches.Length, matches.Count(match => match.IsRelevant));
         return new(matches, false, Array.Empty<string>());
     }
 
