@@ -43,6 +43,23 @@
     button.addEventListener('click', () => activatePanel(button));
   });
 
+  document.querySelectorAll('.facility-carousel').forEach((carousel) => {
+    const list = carousel.querySelector('.facility-list');
+    const previous = carousel.querySelector('[data-facility-carousel-prev]');
+    const next = carousel.querySelector('[data-facility-carousel-next]');
+    if (!list) return;
+
+    const scrollByCard = (direction) => {
+      const card = list.querySelector('.facility-list-item');
+      const gap = Number.parseFloat(getComputedStyle(list).gap) || 0;
+      const amount = (card?.getBoundingClientRect().width || 180) + gap;
+      list.scrollBy({ left: direction * amount, behavior: 'smooth' });
+    };
+
+    previous?.addEventListener('click', () => scrollByCard(-1));
+    next?.addEventListener('click', () => scrollByCard(1));
+  });
+
   const wizard = document.querySelector('[data-checklist-wizard]');
   if (wizard) {
     const panels = Array.from(wizard.querySelectorAll('[data-step-panel]'));
