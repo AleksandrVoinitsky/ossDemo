@@ -3,17 +3,15 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Mime;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Npgsql;
 
 internal sealed class RagService(
     IHttpClientFactory httpClientFactory,
     IConfiguration configuration,
-    ILogger<RagService> logger)
+    ILogger<RagService> logger,
+    IRagReranker reranker)
 {
     private const string Model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2";
-    private static readonly Regex GostNumberPattern = new(@"\bГОСТ\s*(?:Р\s*)?(\d{4,})", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-    private static readonly Regex GovernmentResolutionNumberPattern = new(@"\b(?:постановлени[ея]|пп)\s+(?:правительств[ао]\s*)?(?:рф\s*)?(?:№|N)?\s*(\d{1,5})\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private readonly SemaphoreSlim _initializationLock = new(1, 1);
     private volatile bool _initialized;
 
@@ -61,6 +59,11 @@ internal sealed class RagService(
                 ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS content_type text NULL;
                 ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS size_bytes bigint NULL;
                 ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS source_hash text NULL;
+                ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS document_kind text NULL;
+                ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS document_number text NULL;
+                ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS issuer text NULL;
+                ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS document_date date NULL;
+                ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS search_text text NULL;
                 CREATE TABLE IF NOT EXISTS knowledge_chunks (
                     id uuid PRIMARY KEY,
                     document_id uuid NOT NULL REFERENCES knowledge_documents(id) ON DELETE CASCADE,
@@ -72,6 +75,12 @@ internal sealed class RagService(
                     created_at timestamptz NOT NULL DEFAULT now(),
                     UNIQUE(document_id, ordinal)
                 );
+                ALTER TABLE knowledge_chunks ADD COLUMN IF NOT EXISTS search_vector tsvector;
+                UPDATE knowledge_chunks SET search_vector = to_tsvector('simple', text) WHERE search_vector IS NULL;
+                CREATE INDEX IF NOT EXISTS ix_knowledge_chunks_search_vector ON knowledge_chunks USING gin (search_vector);
+                CREATE INDEX IF NOT EXISTS ix_knowledge_documents_requisites
+                    ON knowledge_documents(document_kind, document_number, issuer, document_date)
+                    WHERE status = 'indexed';
                 CREATE INDEX IF NOT EXISTS ix_knowledge_chunks_embedding_hnsw
                     ON knowledge_chunks USING hnsw (embedding vector_cosine_ops)
                     WITH (m = 16, ef_construction = 64);
@@ -83,6 +92,8 @@ internal sealed class RagService(
                 FROM knowledge_chunks c
                 WHERE c.document_id = d.id AND c.ordinal = 1 AND d.markdown IS NULL;
                 """, cancellationToken);
+
+            await BackfillDocumentReferencesAsync(connection, cancellationToken);
 
             _initialized = true;
             logger.LogInformation("RAG-схема готова.");
@@ -141,94 +152,138 @@ internal sealed class RagService(
         }
     }
 
-    public async Task<IReadOnlyList<RagMatch>> SearchAsync(string question, CancellationToken cancellationToken)
+    public async Task<RagSearchResult> SearchAsync(string question, CancellationToken cancellationToken)
     {
         await InitializeAsync(cancellationToken);
         if (!_initialized)
         {
-            return Array.Empty<RagMatch>();
+            return RagSearchResult.Empty;
         }
 
-        var referencedGostNumber = GostNumberPattern.Match(question).Groups[1].Value;
-        var referencedResolutionNumber = GovernmentResolutionNumberPattern.Match(question).Groups[1].Value;
+        var reference = DocumentReferenceParser.Parse(question);
 
         await using var connection = new NpgsqlConnection(configuration.GetConnectionString("OssDatabase"));
         await connection.OpenAsync(cancellationToken);
-        var exactDocumentId = await FindGovernmentResolutionIdAsync(connection, referencedResolutionNumber, cancellationToken);
+        var exactDocuments = await FindDocumentsByReferenceAsync(connection, reference, cancellationToken);
+        if (reference.HasRequisites && exactDocuments.Count > 1)
+        {
+            logger.LogInformation("RAG: неоднозначные реквизиты Kind={Kind}, Number={Number}, Issuer={Issuer}, Date={Date}, Candidates={CandidateCount}.", reference.Kind, reference.Number, reference.Issuer, reference.Date, exactDocuments.Count);
+            return new(Array.Empty<RagMatch>(), true, exactDocuments.Select(document => document.Title).ToArray());
+        }
 
         var embedding = await CreateEmbeddingAsync(question, cancellationToken);
         var vector = ToVectorLiteral(embedding);
-        await using var command = new NpgsqlCommand("""
-            SELECT d.title,
-                   c.source_label,
-                   c.text,
-                   1 - (c.embedding <=> CAST(@embedding AS vector)) AS similarity,
-                   position(lower(@question) in lower(d.title)) > 0 AS title_match,
-                   @gostNumber <> '' AND position(lower(@gostNumber) in lower(d.title)) > 0 AS gost_match,
-                   @resolutionNumber <> ''
-                       AND d.title ~* ('постановлени[ея].*правительств')
-                       AND d.title ~ ('(^|[^0-9])' || @resolutionNumber || '([^0-9]|$)') AS resolution_match,
-                   @exactDocumentId <> '' AND d.id::text = @exactDocumentId AS exact_document_match
-            FROM knowledge_chunks c
-            INNER JOIN knowledge_documents d ON d.id = c.document_id
-            WHERE d.status = 'indexed'
-              AND c.embedding_model = @model
-              AND (@exactDocumentId = '' OR d.id::text = @exactDocumentId)
-            ORDER BY @exactDocumentId <> '' AND d.id::text = @exactDocumentId DESC,
-                     @resolutionNumber <> ''
-                         AND d.title ~* ('постановлени[ея].*правительств')
-                         AND d.title ~ ('(^|[^0-9])' || @resolutionNumber || '([^0-9]|$)') DESC,
-                     @gostNumber <> '' AND position(lower(@gostNumber) in lower(d.title)) > 0 DESC,
-                     position(lower(@question) in lower(d.title)) > 0 DESC,
-                     c.embedding <=> CAST(@embedding AS vector)
-            LIMIT 5;
-            """, connection);
-        command.Parameters.AddWithValue("embedding", vector);
-        command.Parameters.AddWithValue("question", question);
-        command.Parameters.AddWithValue("gostNumber", referencedGostNumber);
-        command.Parameters.AddWithValue("resolutionNumber", referencedResolutionNumber);
-        command.Parameters.AddWithValue("exactDocumentId", exactDocumentId);
-        command.Parameters.AddWithValue("model", Model);
-
-        var matches = new List<RagMatch>();
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            var similarity = reader.GetDouble(3);
-            var titleMatch = reader.GetBoolean(4);
-            var gostMatch = reader.GetBoolean(5);
-            var resolutionMatch = reader.GetBoolean(6);
-            var exactDocumentMatch = reader.GetBoolean(7);
-            if (exactDocumentMatch || resolutionMatch || gostMatch || titleMatch || similarity >= 0.35)
-            {
-                matches.Add(new RagMatch(reader.GetString(0), reader.GetString(1), reader.GetString(2), exactDocumentMatch || resolutionMatch || gostMatch || titleMatch ? 1 : similarity));
-            }
-        }
-
-        return matches;
+        var exactDocumentId = exactDocuments.Count == 1 ? exactDocuments[0].Id : (Guid?)null;
+        var lexical = await SearchLexicalAsync(connection, question, exactDocumentId, cancellationToken);
+        var semantic = await SearchSemanticAsync(connection, vector, exactDocumentId, cancellationToken);
+        var fused = ReciprocalRankFusion.Merge(lexical, semantic, take: 8);
+        var reranked = await reranker.RerankAsync(question, fused, cancellationToken) ?? fused;
+        var matches = reranked.Take(5).Select(chunk => new RagMatch(chunk.DocumentTitle, chunk.SourceLabel, chunk.Text, chunk.Score)).ToArray();
+        logger.LogInformation("RAG: route={Route}, Kind={Kind}, Number={Number}, Issuer={Issuer}, ExactCandidates={ExactCandidates}, FtsCandidates={FtsCandidates}, VectorCandidates={VectorCandidates}, FinalCandidates={FinalCandidates}.", exactDocumentId is null ? "hybrid_rrf" : "exact_document_hybrid", reference.Kind, reference.Number, reference.Issuer, exactDocuments.Count, lexical.Count, semantic.Count, matches.Length);
+        return new(matches, false, Array.Empty<string>());
     }
 
-    private static async Task<string> FindGovernmentResolutionIdAsync(
-        NpgsqlConnection connection,
-        string resolutionNumber,
-        CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<ReferencedDocument>> FindDocumentsByReferenceAsync(NpgsqlConnection connection, DocumentReference reference, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(resolutionNumber))
+        if (!reference.HasRequisites)
         {
-            return string.Empty;
+            return Array.Empty<ReferencedDocument>();
         }
 
         await using var command = new NpgsqlCommand("""
-            SELECT id::text
+            SELECT id, title
             FROM knowledge_documents
             WHERE status = 'indexed'
-              AND title ~* 'постановлени[ея].*правительств'
-              AND title ~ ('(^|[^0-9])' || @resolutionNumber || '([^0-9]|$)')
+              AND (@kind IS NULL OR document_kind = @kind)
+              AND (@number IS NULL OR document_number = @number)
+              AND (@issuer IS NULL OR issuer = @issuer)
+              AND (@date IS NULL OR document_date = @date)
             ORDER BY updated_at DESC
-            LIMIT 1;
+            LIMIT 10;
             """, connection);
-        command.Parameters.AddWithValue("resolutionNumber", resolutionNumber);
-        return (await command.ExecuteScalarAsync(cancellationToken) as string) ?? string.Empty;
+        command.Parameters.AddWithValue("kind", (object?)reference.Kind ?? DBNull.Value);
+        command.Parameters.AddWithValue("number", (object?)reference.Number ?? DBNull.Value);
+        command.Parameters.AddWithValue("issuer", (object?)reference.Issuer ?? DBNull.Value);
+        command.Parameters.AddWithValue("date", (object?)reference.Date ?? DBNull.Value);
+        var documents = new List<ReferencedDocument>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken)) documents.Add(new(reader.GetGuid(0), reader.GetString(1)));
+        return documents;
+    }
+
+    private static async Task<IReadOnlyList<RankedChunk>> SearchLexicalAsync(NpgsqlConnection connection, string query, Guid? documentId, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand("""
+            SELECT c.id, d.title, c.source_label, c.text
+            FROM knowledge_chunks c
+            JOIN knowledge_documents d ON d.id = c.document_id
+            WHERE d.status = 'indexed'
+              AND (@documentId IS NULL OR c.document_id = @documentId)
+              AND c.search_vector @@ websearch_to_tsquery('simple', @query)
+            ORDER BY ts_rank_cd(c.search_vector, websearch_to_tsquery('simple', @query)) DESC
+            LIMIT 20;
+            """, connection);
+        command.Parameters.AddWithValue("documentId", (object?)documentId ?? DBNull.Value);
+        command.Parameters.AddWithValue("query", query);
+        return await ReadRankedChunksAsync(command, cancellationToken);
+    }
+
+    private static async Task<IReadOnlyList<RankedChunk>> SearchSemanticAsync(NpgsqlConnection connection, string vector, Guid? documentId, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand("""
+            SELECT c.id, d.title, c.source_label, c.text
+            FROM knowledge_chunks c
+            JOIN knowledge_documents d ON d.id = c.document_id
+            WHERE d.status = 'indexed'
+              AND c.embedding_model = @model
+              AND (@documentId IS NULL OR c.document_id = @documentId)
+            ORDER BY c.embedding <=> CAST(@embedding AS vector)
+            LIMIT 20;
+            """, connection);
+        command.Parameters.AddWithValue("documentId", (object?)documentId ?? DBNull.Value);
+        command.Parameters.AddWithValue("embedding", vector);
+        command.Parameters.AddWithValue("model", Model);
+        return await ReadRankedChunksAsync(command, cancellationToken);
+    }
+
+    private static async Task<IReadOnlyList<RankedChunk>> ReadRankedChunksAsync(NpgsqlCommand command, CancellationToken cancellationToken)
+    {
+        var chunks = new List<RankedChunk>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken)) chunks.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), 0));
+        return chunks;
+    }
+
+    private static async Task BackfillDocumentReferencesAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
+    {
+        var documents = new List<(Guid Id, string Title, string? FileName)>();
+        await using (var select = new NpgsqlCommand("SELECT id, title, original_file_name FROM knowledge_documents WHERE document_kind IS NULL OR search_text IS NULL;", connection))
+        await using (var reader = await select.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken)) documents.Add((reader.GetGuid(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2)));
+        }
+
+        foreach (var document in documents)
+        {
+            var reference = DocumentReferenceParser.Parse($"{document.Title} {Path.GetFileNameWithoutExtension(document.FileName ?? string.Empty)}");
+            await using var update = new NpgsqlCommand("""
+                UPDATE knowledge_documents
+                SET document_kind = @kind, document_number = @number, issuer = @issuer, document_date = @date,
+                    search_text = lower(concat_ws(' ', title, original_file_name, @kind, @number, @issuer))
+                WHERE id = @id;
+                """, connection);
+            AddReferenceParameters(update, reference);
+            update.Parameters.AddWithValue("id", document.Id);
+            await update.ExecuteNonQueryAsync(cancellationToken);
+        }
+    }
+
+    private static void AddReferenceParameters(NpgsqlCommand command, DocumentReference reference)
+    {
+        command.Parameters.AddWithValue("kind", (object?)reference.Kind ?? DBNull.Value);
+        command.Parameters.AddWithValue("number", (object?)reference.Number ?? DBNull.Value);
+        command.Parameters.AddWithValue("issuer", (object?)reference.Issuer ?? DBNull.Value);
+        command.Parameters.AddWithValue("date", (object?)reference.Date ?? DBNull.Value);
     }
 
     public async Task<IReadOnlyList<KnowledgeDocumentSummary>> GetKnowledgeDocumentsAsync(CancellationToken cancellationToken)
@@ -349,6 +404,7 @@ internal sealed class RagService(
         {
             throw new RagIngestionException(StatusCodes.Status400BadRequest, "У файла должно быть имя.");
         }
+        var reference = DocumentReferenceParser.Parse($"{title} {Path.GetFileNameWithoutExtension(file.FileName)}");
 
         var markdown = extension is ".txt" or ".md"
             ? await ReadPlainTextAsync(file, cancellationToken)
@@ -383,8 +439,8 @@ internal sealed class RagService(
         }
 
         await using (var upsertDocument = new NpgsqlCommand("""
-            INSERT INTO knowledge_documents (id, title, source_type, status, markdown, original_file_name, content_type, size_bytes, source_hash)
-            VALUES (@id, @title, 'volume', 'indexed', @markdown, @fileName, @contentType, @sizeBytes, @sourceHash)
+            INSERT INTO knowledge_documents (id, title, source_type, status, markdown, original_file_name, content_type, size_bytes, source_hash, document_kind, document_number, issuer, document_date, search_text)
+            VALUES (@id, @title, 'volume', 'indexed', @markdown, @fileName, @contentType, @sizeBytes, @sourceHash, @kind, @number, @issuer, @date, @searchText)
             ON CONFLICT (title) DO UPDATE SET
                 source_type = 'volume',
                 status = EXCLUDED.status,
@@ -393,6 +449,11 @@ internal sealed class RagService(
                 content_type = EXCLUDED.content_type,
                 size_bytes = EXCLUDED.size_bytes,
                 source_hash = EXCLUDED.source_hash,
+                document_kind = EXCLUDED.document_kind,
+                document_number = EXCLUDED.document_number,
+                issuer = EXCLUDED.issuer,
+                document_date = EXCLUDED.document_date,
+                search_text = EXCLUDED.search_text,
                 updated_at = now();
             """, connection, transaction))
         {
@@ -403,6 +464,8 @@ internal sealed class RagService(
             upsertDocument.Parameters.AddWithValue("contentType", string.IsNullOrWhiteSpace(file.ContentType) ? MediaTypeNames.Application.Octet : file.ContentType);
             upsertDocument.Parameters.AddWithValue("sizeBytes", file.Length);
             upsertDocument.Parameters.AddWithValue("sourceHash", (object?)sourceHash ?? DBNull.Value);
+            AddReferenceParameters(upsertDocument, reference);
+            upsertDocument.Parameters.AddWithValue("searchText", $"{title} {file.FileName} {reference.Kind} {reference.Number} {reference.Issuer}".ToLowerInvariant());
             await upsertDocument.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -415,8 +478,8 @@ internal sealed class RagService(
         for (var index = 0; index < chunks.Count; index++)
         {
             await using var insertChunk = new NpgsqlCommand("""
-                INSERT INTO knowledge_chunks (id, document_id, ordinal, source_label, text, embedding, embedding_model)
-                VALUES (@id, @documentId, @ordinal, @sourceLabel, @text, CAST(@embedding AS vector), @model);
+                INSERT INTO knowledge_chunks (id, document_id, ordinal, source_label, text, embedding, embedding_model, search_vector)
+                VALUES (@id, @documentId, @ordinal, @sourceLabel, @text, CAST(@embedding AS vector), @model, to_tsvector('simple', @text));
                 """, connection, transaction);
             insertChunk.Parameters.AddWithValue("id", Guid.NewGuid());
             insertChunk.Parameters.AddWithValue("documentId", documentId);
@@ -609,9 +672,14 @@ internal sealed class RagService(
     };
 
     private sealed record MarkdownChunk(string SourceLabel, string Text);
+    private sealed record ReferencedDocument(Guid Id, string Title);
 }
 
 internal sealed record RagMatch(string DocumentTitle, string SourceLabel, string Text, double Similarity);
+internal sealed record RagSearchResult(IReadOnlyList<RagMatch> Matches, bool IsAmbiguous, IReadOnlyList<string> AmbiguousDocuments)
+{
+    public static RagSearchResult Empty { get; } = new(Array.Empty<RagMatch>(), false, Array.Empty<string>());
+}
 internal sealed record RagDocumentStatus(string Title, string SourceType, string Status, int ChunkCount);
 internal sealed record KnowledgeDocumentSummary(
     Guid Id,

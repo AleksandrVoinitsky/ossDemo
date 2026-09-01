@@ -21,6 +21,11 @@ builder.Services.AddHttpClient("Docling", client =>
 {
     client.Timeout = TimeSpan.FromMinutes(5);
 });
+builder.Services.AddHttpClient("Reranker", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddSingleton<IRagReranker, ConfiguredRagReranker>();
 builder.Services.AddSingleton<RagService>();
 builder.Services.AddHostedService<KnowledgeImportService>();
 
@@ -262,16 +267,29 @@ app.MapPost("/api/ai/chat", async (
 
     var userQuestion = request.Message.Trim();
 
-    IReadOnlyList<RagMatch> matches;
+    RagSearchResult searchResult;
     try
     {
-        matches = await ragService.SearchAsync(userQuestion, cancellationToken);
+        searchResult = await ragService.SearchAsync(userQuestion, cancellationToken);
     }
     catch (Exception exception) when (exception is Npgsql.NpgsqlException or HttpRequestException or JsonException or InvalidOperationException)
     {
         logger.LogError(exception, "Не удалось выполнить поиск по базе знаний.");
         return Results.Problem(title: "Поиск по базе знаний временно недоступен", statusCode: StatusCodes.Status502BadGateway);
     }
+
+    if (searchResult.IsAmbiguous)
+    {
+        return Results.Ok(new
+        {
+            answer = "Найдено несколько документов с такими реквизитами. Уточните, пожалуйста, тип документа, орган-издатель или дату.",
+            grounded = false,
+            sources = searchResult.AmbiguousDocuments.Select(title => new { title, quote = string.Empty, similarity = 0d, kind = "ambiguous" }),
+            model
+        });
+    }
+
+    var matches = searchResult.Matches;
 
     var context = string.Join("\n\n", matches.Select((match, index) =>
         $"[S{index + 1}] Документ: {match.DocumentTitle}\nРаздел: {match.SourceLabel}\nТекст: {match.Text}"));
