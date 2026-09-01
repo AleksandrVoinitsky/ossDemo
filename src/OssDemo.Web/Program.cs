@@ -267,11 +267,12 @@ app.MapPost("/api/ai/chat", async (
     }
 
     var userQuestion = request.Message.Trim();
+    var ragQuestion = ChatSearchQuery.Build(request.Conversation, userQuestion, maxMessageLength);
 
     RagSearchResult searchResult;
     try
     {
-        searchResult = await ragService.SearchAsync(userQuestion, cancellationToken);
+        searchResult = await ragService.SearchAsync(ragQuestion, cancellationToken);
     }
     catch (Exception exception) when (exception is not OperationCanceledException)
     {
@@ -387,6 +388,22 @@ internal sealed record KnowledgeFileSummary(
 internal sealed record InferenceMessage(string role, string content);
 internal sealed record ChatSource(string title, string quote, double similarity, string kind);
 
+internal static class ChatSearchQuery
+{
+    public static string Build(IReadOnlyList<ChatHistoryMessage> conversation, string userQuestion, int maxLength)
+    {
+        var priorQuestions = conversation
+            .Where(message => message.Role == "user" && !string.IsNullOrWhiteSpace(message.Content))
+            .TakeLast(3)
+            .Select(message => message.Content.Trim())
+            .ToList();
+
+        priorQuestions.Add(userQuestion);
+        var query = string.Join("\n", priorQuestions.Distinct(StringComparer.Ordinal));
+        return query.Length <= maxLength ? query : query[^maxLength..];
+    }
+}
+
 internal static class ChatPrompt
 {
     public static string BuildSystemMessage(string context, bool hasSources, IReadOnlyList<string> ambiguousDocuments)
@@ -419,13 +436,18 @@ internal static class ChatPrompt
             Ты ИИ-консультант demo-системы АИ ООС. Отвечай по-русски, естественно, доброжелательно и по существу.
             В этом запросе нет подтверждающих фрагментов базы знаний. Поддерживай нормальный
             разговор: на приветствия и общие вопросы отвечай без формальных предупреждений.
-            Не утверждай, что опираешься на документы базы знаний, и не выдумывай документы,
-            статьи, ссылки, точные нормативные требования или результаты проверок. Если вопрос
-            требует юридически значимого, экологического или нормативного вывода, объясни, что
-            ответ носит общий характер, и предложи свериться с актуальным первоисточником. Если
-            пользователь, вероятно, ищет документ или сведения по объекту, но данных недостаточно,
-            задай от одного до трёх конкретных уточняющих вопросов вместо догадки: например, о
-            типе и номере документа, дате, органе-издателе, объекте, периоде или регионе.
+            Не утверждай, что опираешься на документы базы знаний. Не выдумывай и не подтверждай
+            существование конкретных организаций, филиалов, объектов, стран, регионов, ведомств,
+            сайтов, реестров, документов, статей, ссылок, точных нормативных требований или
+            результатов проверок. Не продолжай неподтверждённое предположение из предыдущих
+            реплик как установленный факт. Если вопрос относится к конкретной организации,
+            документу или объекту, прямо скажи, что в доступных источниках это не подтверждено,
+            и попроси исходный документ либо идентификаторы. Если вопрос требует юридически
+            значимого, экологического или нормативного вывода, объясни, что ответ носит общий
+            характер, и предложи свериться с актуальным первоисточником. Если пользователь,
+            вероятно, ищет документ или сведения по объекту, но данных недостаточно, задай от
+            одного до трёх конкретных уточняющих вопросов вместо догадки: например, о типе и
+            номере документа, дате, органе-издателе, объекте, периоде или регионе.
             """;
     }
 }
