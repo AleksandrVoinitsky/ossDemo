@@ -20,12 +20,10 @@
                     <h2 class="section-title h4 mb-1">Объекты проверки</h2>
                     <p class="muted-note mb-0">Выберите объект, чтобы показать его на карте и открыть цифровой профиль.</p>
                 </div>
-                <div class="d-flex align-items-center gap-2"><span class="badge text-bg-primary">8</span><a class="btn btn-outline-primary btn-sm" asp-page="/FacilityCard" asp-route-id="berezniki" data-facility-card-link-target>Открыть карточку</a></div>
+                <div class="d-flex align-items-center gap-2"><span class="badge text-bg-primary">4</span><a class="btn btn-outline-primary btn-sm" asp-page="/FacilityCard" asp-route-id="berezniki" data-facility-card-link-target>Открыть карточку</a></div>
             </div>
 
-            <div class="facility-carousel" aria-label="Карусель объектов проверки">
-                <button class="facility-carousel-control" type="button" data-facility-carousel-prev aria-label="Предыдущие объекты">‹</button>
-                <div class="facility-list" role="tablist" aria-label="Объекты">
+            <div class="facility-list" role="tablist" aria-label="Объекты">
                 <button class="facility-list-item btn btn-light text-start active"
                         data-panel-group="facilities"
                         data-panel-target="facility-ber"
@@ -85,60 +83,6 @@
                     <span class="small text-muted">требует создания из графика</span>
                     <span class="facility-list-item-meta"><span class="status-dot status-danger"></span>нет цифрового паспорта</span>
                 </button>
-                <button class="facility-list-item btn btn-light text-start"
-                        data-panel-group="facilities"
-                        data-panel-target="facility-perm"
-                        data-facility-name="Пермское ЛПУМГ"
-                        data-facility-address="г. Пермь, производственная площадка"
-                        data-facility-coordinates="58.0105, 56.2502"
-                        data-facility-map-url="https://yandex.ru/map-widget/v1/?ll=56.2502%2C58.0105&z=10&pt=56.2502%2C58.0105%2Cpm2blm"
-                        data-facility-card-url="/FacilityCard?id=perm"
-                        aria-selected="false">
-                    <span class="facility-list-item-title">Пермское ЛПУМГ</span>
-                    <span class="small text-muted">НВОС I · профиль готов</span>
-                    <span class="facility-list-item-meta"><span class="status-dot status-ready"></span>пакет ОРД проверен</span>
-                </button>
-                <button class="facility-list-item btn btn-light text-start"
-                        data-panel-group="facilities"
-                        data-panel-target="facility-bardym"
-                        data-facility-name="Бардымское ЛПУМГ"
-                        data-facility-address="Пермский край, Бардымский округ"
-                        data-facility-coordinates="56.9281, 55.5961"
-                        data-facility-map-url="https://yandex.ru/map-widget/v1/?ll=55.5961%2C56.9281&z=10&pt=55.5961%2C56.9281%2Cpm2blm"
-                        data-facility-card-url="/FacilityCard?id=bardym"
-                        aria-selected="false">
-                    <span class="facility-list-item-title">Бардымское ЛПУМГ</span>
-                    <span class="small text-muted">НВОС II · профиль готов</span>
-                    <span class="facility-list-item-meta"><span class="status-dot status-ready"></span>плановая проверка</span>
-                </button>
-                <button class="facility-list-item btn btn-light text-start"
-                        data-panel-group="facilities"
-                        data-panel-target="facility-grem"
-                        data-facility-name="Гремячинское ЛПУМГ"
-                        data-facility-address="Пермский край, г. Гремячинск"
-                        data-facility-coordinates="58.5630, 57.8521"
-                        data-facility-map-url="https://yandex.ru/map-widget/v1/?ll=57.8521%2C58.5630&z=10&pt=57.8521%2C58.5630%2Cpm2orgm"
-                        data-facility-card-url="/FacilityCard?id=gremyachinsk"
-                        aria-selected="false">
-                    <span class="facility-list-item-title">Гремячинское ЛПУМГ</span>
-                    <span class="small text-muted">НВОС I · требует доработки</span>
-                    <span class="facility-list-item-meta"><span class="status-dot status-warn"></span>ожидает сверки документов</span>
-                </button>
-                <button class="facility-list-item btn btn-light text-start"
-                        data-panel-group="facilities"
-                        data-panel-target="facility-kungur"
-                        data-facility-name="Кунгурское ЛПУМГ"
-                        data-facility-address="Пермский край, г. Кунгур"
-                        data-facility-coordinates="57.4286, 56.9440"
-                        data-facility-map-url="https://yandex.ru/map-widget/v1/?ll=56.9440%2C57.4286&z=10&pt=56.9440%2C57.4286%2Cpm2blm"
-                        data-facility-card-url="/FacilityCard?id=kungur"
-                        aria-selected="false">
-                    <span class="facility-list-item-title">Кунгурское ЛПУМГ</span>
-                    <span class="small text-muted">НВОС II · профиль готов</span>
-                    <span class="facility-list-item-meta"><span class="status-dot status-ready"></span>следующая проверка в октябре</span>
-                </button>
-                </div>
-                <button class="facility-carousel-control" type="button" data-facility-carousel-next aria-label="Следующие объекты">›</button>
             </div>
     </div>
 
