@@ -87,16 +87,50 @@ app.MapGet("/api/knowledge/documents", async (
     ILogger<Program> logger,
     CancellationToken cancellationToken) =>
 {
+    var inboxDirectory = Path.Combine(AppContext.BaseDirectory, "knowledge-inbox");
+    if (!Directory.Exists(inboxDirectory))
+    {
+        logger.LogWarning("Каталог базы знаний не найден: {InboxDirectory}", inboxDirectory);
+        return Results.Ok(Array.Empty<KnowledgeFileSummary>());
+    }
+
+    IReadOnlyList<KnowledgeDocumentSummary> indexedDocuments;
     try
     {
-        var documents = await ragService.GetKnowledgeDocumentsAsync(cancellationToken);
-        return Results.Ok(documents);
+        indexedDocuments = await ragService.GetKnowledgeDocumentsAsync(cancellationToken);
     }
     catch (Exception exception) when (exception is Npgsql.NpgsqlException or HttpRequestException or JsonException or InvalidOperationException)
     {
-        logger.LogError(exception, "Не удалось получить список документов базы знаний.");
-        return Results.Problem(title: "База знаний временно недоступна", statusCode: StatusCodes.Status502BadGateway);
+        logger.LogWarning(exception, "Не удалось сопоставить файлы базы знаний с индексом RAG.");
+        indexedDocuments = Array.Empty<KnowledgeDocumentSummary>();
     }
+
+    var documentsByPath = indexedDocuments
+        .Where(document => !string.IsNullOrWhiteSpace(document.OriginalFileName))
+        .GroupBy(document => document.OriginalFileName!.Replace('\\', '/'), StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+    var documentsByTitle = indexedDocuments
+        .GroupBy(document => document.Title, StringComparer.OrdinalIgnoreCase)
+        .Where(group => group.Count() == 1)
+        .ToDictionary(group => group.Key, group => group.Single(), StringComparer.OrdinalIgnoreCase);
+
+    var files = Directory.EnumerateFiles(inboxDirectory, "*.md", SearchOption.AllDirectories)
+        .Select(filePath =>
+        {
+            var relativePath = Path.GetRelativePath(inboxDirectory, filePath).Replace(Path.DirectorySeparatorChar, '/');
+            var title = Path.GetFileNameWithoutExtension(filePath);
+            documentsByPath.TryGetValue(relativePath, out var document);
+            document ??= documentsByTitle.GetValueOrDefault(title);
+
+            return new KnowledgeFileSummary(
+                relativePath,
+                document?.Id,
+                document?.UpdatedAt ?? new DateTimeOffset(File.GetLastWriteTimeUtc(filePath), TimeSpan.Zero),
+                document?.ChunkCount ?? 0);
+        })
+        .OrderBy(file => file.Path, StringComparer.OrdinalIgnoreCase);
+
+    return Results.Ok(files);
 });
 app.MapGet("/api/knowledge/documents/{id:guid}", async (
     Guid id,
@@ -335,6 +369,12 @@ internal sealed record ChatRequest(string? Message, IReadOnlyList<ChatHistoryMes
 }
 
 internal sealed record ChatHistoryMessage(string Role, string Content);
+
+internal sealed record KnowledgeFileSummary(
+    string Path,
+    Guid? Id,
+    DateTimeOffset UpdatedAt,
+    int ChunkCount);
 
 internal sealed record InferenceMessage(string role, string content);
 

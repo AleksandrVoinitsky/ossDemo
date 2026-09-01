@@ -116,9 +116,15 @@
     async function openFile(file) {
         documentTitle.textContent = file.name;
         documentPath.textContent = currentPathText(file.name);
-        documentUpdated.textContent = 'Загрузка Markdown…';
         documentContent.textContent = '';
         if (documentModal) documentModal.show();
+        if (!file.id) {
+            documentUpdated.textContent = 'Документ ещё не проиндексирован';
+            documentContent.textContent = 'Файл доступен в структуре базы знаний, но его содержимое пока не добавлено в индекс RAG.';
+            return;
+        }
+
+        documentUpdated.textContent = 'Загрузка Markdown…';
         try {
             const response = await fetch('/api/knowledge/documents/' + encodeURIComponent(file.id));
             if (!response.ok) throw new Error('Не удалось получить документ.');
@@ -155,9 +161,11 @@
     }
 
     function addDocumentToWorkspace(document) {
-        const sourcePath = String(document.originalFileName || document.title + '.md').replace(/\\/g, '/');
+        const sourcePath = String(document.path || '').replace(/\\/g, '/');
+        if (!sourcePath) return;
         const parts = sourcePath.split('/').filter(Boolean);
-        const fileName = parts.pop() || document.title + '.md';
+        const fileName = parts.pop();
+        if (!fileName) return;
         let folder = workspace;
 
         parts.forEach(part => {
