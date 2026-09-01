@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Mime;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Npgsql;
 
 internal sealed class RagService(
@@ -11,6 +12,7 @@ internal sealed class RagService(
     ILogger<RagService> logger)
 {
     private const string Model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2";
+    private static readonly Regex GostNumberPattern = new(@"\bГОСТ\s*(?:Р\s*)?(\d{4,})", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private readonly SemaphoreSlim _initializationLock = new(1, 1);
     private volatile bool _initialized;
 
@@ -148,6 +150,7 @@ internal sealed class RagService(
 
         var embedding = await CreateEmbeddingAsync(question, cancellationToken);
         var vector = ToVectorLiteral(embedding);
+        var referencedGostNumber = GostNumberPattern.Match(question).Groups[1].Value;
 
         await using var connection = new NpgsqlConnection(configuration.GetConnectionString("OssDatabase"));
         await connection.OpenAsync(cancellationToken);
@@ -156,16 +159,19 @@ internal sealed class RagService(
                    c.source_label,
                    c.text,
                    1 - (c.embedding <=> CAST(@embedding AS vector)) AS similarity,
-                   position(lower(@question) in lower(d.title)) > 0 AS title_match
+                   position(lower(@question) in lower(d.title)) > 0 AS title_match,
+                   @gostNumber <> '' AND position(lower(@gostNumber) in lower(d.title)) > 0 AS gost_match
             FROM knowledge_chunks c
             INNER JOIN knowledge_documents d ON d.id = c.document_id
             WHERE d.status = 'indexed' AND c.embedding_model = @model
-            ORDER BY position(lower(@question) in lower(d.title)) > 0 DESC,
+            ORDER BY @gostNumber <> '' AND position(lower(@gostNumber) in lower(d.title)) > 0 DESC,
+                     position(lower(@question) in lower(d.title)) > 0 DESC,
                      c.embedding <=> CAST(@embedding AS vector)
             LIMIT 5;
             """, connection);
         command.Parameters.AddWithValue("embedding", vector);
         command.Parameters.AddWithValue("question", question);
+        command.Parameters.AddWithValue("gostNumber", referencedGostNumber);
         command.Parameters.AddWithValue("model", Model);
 
         var matches = new List<RagMatch>();
@@ -174,9 +180,10 @@ internal sealed class RagService(
         {
             var similarity = reader.GetDouble(3);
             var titleMatch = reader.GetBoolean(4);
-            if (titleMatch || similarity >= 0.35)
+            var gostMatch = reader.GetBoolean(5);
+            if (gostMatch || titleMatch || similarity >= 0.35)
             {
-                matches.Add(new RagMatch(reader.GetString(0), reader.GetString(1), reader.GetString(2), titleMatch ? 1 : similarity));
+                matches.Add(new RagMatch(reader.GetString(0), reader.GetString(1), reader.GetString(2), gostMatch || titleMatch ? 1 : similarity));
             }
         }
 
