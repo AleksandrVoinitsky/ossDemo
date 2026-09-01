@@ -50,9 +50,8 @@ AssertTrue(!weakSemantic.IsRelevant);
 AssertTrue(!lexicalMatch.IsRelevant);
 AssertTrue(hybridMatch.IsRelevant);
 AssertTrue(exactDocumentMatch.IsRelevant);
-AssertTrue(!RagSearchSelection.HasEnoughRelevantMatches(new[] { new RagSearchResult(new[] { hybridMatch }, false, Array.Empty<string>()) }));
-AssertTrue(!RagSearchSelection.HasEnoughRelevantMatches(new[] { new RagSearchResult(new[] { hybridMatch, hybridMatch }, false, Array.Empty<string>()) }));
-AssertTrue(RagSearchSelection.HasEnoughRelevantMatches(new[] { new RagSearchResult(new[] { hybridMatch, exactDocumentMatch }, false, Array.Empty<string>()) }));
+AssertTrue(!RagSearchSelection.HasSources(new[] { new RagSearchResult(new[] { weakSemantic }, false, Array.Empty<string>()) }));
+AssertTrue(RagSearchSelection.HasSources(new[] { new RagSearchResult(new[] { hybridMatch }, false, Array.Empty<string>()) }));
 
 Console.WriteLine("RAG parser and RRF checks passed.");
 
