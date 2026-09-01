@@ -1582,14 +1582,15 @@ a {
 
 .facility-workspace {
   display: grid;
-  grid-template-rows: minmax(18rem, 1fr) minmax(20rem, 1fr);
+  grid-template-rows: minmax(20rem, .65fr) minmax(30rem, 1.5fr);
   gap: 1rem;
-  min-height: calc(100vh - 12.5rem);
+  min-height: calc(100vh - 8rem);
 }
 
 .facility-list {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(9rem, 12rem));
+  justify-content: start;
   gap: .75rem;
 }
 
@@ -1601,9 +1602,11 @@ a {
 
 .facility-list-item {
   display: grid;
+  align-content: start;
   gap: .25rem;
   min-width: 0;
-  padding: .85rem .95rem;
+  min-height: 8rem;
+  padding: 1rem .95rem;
 }
 
 .facility-list-item-title {
@@ -1647,12 +1650,12 @@ a {
 
 @media (max-width: 991.98px) {
   .facility-workspace {
-    grid-template-rows: auto minmax(22rem, 1fr);
+    grid-template-rows: auto minmax(30rem, 1fr);
     min-height: 0;
   }
 
   .facility-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(9rem, 1fr));
   }
 }
 
