@@ -272,21 +272,10 @@ app.MapPost("/api/ai/chat", async (
     {
         searchResult = await ragService.SearchAsync(userQuestion, cancellationToken);
     }
-    catch (Exception exception) when (exception is Npgsql.NpgsqlException or HttpRequestException or JsonException or InvalidOperationException)
+    catch (Exception exception) when (exception is not OperationCanceledException)
     {
-        logger.LogError(exception, "Не удалось выполнить поиск по базе знаний.");
-        return Results.Problem(title: "Поиск по базе знаний временно недоступен", statusCode: StatusCodes.Status502BadGateway);
-    }
-
-    if (searchResult.IsAmbiguous)
-    {
-        return Results.Ok(new
-        {
-            answer = "Найдено несколько документов с такими реквизитами. Уточните, пожалуйста, тип документа, орган-издатель или дату.",
-            grounded = false,
-            sources = searchResult.AmbiguousDocuments.Select(title => new { title, quote = string.Empty, similarity = 0d, kind = "ambiguous" }),
-            model
-        });
+        logger.LogWarning(exception, "Поиск по базе знаний недоступен. Продолжаем диалог без RAG-контекста.");
+        searchResult = RagSearchResult.Empty;
     }
 
     var matches = searchResult.Matches;
@@ -295,7 +284,7 @@ app.MapPost("/api/ai/chat", async (
         $"[S{index + 1}] Документ: {match.DocumentTitle}\nРаздел: {match.SourceLabel}\nТекст: {match.Text}"));
     var messages = new List<InferenceMessage>
     {
-        new("system", ChatPrompt.BuildSystemMessage(context, matches.Count > 0))
+        new("system", ChatPrompt.BuildSystemMessage(context, matches.Count > 0, searchResult.AmbiguousDocuments))
     };
 
     foreach (var message in request.Conversation
@@ -347,24 +336,23 @@ app.MapPost("/api/ai/chat", async (
             return Results.Problem(title: "ИИ не вернул ответ", statusCode: StatusCodes.Status502BadGateway);
         }
 
-        var sources = matches.Count > 0
-            ? matches.Select((match, index) => new
+        IEnumerable<object> sources = matches.Count > 0
+            ? matches.Select((match, index) => (object)new
             {
                 title = $"[S{index + 1}] {match.DocumentTitle}, {match.SourceLabel}",
                 quote = match.Text,
                 similarity = Math.Round(match.Similarity, 3),
                 kind = "source"
             })
-            : new[]
-            {
-                new
+            : searchResult.IsAmbiguous
+                ? searchResult.AmbiguousDocuments.Select(title => (object)new
                 {
-                    title = "Общий ответ ИИ — требуется проверка",
+                    title,
                     quote = string.Empty,
                     similarity = 0d,
-                    kind = "classifier"
-                }
-            };
+                    kind = "ambiguous"
+                })
+                : Array.Empty<object>();
         return Results.Ok(new { answer, grounded = matches.Count > 0, sources, model });
     }
     catch (HttpRequestException exception)
@@ -400,27 +388,42 @@ internal sealed record InferenceMessage(string role, string content);
 
 internal static class ChatPrompt
 {
-    public static string BuildSystemMessage(string context, bool hasSources) => hasSources
+    public static string BuildSystemMessage(string context, bool hasSources, IReadOnlyList<string> ambiguousDocuments)
+    {
+        if (ambiguousDocuments.Count > 0)
+        {
+            return $"""
+                Ты ИИ-консультант demo-системы АИ ООС. Отвечай по-русски, естественно, доброжелательно и по существу.
+                Пользователь указал реквизиты, которым соответствуют несколько документов базы знаний. Не выбирай документ наугад
+                и не выдавай нормативный вывод. Кратко попроси уточнить тип документа, орган-издатель или дату, перечислив
+                подходящие варианты. Продолжай обычный диалог, если пользователь задаёт дополнительный вопрос.
+
+                ## Возможные документы
+                {string.Join("\n", ambiguousDocuments.Select(title => $"- {title}"))}
+                """;
+        }
+
+        return hasSources
         ? """
-            Ты ИИ-консультант demo-системы АИ ООС. Отвечай по-русски, кратко и понятно.
+            Ты ИИ-консультант demo-системы АИ ООС. Отвечай по-русски, естественно, доброжелательно и по существу.
             Ниже приведены фрагменты проиндексированной базы знаний. Используй их как
             приоритетный и проверяемый контекст. Не выдумывай документы, статьи, ссылки
             или факты, которых нет в фрагментах. Каждый вывод, основанный на базе знаний,
-            сопровождай ссылкой [S1], [S2] и так далее. Если в источниках недостаточно
-            данных, прямо скажи об этом и при необходимости дай общий ответ, явно пометив
-            его как требующий проверки.
+            сопровождай ссылкой [S1], [S2] и так далее. Если источников недостаточно,
+            честно обозначь границу знания и дай полезное объяснение без выдуманных реквизитов.
 
             ## Фрагменты базы знаний
             """ + context
         : """
-            Ты ИИ-консультант demo-системы АИ ООС. Отвечай по-русски, кратко и понятно.
-            В проиндексированной базе знаний нет подтверждающих фрагментов по текущему
-            вопросу, поэтому дай полезный общий консультационный ответ. Начни ответ с
-            пометки: «Общий ответ ИИ, требуется проверка». Не утверждай, что опираешься
-            на документы базы знаний, не выдумывай документы, статьи, ссылки, точные
-            нормативные требования или результаты проверок. Для юридически значимых и
-            экологических выводов рекомендуй свериться с актуальными первоисточниками.
+            Ты ИИ-консультант demo-системы АИ ООС. Отвечай по-русски, естественно, доброжелательно и по существу.
+            В этом запросе нет подтверждающих фрагментов базы знаний. Поддерживай нормальный
+            разговор: на приветствия и общие вопросы отвечай без формальных предупреждений.
+            Не утверждай, что опираешься на документы базы знаний, и не выдумывай документы,
+            статьи, ссылки, точные нормативные требования или результаты проверок. Если вопрос
+            требует юридически значимого, экологического или нормативного вывода, объясни, что
+            ответ носит общий характер, и предложи свериться с актуальным первоисточником.
             """;
+    }
 }
 
 internal static class RagStatusFormatter
