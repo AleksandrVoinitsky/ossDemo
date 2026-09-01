@@ -81,14 +81,30 @@
         items.classList.toggle('knowledge-items-grid', viewMode === 'grid');
         items.classList.toggle('knowledge-items-list', viewMode === 'list');
         items.innerHTML = visible.map((node, index) => {
-            const meta = 'Markdown · ' + formatDate(node.updatedAt) + ' · ' + node.chunkCount + ' фр.';
+            const meta = node.type === 'folder'
+                ? node.children.length + ' ' + pluralizeFiles(node.children.length)
+                : 'Markdown · ' + formatDate(node.updatedAt) + ' · ' + node.chunkCount + ' фр.';
             return '<button type="button" class="knowledge-item" data-item-index="' + index + '">'
                 + icon(node)
                 + '<span class="knowledge-item-main"><strong>' + escapeHtml(node.name) + '</strong><span class="muted-note small">' + escapeHtml(meta) + '</span></span>'
                 + '</button>';
         }).join('');
         empty.classList.toggle('d-none', visible.length > 0);
-        items.querySelectorAll('[data-item-index]').forEach(button => button.addEventListener('click', () => openFile(visible[Number(button.dataset.itemIndex)])));
+        items.querySelectorAll('[data-item-index]').forEach(button => button.addEventListener('click', () => {
+            const node = visible[Number(button.dataset.itemIndex)];
+            node.type === 'folder'
+                ? openFolder(node, path.concat(node))
+                : openFile(node);
+        }));
+    }
+
+    function pluralizeFiles(count) {
+        const lastTwo = count % 100;
+        if (lastTwo >= 11 && lastTwo <= 14) return 'файлов';
+        const last = count % 10;
+        if (last === 1) return 'файл';
+        if (last >= 2 && last <= 4) return 'файла';
+        return 'файлов';
     }
 
     function render() {
@@ -131,20 +147,36 @@
         const response = await fetch('/api/knowledge/documents');
         if (!response.ok) throw new Error('Не удалось загрузить список документов.');
         const documents = await response.json();
-        workspace = {
-            name: 'База знаний',
-            type: 'folder',
-            children: documents.map(document => ({
-                id: document.id,
-                name: document.title + '.md',
-                updatedAt: document.updatedAt,
-                chunkCount: document.chunkCount,
-                type: 'file'
-            }))
-        };
+        workspace = { name: 'База знаний', type: 'folder', children: [] };
+        documents.forEach(document => addDocumentToWorkspace(document));
         current = workspace;
         path = [];
         render();
+    }
+
+    function addDocumentToWorkspace(document) {
+        const sourcePath = String(document.originalFileName || document.title + '.md').replace(/\\/g, '/');
+        const parts = sourcePath.split('/').filter(Boolean);
+        const fileName = parts.pop() || document.title + '.md';
+        let folder = workspace;
+
+        parts.forEach(part => {
+            let child = folder.children.find(node => node.type === 'folder' && node.name === part);
+            if (!child) {
+                child = { name: part, type: 'folder', children: [], node: null };
+                child.node = child;
+                folder.children.push(child);
+            }
+            folder = child;
+        });
+
+        folder.children.push({
+            id: document.id,
+            name: fileName,
+            updatedAt: document.updatedAt,
+            chunkCount: document.chunkCount,
+            type: 'file'
+        });
     }
 
     search.addEventListener('input', renderItems);

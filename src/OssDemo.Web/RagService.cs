@@ -351,7 +351,7 @@ internal sealed class RagService(
             upsertDocument.Parameters.AddWithValue("id", documentId);
             upsertDocument.Parameters.AddWithValue("title", title);
             upsertDocument.Parameters.AddWithValue("markdown", markdown);
-            upsertDocument.Parameters.AddWithValue("fileName", Path.GetFileName(file.FileName));
+            upsertDocument.Parameters.AddWithValue("fileName", file.FileName);
             upsertDocument.Parameters.AddWithValue("contentType", string.IsNullOrWhiteSpace(file.ContentType) ? MediaTypeNames.Application.Octet : file.ContentType);
             upsertDocument.Parameters.AddWithValue("sizeBytes", file.Length);
             upsertDocument.Parameters.AddWithValue("sourceHash", (object?)sourceHash ?? DBNull.Value);
@@ -382,7 +382,7 @@ internal sealed class RagService(
 
         await transaction.CommitAsync(cancellationToken);
         logger.LogInformation("Импортирован и проиндексирован документ {Title}: {ChunkCount} фрагментов.", title, chunks.Count);
-        return new KnowledgeDocumentSummary(documentId, title, "volume", "indexed", Path.GetFileName(file.FileName), DateTimeOffset.UtcNow, file.Length, chunks.Count);
+        return new KnowledgeDocumentSummary(documentId, title, "volume", "indexed", file.FileName, DateTimeOffset.UtcNow, file.Length, chunks.Count);
     }
 
     private async Task<string> ConvertToMarkdownAsync(IFormFile file, CancellationToken cancellationToken)

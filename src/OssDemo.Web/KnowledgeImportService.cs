@@ -27,7 +27,7 @@ internal sealed class KnowledgeImportService(
 
         foreach (var directory in directories.Where(Directory.Exists))
         {
-            foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.TopDirectoryOnly))
+            foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
             {
                 if (stoppingToken.IsCancellationRequested)
                 {
@@ -36,7 +36,8 @@ internal sealed class KnowledgeImportService(
 
                 try
                 {
-                    await ImportFileAsync(path, stoppingToken);
+                    var sourceFileName = Path.GetRelativePath(directory, path).Replace(Path.DirectorySeparatorChar, '/');
+                    await ImportFileAsync(path, sourceFileName, stoppingToken);
                 }
                 catch (RagIngestionException exception)
                 {
@@ -50,7 +51,7 @@ internal sealed class KnowledgeImportService(
         }
     }
 
-    private async Task ImportFileAsync(string path, CancellationToken cancellationToken)
+    private async Task ImportFileAsync(string path, string sourceFileName, CancellationToken cancellationToken)
     {
         var extension = Path.GetExtension(path).ToLowerInvariant();
         if (extension != ".md")
@@ -72,13 +73,13 @@ internal sealed class KnowledgeImportService(
 
         using var scope = serviceProvider.CreateScope();
         var ragService = scope.ServiceProvider.GetRequiredService<RagService>();
-        if (await ragService.IsSourceImportedAsync(fileInfo.Name, sourceHash, cancellationToken))
+        if (await ragService.IsSourceImportedAsync(sourceFileName, sourceHash, cancellationToken))
         {
             logger.LogInformation("Файл {FileName} не изменился, повторный импорт не нужен.", fileInfo.Name);
             return;
         }
 
-        var formFile = new FormFile(stream, 0, fileInfo.Length, "file", fileInfo.Name)
+        var formFile = new FormFile(stream, 0, fileInfo.Length, "file", sourceFileName)
         {
             Headers = new HeaderDictionary(),
             ContentType = ContentTypeFor(extension)
