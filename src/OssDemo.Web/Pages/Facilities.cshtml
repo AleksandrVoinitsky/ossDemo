@@ -13,18 +13,17 @@
     Для создания объекта обязательны наименование, тип, координаты площадки и категория НВОС. Изменения попадут в журнал действий.
 </div>
 
-<section class="row g-4 align-items-stretch mb-4">
-    <div class="col-xl-4">
-        <div class="soft-panel p-3 h-100 facility-list-panel">
-            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+<section class="facility-workspace">
+    <div class="soft-panel p-3 p-lg-4 facility-list-panel">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
                 <div>
                     <h2 class="section-title h4 mb-1">Объекты проверки</h2>
-                    <p class="muted-note mb-0">Выберите объект, чтобы показать его на карте.</p>
+                    <p class="muted-note mb-0">Выберите объект, чтобы показать его на карте и открыть цифровой профиль.</p>
                 </div>
-                <span class="badge text-bg-primary">4</span>
+                <div class="d-flex align-items-center gap-2"><span class="badge text-bg-primary">4</span><a class="btn btn-outline-primary btn-sm" asp-page="/FacilityCard" asp-route-id="berezniki" data-facility-card-link-target>Открыть карточку</a></div>
             </div>
 
-            <div class="d-grid gap-2" role="tablist" aria-label="Объекты">
+            <div class="facility-list" role="tablist" aria-label="Объекты">
                 <button class="facility-list-item btn btn-light text-start active"
                         data-panel-group="facilities"
                         data-panel-target="facility-ber"
@@ -33,6 +32,7 @@
                         data-facility-coordinates="59.4072, 56.8040"
                         data-facility-map-url="https://yandex.ru/map-widget/v1/?ll=56.8040%2C59.4072&z=10&pt=56.8040%2C59.4072%2Cpm2rdm"
                         data-facility-map-link="https://yandex.ru/maps/?ll=56.8040%2C59.4072&z=10&pt=56.8040%2C59.4072%2Cpm2rdm"
+                        data-facility-card-url="/FacilityCard?id=berezniki"
                         aria-selected="true">
                     <span class="facility-list-item-title">Березниковское ЛПУМГ</span>
                     <span class="small text-muted">НВОС I · профиль готов</span>
@@ -47,6 +47,7 @@
                         data-facility-coordinates="57.0518, 53.9872"
                         data-facility-map-url="https://yandex.ru/map-widget/v1/?ll=53.9872%2C57.0518&z=10&pt=53.9872%2C57.0518%2Cpm2orgm"
                         data-facility-map-link="https://yandex.ru/maps/?ll=53.9872%2C57.0518&z=10&pt=53.9872%2C57.0518%2Cpm2orgm"
+                        data-facility-card-url="/FacilityCard?id=votkinsk"
                         aria-selected="false">
                     <span class="facility-list-item-title">Воткинское ЛПУМГ</span>
                     <span class="small text-muted">НВОС II · требует доработки</span>
@@ -61,6 +62,7 @@
                         data-facility-coordinates="58.0105, 56.2502"
                         data-facility-map-url="https://yandex.ru/map-widget/v1/?ll=56.2502%2C58.0105&z=12&pt=56.2502%2C58.0105%2Cpm2blm"
                         data-facility-map-link="https://yandex.ru/maps/?ll=56.2502%2C58.0105&z=12&pt=56.2502%2C58.0105%2Cpm2blm"
+                        data-facility-card-url="/FacilityCard?id=itc"
                         aria-selected="false">
                     <span class="facility-list-item-title">ИТЦ</span>
                     <span class="small text-muted">офисный объект · профиль готов</span>
@@ -75,21 +77,20 @@
                         data-facility-coordinates="58.1385, 56.3269"
                         data-facility-map-url="https://yandex.ru/map-widget/v1/?ll=56.3269%2C58.1385&z=10&pt=56.3269%2C58.1385%2Cpm2rdm"
                         data-facility-map-link="https://yandex.ru/maps/?ll=56.3269%2C58.1385&z=10&pt=56.3269%2C58.1385%2Cpm2rdm"
+                        data-facility-card-url="/FacilityCard?id=uavr"
                         aria-selected="false">
                     <span class="facility-list-item-title">УАВР №1</span>
                     <span class="small text-muted">требует создания из графика</span>
                     <span class="facility-list-item-meta"><span class="status-dot status-danger"></span>нет цифрового паспорта</span>
                 </button>
             </div>
-        </div>
     </div>
 
-    <div class="col-xl-8">
-        <div class="soft-panel p-3 p-lg-4 h-100">
+    <div class="soft-panel p-3 p-lg-4 facility-map-panel">
             <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
                 <div>
                     <h2 class="section-title h4 mb-1">Карта расположения</h2>
-                    <p class="muted-note mb-0">Квадратный виджет Яндекс.Карт обновляется при выборе объекта.</p>
+                    <p class="muted-note mb-0">Карта обновляется при выборе объекта из верхнего списка.</p>
                 </div>
                 <a class="btn btn-outline-primary btn-sm align-self-start" href="https://yandex.ru/maps/?ll=56.8040%2C59.4072&z=10&pt=56.8040%2C59.4072%2Cpm2rdm" target="_blank" rel="noopener" data-facility-map-link-target>Открыть в Яндекс.Картах</a>
             </div>
@@ -107,66 +108,5 @@
                 <span data-facility-map-address>Пермский край, район г. Березники</span>
                 <span class="text-muted">Координаты: <span data-facility-map-coordinates>59.4072, 56.8040</span></span>
             </div>
-        </div>
-    </div>
-</section>
-
-<section class="row g-4">
-    <div class="col-xl-8">
-        <article id="facility-ber" class="soft-panel p-4 tab-panel" data-panel-owner="facilities">
-            <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
-                <div>
-                    <h2 class="section-title h3 mb-1">Березниковское ЛПУМГ</h2>
-                    <p class="muted-note mb-0">Компрессорная станция, филиал ПАО, категория НВОС I.</p>
-                </div>
-                <span class="badge text-bg-success align-self-start">Профиль готов</span>
-            </div>
-            <dl class="row g-3 mb-4">
-                <div class="col-md-4"><dt class="small text-muted">Функциональные зоны</dt><dd class="fw-semibold mb-0">СЗЗ, водоохранная зона</dd></div>
-                <div class="col-md-4"><dt class="small text-muted">Технологии</dt><dd class="fw-semibold mb-0">ГОУ, КОС, скважины</dd></div>
-                <div class="col-md-4"><dt class="small text-muted">Документы</dt><dd class="fw-semibold mb-0">ПЭК, ПНООЛР, СЗЗ</dd></div>
-            </dl>
-            <h3 class="h5">Применимые разделы классификатора</h3>
-            <div class="pill-group mb-4"><span class="classifier-chip">1 Общие вопросы</span><span class="classifier-chip">2 Атмосфера</span><span class="classifier-chip">3 Вода</span><span class="classifier-chip">4 Отходы</span><span class="classifier-chip">5 Земля</span><span class="classifier-chip">6 Недра</span><span class="classifier-chip">7 ООПТ</span></div>
-            <a class="btn btn-primary" asp-page="/FacilityCard" asp-route-id="berezniki">Открыть карточку объекта</a>
-        </article>
-
-        <article id="facility-vot" class="soft-panel p-4 tab-panel" data-panel-owner="facilities" hidden>
-            <div class="d-flex justify-content-between gap-3 mb-3">
-                <div><h2 class="section-title h3 mb-1">Воткинское ЛПУМГ</h2><p class="muted-note mb-0">Профиль заполнен частично.</p></div>
-                <span class="badge text-bg-warning align-self-start">Требует доработки</span>
-            </div>
-            <div class="alert alert-warning">Не выбраны разделы по водному контролю и не подтвержден статус проекта СЗЗ. Формирование чек-листа будет заблокировано до уточнения.</div>
-            <div class="pill-group mb-4"><span class="classifier-chip">1 Общие вопросы</span><span class="classifier-chip">4 Отходы</span><span class="classifier-chip">5 Земля</span></div>
-            <a class="btn btn-outline-primary" asp-page="/FacilityCard" asp-route-id="votkinsk">Открыть карточку объекта</a>
-        </article>
-
-        <article id="facility-itc" class="soft-panel p-4 tab-panel" data-panel-owner="facilities" hidden>
-            <div class="d-flex justify-content-between gap-3 mb-3">
-                <div><h2 class="section-title h3 mb-1">ИТЦ</h2><p class="muted-note mb-0">Офисный объект с минимальным набором экологических аспектов.</p></div>
-                <span class="badge text-bg-success align-self-start">Профиль готов</span>
-            </div>
-            <div class="pill-group mb-4"><span class="classifier-chip">1 Общие вопросы</span><span class="classifier-chip">4 Отходы</span></div>
-            <a class="btn btn-outline-primary" asp-page="/FacilityCard" asp-route-id="itc">Открыть карточку объекта</a>
-        </article>
-
-        <article id="facility-uavr" class="soft-panel p-4 tab-panel" data-panel-owner="facilities" hidden>
-            <div class="d-flex justify-content-between gap-3 mb-3">
-                <div><h2 class="section-title h3 mb-1">УАВР №1</h2><p class="muted-note mb-0">Объект найден в графике, но отсутствует в справочнике.</p></div>
-                <span class="badge text-bg-danger align-self-start">Нет карточки</span>
-            </div>
-            <div class="alert alert-danger">Генерация заблокирована: необходимо создать цифровой паспорт объекта и выбрать применимые разделы классификатора.</div>
-            <a class="btn btn-danger" asp-page="/FacilityCard" asp-route-id="uavr">Создать карточку объекта</a>
-        </article>
-    </div>
-    <div class="col-xl-4">
-        <aside class="soft-panel p-4 h-100">
-            <h2 class="section-title h4 mb-3">Что видно на демо</h2>
-            <div class="timeline compact-timeline">
-                <div class="timeline-item"><strong>Список объектов</strong><div class="small text-muted">Инспектор выбирает объект из справочника.</div></div>
-                <div class="timeline-item"><strong>Геопривязка</strong><div class="small text-muted">Система показывает выбранный объект на карте.</div></div>
-                <div class="timeline-item"><strong>Цифровой паспорт</strong><div class="small text-muted">В карточке хранится категория НВОС, зоны, документы и разделы классификатора.</div></div>
-            </div>
-        </aside>
     </div>
 </section>

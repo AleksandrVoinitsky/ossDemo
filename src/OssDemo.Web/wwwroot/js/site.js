@@ -5,6 +5,7 @@
 
     const frame = document.querySelector('[data-facility-map-frame]');
     const externalLink = document.querySelector('[data-facility-map-link-target]');
+    const cardLink = document.querySelector('[data-facility-card-link-target]');
     const name = document.querySelector('[data-facility-map-name]');
     const address = document.querySelector('[data-facility-map-address]');
     const coordinates = document.querySelector('[data-facility-map-coordinates]');
@@ -15,6 +16,7 @@
       frame.title = `${facilityName} на карте`;
     }
     if (externalLink) externalLink.href = button.dataset.facilityMapLink || mapUrl;
+    if (cardLink) cardLink.href = button.dataset.facilityCardUrl || '/Facilities';
     if (name) name.textContent = facilityName;
     if (address) address.textContent = button.dataset.facilityAddress || '';
     if (coordinates) coordinates.textContent = button.dataset.facilityCoordinates || '';
