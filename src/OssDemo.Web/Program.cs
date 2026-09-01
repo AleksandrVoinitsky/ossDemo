@@ -256,6 +256,29 @@ app.MapPost("/api/ai/chat", async (
         });
     }
 
+    var rawQuestion = request.Message.Trim();
+    if (rawQuestion.StartsWith('!'))
+    {
+        var debugQuery = rawQuestion[1..].Trim();
+        if (string.IsNullOrWhiteSpace(debugQuery))
+        {
+            return Results.BadRequest(new { error = "После ! укажите текст для поиска по базе знаний." });
+        }
+
+        try
+        {
+            var debugResult = await ragService.SearchAsync(debugQuery, cancellationToken);
+            var answer = RagDebugResponse.Build(debugQuery, debugResult);
+            logger.LogInformation("Диагностика RAG: Query={Query}, Chunks={ChunkCount}, Ambiguous={Ambiguous}.", debugQuery, debugResult.Matches.Count, debugResult.IsAmbiguous);
+            return Results.Ok(new { answer, grounded = debugResult.Matches.Count > 0 || debugResult.IsAmbiguous, sources = Array.Empty<ChatSource>(), mode = "rag-debug" });
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogError(exception, "Не удалось выполнить диагностический поиск RAG. Query={Query}", debugQuery);
+            return Results.Problem(title: "Поиск по базе знаний временно недоступен", detail: "Повторите запрос позже.", statusCode: StatusCodes.Status502BadGateway);
+        }
+    }
+
     var apiToken = configuration["AI:ApiToken"];
     if (string.IsNullOrWhiteSpace(apiToken))
     {
@@ -266,7 +289,7 @@ app.MapPost("/api/ai/chat", async (
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 
-    var userQuestion = request.Message.Trim();
+    var userQuestion = rawQuestion;
     // Для диагностики и точного FTS используем дословно текущую реплику, не смешивая её с историей.
     var ragQuestion = userQuestion;
     RagSearchResult searchResult = RagSearchResult.Empty;
@@ -391,6 +414,31 @@ internal sealed record KnowledgeFileSummary(
 
 internal sealed record InferenceMessage(string role, string content);
 internal sealed record ChatSource(string title, string quote, double similarity, bool lexical, bool relevant, string kind);
+
+internal static class RagDebugResponse
+{
+    public static string Build(string query, RagSearchResult result)
+    {
+        if (result.IsAmbiguous)
+        {
+            return $"""
+                ## RAG: неоднозначные реквизиты
+
+                **Запрос:** {query}
+
+                {string.Join("\n", result.AmbiguousDocuments.Select((title, index) => $"[S{index + 1}] Документ: {title}"))}
+                """;
+        }
+
+        if (result.Matches.Count == 0)
+        {
+            return $"## RAG: чанки не найдены\n\n**Запрос:** {query}";
+        }
+
+        return $"## RAG: найденные чанки\n\n**Запрос:** {query}\n\n" + string.Join("\n\n---\n\n", result.Matches.Select((match, index) =>
+            $"[S{index + 1}] Документ: {match.DocumentTitle}\nРаздел: {match.SourceLabel}\nТекст: {match.Text}"));
+    }
+}
 
 internal static class ChatSearchQuery
 {

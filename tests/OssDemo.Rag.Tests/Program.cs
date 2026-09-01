@@ -38,6 +38,11 @@ AssertTrue(!lexicalMatch.IsRelevant);
 AssertTrue(hybridMatch.IsRelevant);
 AssertTrue(exactDocumentMatch.IsRelevant);
 
+var debugResponse = RagDebugResponse.Build("тест", new RagSearchResult(new[] { hybridMatch }, false, Array.Empty<string>()));
+AssertTrue(debugResponse.Contains("## RAG: найденные чанки", StringComparison.Ordinal));
+AssertTrue(debugResponse.Contains("Текст: текст", StringComparison.Ordinal));
+AssertTrue(RagDebugResponse.Build("тест", RagSearchResult.Empty).Contains("чанки не найдены", StringComparison.Ordinal));
+
 Console.WriteLine("RAG parser and RRF checks passed.");
 
 static void AssertEqual<T>(T? expected, T? actual)
