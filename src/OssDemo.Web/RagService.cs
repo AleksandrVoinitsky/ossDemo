@@ -174,7 +174,17 @@ internal sealed class RagService(
         var embedding = await CreateEmbeddingAsync(question, cancellationToken);
         var vector = ToVectorLiteral(embedding);
         var exactDocumentId = exactDocuments.Count == 1 ? exactDocuments[0].Id : (Guid?)null;
-        var lexical = await SearchLexicalAsync(connection, question, exactDocumentId, cancellationToken);
+        IReadOnlyList<RankedChunk> lexical;
+        try
+        {
+            lexical = await SearchLexicalAsync(connection, question, exactDocumentId, cancellationToken);
+        }
+        catch (NpgsqlException exception)
+        {
+            logger.LogWarning(exception, "RAG: полнотекстовый поиск недоступен; использован векторный поиск. Route={Route}, Kind={Kind}, Number={Number}.", exactDocumentId is null ? "hybrid_rrf" : "exact_document_hybrid", reference.Kind, reference.Number);
+            lexical = Array.Empty<RankedChunk>();
+        }
+
         var semantic = await SearchSemanticAsync(connection, vector, exactDocumentId, cancellationToken);
         var fused = ReciprocalRankFusion.Merge(lexical, semantic, take: 8);
         var reranked = await reranker.RerankAsync(question, fused, cancellationToken) ?? fused;
