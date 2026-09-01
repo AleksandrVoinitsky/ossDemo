@@ -1582,7 +1582,7 @@ a {
 
 .facility-workspace {
   display: grid;
-  grid-template-rows: minmax(20rem, .65fr) minmax(30rem, 1.5fr);
+  grid-template-rows: minmax(24rem, .65fr) minmax(39rem, 1.5fr);
   gap: 1rem;
   min-height: calc(100vh - 8rem);
 }
@@ -1605,7 +1605,7 @@ a {
   align-content: start;
   gap: .25rem;
   min-width: 0;
-  min-height: 8rem;
+  min-height: 11.2rem;
   padding: 1rem .95rem;
 }
 
@@ -1650,7 +1650,7 @@ a {
 
 @media (max-width: 991.98px) {
   .facility-workspace {
-    grid-template-rows: auto minmax(30rem, 1fr);
+    grid-template-rows: auto minmax(39rem, 1fr);
     min-height: 0;
   }
 
