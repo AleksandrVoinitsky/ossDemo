@@ -189,8 +189,19 @@ internal sealed class RagService(
         var semantic = await SearchSemanticAsync(connection, vector, exactDocumentId, cancellationToken);
         var fused = ReciprocalRankFusion.Merge(lexical, semantic, take: 8);
         var reranked = await reranker.RerankAsync(question, fused, cancellationToken) ?? fused;
-        var matches = reranked.Take(5).Select(chunk => new RagMatch(chunk.DocumentTitle, chunk.SourceLabel, chunk.Text, chunk.Score)).ToArray();
-        logger.LogInformation("RAG: route={Route}, Kind={Kind}, Number={Number}, Issuer={Issuer}, ExactCandidates={ExactCandidates}, FtsCandidates={FtsCandidates}, VectorCandidates={VectorCandidates}, FinalCandidates={FinalCandidates}.", exactDocumentId is null ? "hybrid_rrf" : "exact_document_hybrid", reference.Kind, reference.Number, reference.Issuer, exactDocuments.Count, lexical.Count, semantic.Count, matches.Length);
+        var matches = reranked
+            .Where(chunk => exactDocumentId is not null || chunk.LexicalScore > 0 || chunk.SemanticSimilarity >= RagMatch.MinimumSemanticSimilarity)
+            .Take(5)
+            .Select(chunk => new RagMatch(
+                chunk.DocumentTitle,
+                chunk.SourceLabel,
+                chunk.Text,
+                chunk.SemanticSimilarity,
+                chunk.LexicalScore > 0,
+                exactDocumentId is not null,
+                chunk.Score))
+            .ToArray();
+        logger.LogInformation("RAG: route={Route}, Kind={Kind}, Number={Number}, Issuer={Issuer}, ExactCandidates={ExactCandidates}, FtsCandidates={FtsCandidates}, VectorCandidates={VectorCandidates}, RelevantCandidates={RelevantCandidates}.", exactDocumentId is null ? "hybrid_rrf" : "exact_document_hybrid", reference.Kind, reference.Number, reference.Issuer, exactDocuments.Count, lexical.Count, semantic.Count, matches.Length);
         return new(matches, false, Array.Empty<string>());
     }
 
@@ -222,7 +233,8 @@ internal sealed class RagService(
     private static async Task<IReadOnlyList<RankedChunk>> SearchLexicalAsync(NpgsqlConnection connection, string query, Guid? documentId, CancellationToken cancellationToken)
     {
         await using var command = new NpgsqlCommand("""
-            SELECT c.id, d.title, c.source_label, c.text
+            SELECT c.id, d.title, c.source_label, c.text,
+                   ts_rank_cd(c.search_vector, websearch_to_tsquery('simple', @query))
             FROM knowledge_chunks c
             JOIN knowledge_documents d ON d.id = c.document_id
             WHERE d.status = 'indexed'
@@ -233,13 +245,14 @@ internal sealed class RagService(
             """, connection);
         command.Parameters.AddWithValue("documentId", (object?)documentId ?? DBNull.Value);
         command.Parameters.AddWithValue("query", query);
-        return await ReadRankedChunksAsync(command, cancellationToken);
+        return await ReadRankedChunksAsync(command, hasLexicalScore: true, cancellationToken);
     }
 
     private static async Task<IReadOnlyList<RankedChunk>> SearchSemanticAsync(NpgsqlConnection connection, string vector, Guid? documentId, CancellationToken cancellationToken)
     {
         await using var command = new NpgsqlCommand("""
-            SELECT c.id, d.title, c.source_label, c.text
+            SELECT c.id, d.title, c.source_label, c.text,
+                   1 - (c.embedding <=> CAST(@embedding AS vector)) AS similarity
             FROM knowledge_chunks c
             JOIN knowledge_documents d ON d.id = c.document_id
             WHERE d.status = 'indexed'
@@ -251,14 +264,25 @@ internal sealed class RagService(
         command.Parameters.AddWithValue("documentId", (object?)documentId ?? DBNull.Value);
         command.Parameters.AddWithValue("embedding", vector);
         command.Parameters.AddWithValue("model", Model);
-        return await ReadRankedChunksAsync(command, cancellationToken);
+        return await ReadRankedChunksAsync(command, hasLexicalScore: false, cancellationToken);
     }
 
-    private static async Task<IReadOnlyList<RankedChunk>> ReadRankedChunksAsync(NpgsqlCommand command, CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<RankedChunk>> ReadRankedChunksAsync(NpgsqlCommand command, bool hasLexicalScore, CancellationToken cancellationToken)
     {
         var chunks = new List<RankedChunk>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken)) chunks.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), 0));
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var signal = reader.GetDouble(4);
+            chunks.Add(new(
+                reader.GetGuid(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetString(3),
+                0,
+                hasLexicalScore ? 0 : signal,
+                hasLexicalScore ? signal : 0));
+        }
         return chunks;
     }
 
@@ -683,10 +707,25 @@ internal sealed class RagService(
     private sealed record ReferencedDocument(Guid Id, string Title);
 }
 
-internal sealed record RagMatch(string DocumentTitle, string SourceLabel, string Text, double Similarity);
+internal sealed record RagMatch(
+    string DocumentTitle,
+    string SourceLabel,
+    string Text,
+    double Similarity,
+    bool HasLexicalMatch,
+    bool IsExactDocumentMatch,
+    double RankingScore)
+{
+    // Порог намеренно консервативен: слабый ближайший вектор не является источником для ответа.
+    public const double MinimumSemanticSimilarity = 0.45;
+
+    public bool IsRelevant => IsExactDocumentMatch || HasLexicalMatch || Similarity >= MinimumSemanticSimilarity;
+}
 internal sealed record RagSearchResult(IReadOnlyList<RagMatch> Matches, bool IsAmbiguous, IReadOnlyList<string> AmbiguousDocuments)
 {
     public static RagSearchResult Empty { get; } = new(Array.Empty<RagMatch>(), false, Array.Empty<string>());
+
+    public bool HasRelevantMatches => Matches.Any(match => match.IsRelevant);
 }
 internal sealed record RagDocumentStatus(string Title, string SourceType, string Status, int ChunkCount);
 internal sealed record KnowledgeDocumentSummary(

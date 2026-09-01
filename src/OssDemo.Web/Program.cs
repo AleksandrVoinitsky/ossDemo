@@ -268,40 +268,47 @@ app.MapPost("/api/ai/chat", async (
 
     var userQuestion = request.Message.Trim();
     var ragQuestion = ChatSearchQuery.Build(request.Conversation, userQuestion, maxMessageLength);
-    var agentPlan = await OosSearchAgent.PlanAsync(
-        httpClientFactory,
-        apiToken,
-        model,
-        request.Conversation,
-        userQuestion,
-        ragQuestion,
-        logger,
-        cancellationToken);
-
     var searchResults = new List<RagSearchResult>();
-    foreach (var query in agentPlan.Queries)
+    try
     {
-        try
+        searchResults.Add(await ragService.SearchAsync(ragQuestion, cancellationToken));
+    }
+    catch (Exception exception) when (exception is not OperationCanceledException)
+    {
+        logger.LogWarning(exception, "Не удалось выполнить исходный поиск по базе знаний. Query={Query}", ragQuestion);
+    }
+
+    if (!RagSearchSelection.HasEnoughRelevantMatches(searchResults) && !searchResults.Any(result => result.IsAmbiguous))
+    {
+        var fallbackQueries = await OosSearchAgent.PlanAsync(
+            httpClientFactory,
+            apiToken,
+            model,
+            request.Conversation,
+            userQuestion,
+            logger,
+            cancellationToken);
+
+        foreach (var query in fallbackQueries.Where(query => !string.Equals(query, ragQuestion, StringComparison.OrdinalIgnoreCase)))
         {
-            var result = await ragService.SearchAsync(query, cancellationToken);
-            searchResults.Add(result);
-            if (result.IsAmbiguous)
+            try
             {
-                break;
+                var result = await ragService.SearchAsync(query, cancellationToken);
+                searchResults.Add(result);
+                if (result.IsAmbiguous || RagSearchSelection.HasEnoughRelevantMatches(searchResults))
+                {
+                    break;
+                }
             }
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            logger.LogWarning(exception, "Агенту не удалось выполнить поиск по базе знаний. Query={Query}", query);
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                logger.LogWarning(exception, "Не удалось выполнить расширенный поиск по базе знаний. Query={Query}", query);
+            }
         }
     }
 
     var ambiguousDocuments = searchResults.SelectMany(result => result.AmbiguousDocuments).Distinct(StringComparer.Ordinal).ToArray();
-    var matches = searchResults
-        .SelectMany(result => result.Matches)
-        .DistinctBy(match => (match.DocumentTitle, match.SourceLabel, match.Text))
-        .Take(5)
-        .ToArray();
+    var matches = RagSearchSelection.SelectBest(searchResults, take: 5);
     var searchResult = new RagSearchResult(matches, ambiguousDocuments.Length > 0, ambiguousDocuments);
 
     var context = string.Join("\n\n", matches.Select((match, index) =>
@@ -310,9 +317,9 @@ app.MapPost("/api/ai/chat", async (
     {
         new("system", ChatPrompt.BuildSystemMessage(
             context,
-            matches.Length > 0,
+            matches.Count > 0,
             searchResult.AmbiguousDocuments,
-            agentPlan.Instruction))
+            null))
     };
 
     foreach (var message in request.Conversation
@@ -350,7 +357,7 @@ app.MapPost("/api/ai/chat", async (
                 statusCode: StatusCodes.Status502BadGateway);
         }
 
-        var sources = matches.Length > 0
+        var sources = matches.Count > 0
             ? matches.Select((match, index) => new ChatSource(
                 $"[S{index + 1}] {match.DocumentTitle}, {match.SourceLabel}",
                 match.Text,
@@ -362,7 +369,7 @@ app.MapPost("/api/ai/chat", async (
 
         if (request.Stream)
         {
-            await ChatStreaming.WriteAsync(httpResponse, response, sources, matches.Length > 0, cancellationToken);
+            await ChatStreaming.WriteAsync(httpResponse, response, sources, matches.Count > 0, cancellationToken);
             return Results.Empty;
         }
 
@@ -380,7 +387,7 @@ app.MapPost("/api/ai/chat", async (
             return Results.Problem(title: "ИИ не вернул ответ", statusCode: StatusCodes.Status502BadGateway);
         }
 
-        return Results.Ok(new { answer, grounded = matches.Length > 0, sources, model });
+        return Results.Ok(new { answer, grounded = matches.Count > 0, sources, model });
     }
     catch (HttpRequestException exception)
     {
@@ -430,24 +437,18 @@ internal static class ChatSearchQuery
     }
 }
 
-internal sealed record OosAgentPlan(IReadOnlyList<string> Queries, string? Instruction)
-{
-    public static OosAgentPlan Fallback(string query) => new(new[] { query }, null);
-}
-
 internal static class OosSearchAgent
 {
-    private const int MaxQueries = 3;
+    // Один исходный запрос уже выполнен; лимит в 14 расширений ограничивает весь цикл 15 RAG-вызовами.
+    private const int MaxQueries = 14;
     private const int MaxQueryLength = 500;
-    private const int MaxInstructionLength = 500;
 
-    public static async Task<OosAgentPlan> PlanAsync(
+    public static async Task<IReadOnlyList<string>> PlanAsync(
         IHttpClientFactory httpClientFactory,
         string apiToken,
         string model,
         IReadOnlyList<ChatHistoryMessage> conversation,
         string userQuestion,
-        string fallbackQuery,
         ILogger logger,
         CancellationToken cancellationToken)
     {
@@ -459,21 +460,18 @@ internal static class OosSearchAgent
         var messages = new[]
         {
             new InferenceMessage("system", """
-                Ты планировщик ограниченного агента АИ ООС. Твой единственный инструмент — поиск по внутренней базе знаний.
-                Не отвечай на вопрос пользователя и не выдумывай факты, документы, сайты или требования.
+                Ты планировщик расширенного поиска АИ ООС. Исходный поиск по внутренней базе знаний не нашёл достаточно
+                релевантных фрагментов. Не отвечай на вопрос пользователя и не выдумывай факты, документы, сайты или требования.
                 Верни только JSON без Markdown по схеме:
-                {"action":"search|clarify|answer","queries":["..."],"instruction":"..."}
+                {"queries":["..."]}
 
                 Правила:
-                - При любом документном, нормативном или предметном запросе сначала выбирай search и дай от 1 до 3
-                  коротких поисковых формулировок на русском языке.
-                - Номер или реквизиты документа (например, 373, № 373, ГОСТ) — сильный сигнал: обязательно ищи их
-                  отдельным запросом, даже если ранее агент ждал уточнение.
-                - Используй историю только для восстановления темы, но новый явный документный запрос важнее старой ветки.
-                - clarify выбирай, только когда поиск невозможен без одного конкретного параметра. В instruction дай ровно
-                  один короткий вопрос из предметной области ООС.
-                - answer разрешён только для приветствий, благодарности или общих вопросов, не требующих поиска.
-                - Для search instruction оставь пустым. Для clarify и answer не передавай queries.
+                - Дай до 14 коротких, неповторяющихся поисковых формулировок на русском языке.
+                - Охвати широкий спектр перефразирований в рамках темы: точные реквизиты, варианты названия,
+                  профессиональные синонимы, процессы, документы, объект и действие пользователя.
+                - Сохраняй каждый явный номер, ГОСТ, дату, орган-издатель и название организации отдельным запросом.
+                - Не добавляй неупомянутые реквизиты, названия документов, организации или факты.
+                - Используй историю только для восстановления темы; текущий явный запрос приоритетнее.
                 """),
             new InferenceMessage("user", $"История запросов инспектора:\n{string.Join("\n", history)}\n\nТекущий запрос:\n{userQuestion}")
         };
@@ -493,7 +491,7 @@ internal static class OosSearchAgent
             if (!response.IsSuccessStatusCode)
             {
                 logger.LogWarning("Планировщик агента вернул HTTP {StatusCode}; использован прямой поиск.", (int)response.StatusCode);
-                return OosAgentPlan.Fallback(fallbackQuery);
+                return Array.Empty<string>();
             }
 
             await using var content = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -501,18 +499,12 @@ internal static class OosSearchAgent
             var planContent = payload.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
             if (string.IsNullOrWhiteSpace(planContent))
             {
-                return OosAgentPlan.Fallback(fallbackQuery);
+                return Array.Empty<string>();
             }
 
             using var plan = JsonDocument.Parse(planContent);
             var root = plan.RootElement;
-            var action = root.TryGetProperty("action", out var actionElement) ? actionElement.GetString() : null;
-            var instruction = root.TryGetProperty("instruction", out var instructionElement) ? instructionElement.GetString()?.Trim() : null;
-            if (instruction?.Length > MaxInstructionLength)
-            {
-                instruction = instruction[..MaxInstructionLength];
-            }
-            var queries = action == "search" && root.TryGetProperty("queries", out var queriesElement) && queriesElement.ValueKind == JsonValueKind.Array
+            var queries = root.TryGetProperty("queries", out var queriesElement) && queriesElement.ValueKind == JsonValueKind.Array
                 ? queriesElement.EnumerateArray()
                     .Where(element => element.ValueKind == JsonValueKind.String)
                     .Select(element => element.GetString()?.Trim())
@@ -523,27 +515,42 @@ internal static class OosSearchAgent
                     .ToArray()
                 : Array.Empty<string>();
 
-            if (action == "search" && queries.Length > 0)
+            if (queries.Length > 0)
             {
-                logger.LogInformation("Агент ООС выбрал поиск: {Queries}", string.Join(" | ", queries));
-                return new(queries, null);
-            }
-
-            if (action is "clarify" or "answer")
-            {
-                logger.LogInformation("Агент ООС выбрал действие {Action}.", action);
-                return new(Array.Empty<string>(), instruction ?? (action == "clarify"
-                    ? "Задай один короткий уточняющий вопрос по теме ООС."
-                    : "Ответь естественно как помощник инспектора ООС, не выдумывая факты."));
+                logger.LogInformation("Планировщик расширенного поиска создал {QueryCount} запросов.", queries.Length);
+                return queries;
             }
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            logger.LogWarning(exception, "Планировщик агента недоступен; использован прямой поиск.");
+            logger.LogWarning(exception, "Планировщик расширенного поиска недоступен.");
         }
 
-        return OosAgentPlan.Fallback(fallbackQuery);
+        return Array.Empty<string>();
     }
+}
+
+internal static class RagSearchSelection
+{
+    private const int EnoughRelevantMatches = 2;
+
+    public static bool HasEnoughRelevantMatches(IEnumerable<RagSearchResult> results) =>
+        results.SelectMany(result => result.Matches)
+            .Where(match => match.IsRelevant)
+            .DistinctBy(match => (match.DocumentTitle, match.SourceLabel, match.Text))
+            .Take(EnoughRelevantMatches)
+            .Count() == EnoughRelevantMatches;
+
+    public static IReadOnlyList<RagMatch> SelectBest(IEnumerable<RagSearchResult> results, int take) =>
+        results.SelectMany(result => result.Matches)
+            .Where(match => match.IsRelevant)
+            .DistinctBy(match => (match.DocumentTitle, match.SourceLabel, match.Text))
+            .OrderByDescending(match => match.IsExactDocumentMatch)
+            .ThenByDescending(match => match.HasLexicalMatch)
+            .ThenByDescending(match => match.Similarity)
+            .ThenByDescending(match => match.RankingScore)
+            .Take(take)
+            .ToArray();
 }
 
 internal static class ChatPrompt
