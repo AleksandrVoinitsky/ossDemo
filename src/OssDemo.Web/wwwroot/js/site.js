@@ -580,24 +580,62 @@
     content: message.querySelector('[data-chat-markdown]')?.dataset.markdownRaw || ''
   })).filter((item) => item.content);
 
-  const requestAiReply = async (form, thread, question) => {
+  const requestAiReply = async (form, thread, question, onDelta) => {
     const endpoint = form.dataset.aiEndpoint;
     if (!endpoint) return buildDemoAiReply(question);
 
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
-        'Accept': 'application/json',
+        'Accept': 'application/x-ndjson, application/json',
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         message: question,
-        conversation: collectConversation(thread)
+        conversation: collectConversation(thread),
+        stream: true
       })
     });
 
     if (!response.ok) {
       throw new Error(`AI endpoint failed: ${response.status}`);
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/x-ndjson') && response.body) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let answer = '';
+      let sources = [];
+
+      const processLine = (line) => {
+        if (!line.trim()) return;
+        const event = JSON.parse(line);
+        if (event.type === 'sources') {
+          sources = Array.isArray(event.sources) ? event.sources : [];
+        } else if (event.type === 'delta') {
+          answer += event.content || '';
+          onDelta?.(answer, sources);
+        } else if (event.type === 'error') {
+          throw new Error(event.message || 'Поток ответа ИИ был прерван.');
+        }
+      };
+
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        lines.forEach(processLine);
+        if (done) break;
+      }
+
+      processLine(buffer);
+      return {
+        answer: answer || 'ИИ не вернул текстовый ответ.',
+        sources
+      };
     }
 
     const payload = await response.json();
@@ -647,7 +685,10 @@
       const pendingMessage = appendChatMessage(thread, messageTemplate, { role: 'assistant', pending: true });
 
       try {
-        const reply = await requestAiReply(form, thread, question);
+        const reply = await requestAiReply(form, thread, question, (answer, sources) => {
+          updateChatMessage(pendingMessage, answer, sources);
+          scrollChatToBottom(thread);
+        });
         updateChatMessage(pendingMessage, reply.answer, reply.sources);
       } catch (error) {
         updateChatMessage(

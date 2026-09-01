@@ -228,6 +228,7 @@ app.MapPost("/api/ai/chat", async (
     IHttpClientFactory httpClientFactory,
     IConfiguration configuration,
     ILogger<Program> logger,
+    HttpResponse httpResponse,
     CancellationToken cancellationToken) =>
 {
     const int maxMessageLength = 4_000;
@@ -302,7 +303,7 @@ app.MapPost("/api/ai/chat", async (
     using var upstreamRequest = new HttpRequestMessage(HttpMethod.Post, "v1/chat/completions")
     {
         Content = new StringContent(
-            JsonSerializer.Serialize(new { model, messages, temperature = 0.3 }),
+            JsonSerializer.Serialize(new { model, messages, temperature = 0.3, stream = request.Stream }),
             Encoding.UTF8,
             MediaTypeNames.Application.Json)
     };
@@ -311,7 +312,7 @@ app.MapPost("/api/ai/chat", async (
     try
     {
         using var response = await httpClientFactory.CreateClient("AmveraInference")
-            .SendAsync(upstreamRequest, cancellationToken);
+            .SendAsync(upstreamRequest, request.Stream ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -320,6 +321,22 @@ app.MapPost("/api/ai/chat", async (
                 title: "Сервис ИИ временно недоступен",
                 detail: "Повторите запрос позже.",
                 statusCode: StatusCodes.Status502BadGateway);
+        }
+
+        var sources = matches.Count > 0
+            ? matches.Select((match, index) => new ChatSource(
+                $"[S{index + 1}] {match.DocumentTitle}, {match.SourceLabel}",
+                match.Text,
+                Math.Round(match.Similarity, 3),
+                "source"))
+            : searchResult.IsAmbiguous
+                ? searchResult.AmbiguousDocuments.Select(title => new ChatSource(title, string.Empty, 0d, "ambiguous"))
+                : Enumerable.Empty<ChatSource>();
+
+        if (request.Stream)
+        {
+            await ChatStreaming.WriteAsync(httpResponse, response, sources, matches.Count > 0, cancellationToken);
+            return Results.Empty;
         }
 
         await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -336,23 +353,6 @@ app.MapPost("/api/ai/chat", async (
             return Results.Problem(title: "ИИ не вернул ответ", statusCode: StatusCodes.Status502BadGateway);
         }
 
-        IEnumerable<object> sources = matches.Count > 0
-            ? matches.Select((match, index) => (object)new
-            {
-                title = $"[S{index + 1}] {match.DocumentTitle}, {match.SourceLabel}",
-                quote = match.Text,
-                similarity = Math.Round(match.Similarity, 3),
-                kind = "source"
-            })
-            : searchResult.IsAmbiguous
-                ? searchResult.AmbiguousDocuments.Select(title => (object)new
-                {
-                    title,
-                    quote = string.Empty,
-                    similarity = 0d,
-                    kind = "ambiguous"
-                })
-                : Array.Empty<object>();
         return Results.Ok(new { answer, grounded = matches.Count > 0, sources, model });
     }
     catch (HttpRequestException exception)
@@ -371,7 +371,7 @@ app.MapRazorPages()
 
 app.Run();
 
-internal sealed record ChatRequest(string? Message, IReadOnlyList<ChatHistoryMessage>? Conversation)
+internal sealed record ChatRequest(string? Message, IReadOnlyList<ChatHistoryMessage>? Conversation, bool Stream = false)
 {
     public IReadOnlyList<ChatHistoryMessage> Conversation { get; init; } = Conversation ?? Array.Empty<ChatHistoryMessage>();
 }
@@ -385,6 +385,7 @@ internal sealed record KnowledgeFileSummary(
     int ChunkCount);
 
 internal sealed record InferenceMessage(string role, string content);
+internal sealed record ChatSource(string title, string quote, double similarity, string kind);
 
 internal static class ChatPrompt
 {
@@ -421,8 +422,81 @@ internal static class ChatPrompt
             Не утверждай, что опираешься на документы базы знаний, и не выдумывай документы,
             статьи, ссылки, точные нормативные требования или результаты проверок. Если вопрос
             требует юридически значимого, экологического или нормативного вывода, объясни, что
-            ответ носит общий характер, и предложи свериться с актуальным первоисточником.
+            ответ носит общий характер, и предложи свериться с актуальным первоисточником. Если
+            пользователь, вероятно, ищет документ или сведения по объекту, но данных недостаточно,
+            задай от одного до трёх конкретных уточняющих вопросов вместо догадки: например, о
+            типе и номере документа, дате, органе-издателе, объекте, периоде или регионе.
             """;
+    }
+}
+
+internal static class ChatStreaming
+{
+    public static async Task WriteAsync(
+        HttpResponse clientResponse,
+        HttpResponseMessage upstreamResponse,
+        IEnumerable<ChatSource> sources,
+        bool grounded,
+        CancellationToken cancellationToken)
+    {
+        clientResponse.StatusCode = StatusCodes.Status200OK;
+        clientResponse.ContentType = "application/x-ndjson; charset=utf-8";
+        clientResponse.Headers.CacheControl = "no-cache";
+        clientResponse.Headers.Append("X-Accel-Buffering", "no");
+
+        await WriteEventAsync(clientResponse, new { type = "sources", sources, grounded }, cancellationToken);
+
+        try
+        {
+            await using var contentStream = await upstreamResponse.Content.ReadAsStreamAsync(cancellationToken);
+            using var reader = new StreamReader(contentStream, Encoding.UTF8);
+
+            while (await reader.ReadLineAsync(cancellationToken) is { } line)
+            {
+                if (!line.StartsWith("data: ", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var data = line[6..];
+                if (data == "[DONE]")
+                {
+                    break;
+                }
+
+                try
+                {
+                    using var chunk = JsonDocument.Parse(data);
+                    var content = chunk.RootElement
+                        .GetProperty("choices")[0]
+                        .GetProperty("delta")
+                        .TryGetProperty("content", out var contentElement)
+                        ? contentElement.GetString()
+                        : null;
+
+                    if (!string.IsNullOrEmpty(content))
+                    {
+                        await WriteEventAsync(clientResponse, new { type = "delta", content }, cancellationToken);
+                    }
+                }
+                catch (JsonException)
+                {
+                    // Служебные или неполные события провайдера не должны завершать диалог.
+                }
+            }
+
+            await WriteEventAsync(clientResponse, new { type = "done" }, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            await WriteEventAsync(clientResponse, new { type = "error", message = "Поток ответа ИИ был прерван. Повторите запрос." }, cancellationToken);
+        }
+    }
+
+    private static async Task WriteEventAsync(HttpResponse response, object value, CancellationToken cancellationToken)
+    {
+        await response.WriteAsync(JsonSerializer.Serialize(value) + "\n", cancellationToken);
+        await response.Body.FlushAsync(cancellationToken);
     }
 }
 
