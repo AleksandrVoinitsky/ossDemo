@@ -489,7 +489,7 @@ internal static class ChatStreaming
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            await WriteEventAsync(clientResponse, new { type = "error", message = "Поток ответа ИИ был прерван. Повторите запрос." }, cancellationToken);
+            await WriteEventAsync(clientResponse, new { type = "interrupted", message = "Генерация ответа была прервана." }, cancellationToken);
         }
     }
 

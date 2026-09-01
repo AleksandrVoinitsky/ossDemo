@@ -608,6 +608,7 @@
       let buffer = '';
       let answer = '';
       let sources = [];
+      let interruptionMessage = '';
 
       const processLine = (line) => {
         if (!line.trim()) return;
@@ -617,23 +618,37 @@
         } else if (event.type === 'delta') {
           answer += event.content || '';
           onDelta?.(answer, sources);
-        } else if (event.type === 'error') {
-          throw new Error(event.message || 'Поток ответа ИИ был прерван.');
+        } else if (event.type === 'interrupted' || event.type === 'error') {
+          interruptionMessage = event.message || 'Генерация ответа была прервана.';
         }
       };
 
-      while (true) {
-        const { value, done } = await reader.read();
-        buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-        lines.forEach(processLine);
-        if (done) break;
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          lines.forEach(processLine);
+          if (done) break;
+        }
+      } catch (error) {
+        interruptionMessage ||= 'Соединение с ИИ было прервано.';
       }
 
-      processLine(buffer);
+      try {
+        processLine(buffer);
+      } catch (error) {
+        interruptionMessage ||= 'Соединение с ИИ было прервано.';
+      }
+      if (!answer && interruptionMessage) {
+        throw new Error(interruptionMessage);
+      }
+
       return {
-        answer: answer || 'ИИ не вернул текстовый ответ.',
+        answer: answer
+          ? answer + (interruptionMessage ? `\n\n> ${interruptionMessage} Можно повторить запрос, если нужен полный ответ.` : '')
+          : 'ИИ не вернул текстовый ответ.',
         sources
       };
     }
