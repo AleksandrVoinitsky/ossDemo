@@ -63,40 +63,7 @@
                 </div>
                 <div class="modal-body p-0">
                     <section class="chat-shell ai-widget-chat" aria-label="Чат с ИИ-консультантом">
-                        <div class="chat-thread" data-chat-thread aria-live="polite" aria-label="История сообщений">
-                            <article class="chat-message chat-message-user" data-chat-message data-role="user">
-                                <div class="chat-avatar" aria-hidden="true">И</div>
-                                <div class="chat-bubble">
-                                    <div class="chat-author">Инспектор</div>
-                                    <div class="chat-markdown" data-chat-markdown>
-                                        Почему пункт по протоколам инструментального контроля считается критическим?
-                                    </div>
-                                </div>
-                            </article>
-
-                            <article class="chat-message chat-message-assistant" data-chat-message data-role="assistant">
-                                <div class="chat-avatar" aria-hidden="true">AI</div>
-                                <div class="chat-bubble">
-                                    <div class="chat-author">ИИ-консультант</div>
-                                    <div class="chat-markdown" data-chat-markdown>
-                                        Пункт считается **критическим**, потому что нарушение по протоколам инструментального контроля выбросов не закрыто в срок `10.10.2024`.
-
-                                        Подтверждающие основания:
-
-                                        - акт проверки от **22.09.2024**;
-                                        - требование **СТО 16-005-2025, п. 4.2**;
-                                        - раздел классификатора **2.3 Атмосфера**.
-
-                                        > Для рабочего ответа ИИ должен возвращать не только вывод, но и проверяемые источники.
-                                    </div>
-                                    <div class="pill-group chat-sources" data-ai-sources>
-                                        <span class="source-chip">Акт 22.09.2024</span>
-                                        <span class="source-chip">СТО 16-005-2025 п. 4.2</span>
-                                        <span class="classifier-chip">2.3 Атмосфера</span>
-                                    </div>
-                                </div>
-                            </article>
-                        </div>
+                        <div class="chat-thread" data-chat-thread aria-live="polite" aria-label="История сообщений"></div>
 
                         <form data-ai-question data-ai-endpoint="/api/ai/chat" class="chat-input" autocomplete="off">
                             <label class="visually-hidden" for="ai-question-input">Вопрос ИИ-консультанту</label>

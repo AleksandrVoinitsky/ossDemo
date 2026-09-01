@@ -2180,6 +2180,27 @@ a {
   margin-top: .75rem;
 }
 
+.chat-source-appear {
+  opacity: 0;
+  transform: translateY(.3rem);
+  animation: chat-source-appear .22s ease-out forwards;
+}
+
+@keyframes chat-source-appear {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-source-appear {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+}
+
 .chat-author {
   font-size: .82rem;
   font-weight: 700;

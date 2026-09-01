@@ -456,20 +456,27 @@
     container.textContent = source;
   };
 
-  const scrollChatToBottom = (thread) => {
-    if (!thread) return;
+  const isChatNearBottom = (thread) => thread && thread.scrollHeight - thread.scrollTop - thread.clientHeight < 48;
+
+  const scrollChatToBottom = (thread, force = false) => {
+    if (!thread || (!force && !isChatNearBottom(thread))) return;
     thread.scrollTop = thread.scrollHeight;
   };
 
-  const renderSources = (container, sources = []) => {
+  const renderSources = (container, sources = [], animate = false) => {
     if (!container) return;
 
     container.replaceChildren();
-    sources.filter(Boolean).forEach((source) => {
+    sources.filter(Boolean).forEach((source, index) => {
       const item = typeof source === 'string' ? { title: source } : source;
       const chip = item.url ? document.createElement('a') : document.createElement('span');
       chip.className = item.kind === 'classifier' ? 'classifier-chip' : 'source-chip';
       chip.textContent = item.title || item.name || item.label || '';
+
+      if (animate) {
+        chip.classList.add('chat-source-appear');
+        chip.style.animationDelay = `${index * 90}ms`;
+      }
 
       if (item.url) {
         chip.href = item.url;
@@ -484,6 +491,7 @@
   };
 
   const appendChatMessage = (thread, template, options) => {
+    const shouldFollow = isChatNearBottom(thread);
     const message = template.content.firstElementChild.cloneNode(true);
     message.dataset.role = options.role;
     message.classList.add(options.role === 'user' ? 'chat-message-user' : 'chat-message-assistant');
@@ -507,14 +515,16 @@
     }
 
     thread.appendChild(message);
-    scrollChatToBottom(thread);
+    scrollChatToBottom(thread, shouldFollow);
     return message;
   };
 
-  const updateChatMessage = (message, markdown, sources) => {
+  const updateChatMessage = (message, markdown, sources, options = {}) => {
     message.classList.remove('chat-message-pending');
     renderMarkdown(message.querySelector('[data-chat-markdown]'), markdown);
-    renderSources(message.querySelector('[data-ai-sources]'), sources);
+    if (options.showSources) {
+      renderSources(message.querySelector('[data-ai-sources]'), sources, options.animateSources);
+    }
   };
 
   const buildDemoAiReply = (question) => {
@@ -617,7 +627,7 @@
           sources = Array.isArray(event.sources) ? event.sources : [];
         } else if (event.type === 'delta') {
           answer += event.content || '';
-          onDelta?.(answer, sources);
+          onDelta?.(answer);
         } else if (event.type === 'interrupted' || event.type === 'error') {
           interruptionMessage = event.message || 'Генерация ответа была прервана.';
         }
@@ -698,16 +708,20 @@
       const pendingMessage = appendChatMessage(thread, messageTemplate, { role: 'assistant', pending: true });
 
       try {
-        const reply = await requestAiReply(form, thread, question, (answer, sources) => {
-          updateChatMessage(pendingMessage, answer, sources);
-          scrollChatToBottom(thread);
+        const reply = await requestAiReply(form, thread, question, (answer) => {
+          const shouldFollow = isChatNearBottom(thread);
+          updateChatMessage(pendingMessage, answer, []);
+          scrollChatToBottom(thread, shouldFollow);
         });
-        updateChatMessage(pendingMessage, reply.answer, reply.sources);
+        const shouldFollow = isChatNearBottom(thread);
+        updateChatMessage(pendingMessage, reply.answer, reply.sources, { showSources: true, animateSources: true });
+        scrollChatToBottom(thread, shouldFollow);
       } catch (error) {
         updateChatMessage(
           pendingMessage,
           'Не удалось получить ответ от сервера ИИ. Проверьте подключение и повторите запрос.\n\n```text\n' + error.message + '\n```',
-          [{ title: 'ошибка подключения', kind: 'classifier' }]
+          [{ title: 'ошибка подключения', kind: 'classifier' }],
+          { showSources: true }
         );
       } finally {
         input.disabled = false;
