@@ -646,9 +646,7 @@
       }
 
       return {
-        answer: answer
-          ? answer + (interruptionMessage ? `\n\n> ${interruptionMessage} Можно повторить запрос, если нужен полный ответ.` : '')
-          : 'ИИ не вернул текстовый ответ.',
+        answer: answer || 'ИИ не вернул текстовый ответ.',
         sources
       };
     }
