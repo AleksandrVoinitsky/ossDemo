@@ -182,12 +182,14 @@ a {
   display: flex;
   position: sticky;
   top: 0;
+  align-self: flex-start;
   flex: 0 0 17.5rem;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
   padding: 1.2rem .85rem .9rem;
   border-right: 1px solid var(--border);
   background: var(--surface);
+  overflow: hidden;
 }
 
 .app-topbar {
@@ -253,7 +255,10 @@ a {
 .app-nav {
   display: grid;
   gap: .25rem;
+  flex: 1 1 auto;
   margin-top: 1rem;
+  padding-right: .15rem;
+  overflow-y: auto;
 }
 
 .app-sidebar .nav-link {
@@ -291,6 +296,7 @@ a {
 
 .sidebar-footer {
   display: grid;
+  flex: 0 0 auto;
   gap: .15rem;
   margin-top: auto;
   padding-top: 1rem;
