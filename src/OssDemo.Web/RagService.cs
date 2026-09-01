@@ -149,13 +149,15 @@ internal sealed class RagService(
             return Array.Empty<RagMatch>();
         }
 
-        var embedding = await CreateEmbeddingAsync(question, cancellationToken);
-        var vector = ToVectorLiteral(embedding);
         var referencedGostNumber = GostNumberPattern.Match(question).Groups[1].Value;
         var referencedResolutionNumber = GovernmentResolutionNumberPattern.Match(question).Groups[1].Value;
 
         await using var connection = new NpgsqlConnection(configuration.GetConnectionString("OssDatabase"));
         await connection.OpenAsync(cancellationToken);
+        var exactDocumentId = await FindGovernmentResolutionIdAsync(connection, referencedResolutionNumber, cancellationToken);
+
+        var embedding = await CreateEmbeddingAsync(question, cancellationToken);
+        var vector = ToVectorLiteral(embedding);
         await using var command = new NpgsqlCommand("""
             SELECT d.title,
                    c.source_label,
@@ -165,11 +167,15 @@ internal sealed class RagService(
                    @gostNumber <> '' AND position(lower(@gostNumber) in lower(d.title)) > 0 AS gost_match,
                    @resolutionNumber <> ''
                        AND d.title ~* ('постановлени[ея].*правительств')
-                       AND d.title ~ ('(^|[^0-9])' || @resolutionNumber || '([^0-9]|$)') AS resolution_match
+                       AND d.title ~ ('(^|[^0-9])' || @resolutionNumber || '([^0-9]|$)') AS resolution_match,
+                   @exactDocumentId <> '' AND d.id::text = @exactDocumentId AS exact_document_match
             FROM knowledge_chunks c
             INNER JOIN knowledge_documents d ON d.id = c.document_id
-            WHERE d.status = 'indexed' AND c.embedding_model = @model
-            ORDER BY @resolutionNumber <> ''
+            WHERE d.status = 'indexed'
+              AND c.embedding_model = @model
+              AND (@exactDocumentId = '' OR d.id::text = @exactDocumentId)
+            ORDER BY @exactDocumentId <> '' AND d.id::text = @exactDocumentId DESC,
+                     @resolutionNumber <> ''
                          AND d.title ~* ('постановлени[ея].*правительств')
                          AND d.title ~ ('(^|[^0-9])' || @resolutionNumber || '([^0-9]|$)') DESC,
                      @gostNumber <> '' AND position(lower(@gostNumber) in lower(d.title)) > 0 DESC,
@@ -181,6 +187,7 @@ internal sealed class RagService(
         command.Parameters.AddWithValue("question", question);
         command.Parameters.AddWithValue("gostNumber", referencedGostNumber);
         command.Parameters.AddWithValue("resolutionNumber", referencedResolutionNumber);
+        command.Parameters.AddWithValue("exactDocumentId", exactDocumentId);
         command.Parameters.AddWithValue("model", Model);
 
         var matches = new List<RagMatch>();
@@ -191,13 +198,37 @@ internal sealed class RagService(
             var titleMatch = reader.GetBoolean(4);
             var gostMatch = reader.GetBoolean(5);
             var resolutionMatch = reader.GetBoolean(6);
-            if (resolutionMatch || gostMatch || titleMatch || similarity >= 0.35)
+            var exactDocumentMatch = reader.GetBoolean(7);
+            if (exactDocumentMatch || resolutionMatch || gostMatch || titleMatch || similarity >= 0.35)
             {
-                matches.Add(new RagMatch(reader.GetString(0), reader.GetString(1), reader.GetString(2), resolutionMatch || gostMatch || titleMatch ? 1 : similarity));
+                matches.Add(new RagMatch(reader.GetString(0), reader.GetString(1), reader.GetString(2), exactDocumentMatch || resolutionMatch || gostMatch || titleMatch ? 1 : similarity));
             }
         }
 
         return matches;
+    }
+
+    private static async Task<string> FindGovernmentResolutionIdAsync(
+        NpgsqlConnection connection,
+        string resolutionNumber,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(resolutionNumber))
+        {
+            return string.Empty;
+        }
+
+        await using var command = new NpgsqlCommand("""
+            SELECT id::text
+            FROM knowledge_documents
+            WHERE status = 'indexed'
+              AND title ~* 'постановлени[ея].*правительств'
+              AND title ~ ('(^|[^0-9])' || @resolutionNumber || '([^0-9]|$)')
+            ORDER BY updated_at DESC
+            LIMIT 1;
+            """, connection);
+        command.Parameters.AddWithValue("resolutionNumber", resolutionNumber);
+        return (await command.ExecuteScalarAsync(cancellationToken) as string) ?? string.Empty;
     }
 
     public async Task<IReadOnlyList<KnowledgeDocumentSummary>> GetKnowledgeDocumentsAsync(CancellationToken cancellationToken)
