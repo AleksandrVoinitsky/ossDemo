@@ -38,6 +38,8 @@ AssertTrue(!contextualQuery.Contains("Неподтверждённая", StringC
 
 AssertTrue(ChatClarification.Build("что такое оос", hasSources: false)!.Contains("охрана окружающей среды", StringComparison.Ordinal));
 AssertTrue(ChatClarification.Build("расскажи про основные требования", hasSources: false)!.Contains("предмет проверки", StringComparison.Ordinal));
+AssertTrue(ChatClarification.Build("нужен чек-лист по выбросам", hasSources: false)!.Contains("нейтральный рабочий черновик", StringComparison.Ordinal));
+AssertTrue(ChatClarification.Build("давай посмотрим реестр региональных требований", hasSources: false)!.Contains("субъект РФ", StringComparison.Ordinal));
 AssertTrue(ChatClarification.Build("расскажи про постановление 373", hasSources: true) is null);
 
 var first = new RankedChunk(Guid.NewGuid(), "А", "Раздел", "текст", 0);
