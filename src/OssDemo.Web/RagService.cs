@@ -13,6 +13,7 @@ internal sealed class RagService(
 {
     private const string Model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2";
     private static readonly Regex GostNumberPattern = new(@"\bГОСТ\s*(?:Р\s*)?(\d{4,})", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex GovernmentResolutionNumberPattern = new(@"\b(?:постановлени[ея]|пп)\s+(?:правительств[ао]\s*)?(?:рф\s*)?(?:№|N)?\s*(\d{1,5})\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private readonly SemaphoreSlim _initializationLock = new(1, 1);
     private volatile bool _initialized;
 
@@ -151,6 +152,7 @@ internal sealed class RagService(
         var embedding = await CreateEmbeddingAsync(question, cancellationToken);
         var vector = ToVectorLiteral(embedding);
         var referencedGostNumber = GostNumberPattern.Match(question).Groups[1].Value;
+        var referencedResolutionNumber = GovernmentResolutionNumberPattern.Match(question).Groups[1].Value;
 
         await using var connection = new NpgsqlConnection(configuration.GetConnectionString("OssDatabase"));
         await connection.OpenAsync(cancellationToken);
@@ -160,11 +162,17 @@ internal sealed class RagService(
                    c.text,
                    1 - (c.embedding <=> CAST(@embedding AS vector)) AS similarity,
                    position(lower(@question) in lower(d.title)) > 0 AS title_match,
-                   @gostNumber <> '' AND position(lower(@gostNumber) in lower(d.title)) > 0 AS gost_match
+                   @gostNumber <> '' AND position(lower(@gostNumber) in lower(d.title)) > 0 AS gost_match,
+                   @resolutionNumber <> ''
+                       AND d.title ~* ('постановлени[ея].*правительств')
+                       AND d.title ~ ('(^|[^0-9])' || @resolutionNumber || '([^0-9]|$)') AS resolution_match
             FROM knowledge_chunks c
             INNER JOIN knowledge_documents d ON d.id = c.document_id
             WHERE d.status = 'indexed' AND c.embedding_model = @model
-            ORDER BY @gostNumber <> '' AND position(lower(@gostNumber) in lower(d.title)) > 0 DESC,
+            ORDER BY @resolutionNumber <> ''
+                         AND d.title ~* ('постановлени[ея].*правительств')
+                         AND d.title ~ ('(^|[^0-9])' || @resolutionNumber || '([^0-9]|$)') DESC,
+                     @gostNumber <> '' AND position(lower(@gostNumber) in lower(d.title)) > 0 DESC,
                      position(lower(@question) in lower(d.title)) > 0 DESC,
                      c.embedding <=> CAST(@embedding AS vector)
             LIMIT 5;
@@ -172,6 +180,7 @@ internal sealed class RagService(
         command.Parameters.AddWithValue("embedding", vector);
         command.Parameters.AddWithValue("question", question);
         command.Parameters.AddWithValue("gostNumber", referencedGostNumber);
+        command.Parameters.AddWithValue("resolutionNumber", referencedResolutionNumber);
         command.Parameters.AddWithValue("model", Model);
 
         var matches = new List<RagMatch>();
@@ -181,9 +190,10 @@ internal sealed class RagService(
             var similarity = reader.GetDouble(3);
             var titleMatch = reader.GetBoolean(4);
             var gostMatch = reader.GetBoolean(5);
-            if (gostMatch || titleMatch || similarity >= 0.35)
+            var resolutionMatch = reader.GetBoolean(6);
+            if (resolutionMatch || gostMatch || titleMatch || similarity >= 0.35)
             {
-                matches.Add(new RagMatch(reader.GetString(0), reader.GetString(1), reader.GetString(2), gostMatch || titleMatch ? 1 : similarity));
+                matches.Add(new RagMatch(reader.GetString(0), reader.GetString(1), reader.GetString(2), resolutionMatch || gostMatch || titleMatch ? 1 : similarity));
             }
         }
 
