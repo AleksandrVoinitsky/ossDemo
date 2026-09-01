@@ -190,7 +190,7 @@ internal sealed class RagService(
         var fused = ReciprocalRankFusion.Merge(lexical, semantic, take: 8);
         var reranked = await reranker.RerankAsync(question, fused, cancellationToken) ?? fused;
         var matches = reranked
-            .Where(chunk => exactDocumentId is not null || chunk.LexicalScore > 0 || chunk.SemanticSimilarity >= RagMatch.MinimumSemanticSimilarity)
+            .Where(chunk => exactDocumentId is not null || RagMatch.HasSufficientSignal(chunk.SemanticSimilarity, chunk.LexicalScore > 0))
             .Take(5)
             .Select(chunk => new RagMatch(
                 chunk.DocumentTitle,
@@ -716,10 +716,14 @@ internal sealed record RagMatch(
     bool IsExactDocumentMatch,
     double RankingScore)
 {
-    // Порог намеренно консервативен: слабый ближайший вектор не является источником для ответа.
+    // Пороги намеренно консервативны: одно общее слово из FTS не делает фрагмент источником для ответа.
     public const double MinimumSemanticSimilarity = 0.45;
+    public const double MinimumHybridSimilarity = 0.30;
 
-    public bool IsRelevant => IsExactDocumentMatch || HasLexicalMatch || Similarity >= MinimumSemanticSimilarity;
+    public bool IsRelevant => IsExactDocumentMatch || HasSufficientSignal(Similarity, HasLexicalMatch);
+
+    public static bool HasSufficientSignal(double similarity, bool hasLexicalMatch) =>
+        similarity >= MinimumSemanticSimilarity || (hasLexicalMatch && similarity >= MinimumHybridSimilarity);
 }
 internal sealed record RagSearchResult(IReadOnlyList<RagMatch> Matches, bool IsAmbiguous, IReadOnlyList<string> AmbiguousDocuments)
 {

@@ -44,13 +44,15 @@ AssertEqual(first.Id, fused[0].Id);
 
 var weakSemantic = new RagMatch("А", "Раздел", "текст", 0.2, false, false, 0.01);
 var lexicalMatch = new RagMatch("Б", "Раздел", "текст", 0.1, true, false, 0.01);
+var hybridMatch = new RagMatch("Г", "Раздел", "текст", 0.35, true, false, 0.01);
 var exactDocumentMatch = new RagMatch("В", "Раздел", "текст", 0.1, false, true, 0.01);
 AssertTrue(!weakSemantic.IsRelevant);
-AssertTrue(lexicalMatch.IsRelevant);
+AssertTrue(!lexicalMatch.IsRelevant);
+AssertTrue(hybridMatch.IsRelevant);
 AssertTrue(exactDocumentMatch.IsRelevant);
-AssertTrue(!RagSearchSelection.HasEnoughRelevantMatches(new[] { new RagSearchResult(new[] { lexicalMatch }, false, Array.Empty<string>()) }));
-AssertTrue(!RagSearchSelection.HasEnoughRelevantMatches(new[] { new RagSearchResult(new[] { lexicalMatch, lexicalMatch }, false, Array.Empty<string>()) }));
-AssertTrue(RagSearchSelection.HasEnoughRelevantMatches(new[] { new RagSearchResult(new[] { lexicalMatch, exactDocumentMatch }, false, Array.Empty<string>()) }));
+AssertTrue(!RagSearchSelection.HasEnoughRelevantMatches(new[] { new RagSearchResult(new[] { hybridMatch }, false, Array.Empty<string>()) }));
+AssertTrue(!RagSearchSelection.HasEnoughRelevantMatches(new[] { new RagSearchResult(new[] { hybridMatch, hybridMatch }, false, Array.Empty<string>()) }));
+AssertTrue(RagSearchSelection.HasEnoughRelevantMatches(new[] { new RagSearchResult(new[] { hybridMatch, exactDocumentMatch }, false, Array.Empty<string>()) }));
 
 Console.WriteLine("RAG parser and RRF checks passed.");
 
