@@ -260,10 +260,26 @@ app.MapPost("/api/ai/chat", async (
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 
+    var userQuestion = request.Message.Trim();
+    var searchQuestion = userQuestion;
+    try
+    {
+        searchQuestion = await QueryRewritePrompt.RewriteAsync(
+            httpClientFactory.CreateClient("AmveraInference"),
+            apiToken,
+            model,
+            userQuestion,
+            cancellationToken);
+    }
+    catch (Exception exception) when (exception is HttpRequestException or JsonException)
+    {
+        logger.LogWarning(exception, "Не удалось перефразировать вопрос для поиска. Используется исходный вопрос.");
+    }
+
     IReadOnlyList<RagMatch> matches;
     try
     {
-        matches = await ragService.SearchAsync(request.Message.Trim(), cancellationToken);
+        matches = await ragService.SearchAsync(searchQuestion, cancellationToken);
     }
     catch (Exception exception) when (exception is Npgsql.NpgsqlException or HttpRequestException or JsonException or InvalidOperationException)
     {
@@ -288,7 +304,7 @@ app.MapPost("/api/ai/chat", async (
         }
     }
 
-    messages.Add(new InferenceMessage("user", request.Message.Trim()));
+    messages.Add(new InferenceMessage("user", userQuestion));
 
     using var upstreamRequest = new HttpRequestMessage(HttpMethod.Post, "v1/chat/completions")
     {
@@ -401,6 +417,68 @@ internal static class ChatPrompt
             нормативные требования или результаты проверок. Для юридически значимых и
             экологических выводов рекомендуй свериться с актуальными первоисточниками.
             """;
+}
+
+internal static class QueryRewritePrompt
+{
+    private const int MaxSearchQueryLength = 1_000;
+
+    private const string SystemMessage = """
+        Ты подготавливаешь один поисковый запрос для базы нормативных документов.
+        Не отвечай на вопрос и не добавляй пояснений. Верни только одну короткую поисковую
+        формулировку на русском языке. Раскрой разговорные сокращения и добавь полезные
+        термины для поиска по смыслу. Обязательно дословно сохрани все номера, даты, названия
+        документов, органы и обозначения стандартов из исходного вопроса. Не выдумывай новые
+        реквизиты, факты, документы, номера или даты.
+        """;
+
+    public static async Task<string> RewriteAsync(
+        HttpClient client,
+        string apiToken,
+        string model,
+        string question,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "v1/chat/completions")
+        {
+            Content = new StringContent(
+                JsonSerializer.Serialize(new
+                {
+                    model,
+                    messages = new[]
+                    {
+                        new InferenceMessage("system", SystemMessage),
+                        new InferenceMessage("user", question)
+                    },
+                    temperature = 0
+                }),
+                Encoding.UTF8,
+                MediaTypeNames.Application.Json)
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiToken);
+
+        using var response = await client.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var payload = await JsonDocument.ParseAsync(contentStream, cancellationToken: cancellationToken);
+        var rewritten = payload.RootElement
+            .GetProperty("choices")[0]
+            .GetProperty("message")
+            .GetProperty("content")
+            .GetString()?
+            .Trim();
+
+        return IsValidRewrite(question, rewritten) ? rewritten! : question;
+    }
+
+    private static bool IsValidRewrite(string original, string? rewritten) =>
+        !string.IsNullOrWhiteSpace(rewritten)
+        && rewritten.Length <= MaxSearchQueryLength
+        && original
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+            .Select(token => token.Trim('№', 'N', 'n', '.', ',', '?', '!', ';', ':', '(', ')', '«', '»', '"', '\''))
+            .Where(token => token.Any(char.IsDigit))
+            .All(token => rewritten.Contains(token, StringComparison.OrdinalIgnoreCase));
 }
 
 internal static class RagStatusFormatter
