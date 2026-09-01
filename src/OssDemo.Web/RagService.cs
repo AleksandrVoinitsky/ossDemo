@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Net.Mime;
 using System.Text.Json;
 using Npgsql;
+using NpgsqlTypes;
 
 internal sealed class RagService(
     IHttpClientFactory httpClientFactory,
@@ -211,10 +212,7 @@ internal sealed class RagService(
             ORDER BY updated_at DESC
             LIMIT 10;
             """, connection);
-        command.Parameters.AddWithValue("kind", (object?)reference.Kind ?? DBNull.Value);
-        command.Parameters.AddWithValue("number", (object?)reference.Number ?? DBNull.Value);
-        command.Parameters.AddWithValue("issuer", (object?)reference.Issuer ?? DBNull.Value);
-        command.Parameters.AddWithValue("date", (object?)reference.Date ?? DBNull.Value);
+        AddReferenceParameters(command, reference);
         var documents = new List<ReferencedDocument>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken)) documents.Add(new(reader.GetGuid(0), reader.GetString(1)));
@@ -290,10 +288,10 @@ internal sealed class RagService(
 
     private static void AddReferenceParameters(NpgsqlCommand command, DocumentReference reference)
     {
-        command.Parameters.AddWithValue("kind", (object?)reference.Kind ?? DBNull.Value);
-        command.Parameters.AddWithValue("number", (object?)reference.Number ?? DBNull.Value);
-        command.Parameters.AddWithValue("issuer", (object?)reference.Issuer ?? DBNull.Value);
-        command.Parameters.AddWithValue("date", (object?)reference.Date ?? DBNull.Value);
+        command.Parameters.Add("kind", NpgsqlDbType.Text).Value = (object?)reference.Kind ?? DBNull.Value;
+        command.Parameters.Add("number", NpgsqlDbType.Text).Value = (object?)reference.Number ?? DBNull.Value;
+        command.Parameters.Add("issuer", NpgsqlDbType.Text).Value = (object?)reference.Issuer ?? DBNull.Value;
+        command.Parameters.Add("date", NpgsqlDbType.Date).Value = (object?)reference.Date ?? DBNull.Value;
     }
 
     public async Task<IReadOnlyList<KnowledgeDocumentSummary>> GetKnowledgeDocumentsAsync(CancellationToken cancellationToken)
