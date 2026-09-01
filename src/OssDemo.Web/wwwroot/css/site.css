@@ -1577,6 +1577,8 @@ a {
 }
 
 .facility-list-panel {
+  display: flex;
+  flex-direction: column;
   min-height: 0;
 }
 
@@ -1589,9 +1591,11 @@ a {
 
 .facility-list {
   display: grid;
+  flex: 1 1 auto;
   grid-template-columns: repeat(4, minmax(9rem, 12rem));
   justify-content: start;
   gap: .75rem;
+  min-height: 0;
 }
 
 .facility-map-panel {
@@ -1602,11 +1606,11 @@ a {
 
 .facility-list-item {
   display: grid;
-  align-content: start;
+  align-content: space-between;
   gap: .25rem;
   min-width: 0;
-  min-height: 11.2rem;
-  padding: 1rem .95rem;
+  height: 100%;
+  padding: 1.1rem .95rem;
 }
 
 .facility-list-item-title {
