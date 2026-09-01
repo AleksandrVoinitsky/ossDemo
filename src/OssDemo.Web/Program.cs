@@ -268,19 +268,41 @@ app.MapPost("/api/ai/chat", async (
 
     var userQuestion = request.Message.Trim();
     var ragQuestion = ChatSearchQuery.Build(request.Conversation, userQuestion, maxMessageLength);
+    var agentPlan = await OosSearchAgent.PlanAsync(
+        httpClientFactory,
+        apiToken,
+        model,
+        request.Conversation,
+        userQuestion,
+        ragQuestion,
+        logger,
+        cancellationToken);
 
-    RagSearchResult searchResult;
-    try
+    var searchResults = new List<RagSearchResult>();
+    foreach (var query in agentPlan.Queries)
     {
-        searchResult = await ragService.SearchAsync(ragQuestion, cancellationToken);
-    }
-    catch (Exception exception) when (exception is not OperationCanceledException)
-    {
-        logger.LogWarning(exception, "Поиск по базе знаний недоступен. Продолжаем диалог без RAG-контекста.");
-        searchResult = RagSearchResult.Empty;
+        try
+        {
+            var result = await ragService.SearchAsync(query, cancellationToken);
+            searchResults.Add(result);
+            if (result.IsAmbiguous)
+            {
+                break;
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception, "Агенту не удалось выполнить поиск по базе знаний. Query={Query}", query);
+        }
     }
 
-    var matches = searchResult.Matches;
+    var ambiguousDocuments = searchResults.SelectMany(result => result.AmbiguousDocuments).Distinct(StringComparer.Ordinal).ToArray();
+    var matches = searchResults
+        .SelectMany(result => result.Matches)
+        .DistinctBy(match => (match.DocumentTitle, match.SourceLabel, match.Text))
+        .Take(5)
+        .ToArray();
+    var searchResult = new RagSearchResult(matches, ambiguousDocuments.Length > 0, ambiguousDocuments);
 
     var context = string.Join("\n\n", matches.Select((match, index) =>
         $"[S{index + 1}] Документ: {match.DocumentTitle}\nРаздел: {match.SourceLabel}\nТекст: {match.Text}"));
@@ -288,9 +310,9 @@ app.MapPost("/api/ai/chat", async (
     {
         new("system", ChatPrompt.BuildSystemMessage(
             context,
-            matches.Count > 0,
+            matches.Length > 0,
             searchResult.AmbiguousDocuments,
-            ChatClarification.Build(userQuestion, matches.Count > 0)))
+            agentPlan.Instruction))
     };
 
     foreach (var message in request.Conversation
@@ -328,7 +350,7 @@ app.MapPost("/api/ai/chat", async (
                 statusCode: StatusCodes.Status502BadGateway);
         }
 
-        var sources = matches.Count > 0
+        var sources = matches.Length > 0
             ? matches.Select((match, index) => new ChatSource(
                 $"[S{index + 1}] {match.DocumentTitle}, {match.SourceLabel}",
                 match.Text,
@@ -340,7 +362,7 @@ app.MapPost("/api/ai/chat", async (
 
         if (request.Stream)
         {
-            await ChatStreaming.WriteAsync(httpResponse, response, sources, matches.Count > 0, cancellationToken);
+            await ChatStreaming.WriteAsync(httpResponse, response, sources, matches.Length > 0, cancellationToken);
             return Results.Empty;
         }
 
@@ -358,7 +380,7 @@ app.MapPost("/api/ai/chat", async (
             return Results.Problem(title: "ИИ не вернул ответ", statusCode: StatusCodes.Status502BadGateway);
         }
 
-        return Results.Ok(new { answer, grounded = matches.Count > 0, sources, model });
+        return Results.Ok(new { answer, grounded = matches.Length > 0, sources, model });
     }
     catch (HttpRequestException exception)
     {
@@ -408,45 +430,119 @@ internal static class ChatSearchQuery
     }
 }
 
-internal static class ChatClarification
+internal sealed record OosAgentPlan(IReadOnlyList<string> Queries, string? Instruction)
 {
-    public static string? Build(string query, bool hasSources)
+    public static OosAgentPlan Fallback(string query) => new(new[] { query }, null);
+}
+
+internal static class OosSearchAgent
+{
+    private const int MaxQueries = 3;
+    private const int MaxQueryLength = 500;
+    private const int MaxInstructionLength = 500;
+
+    public static async Task<OosAgentPlan> PlanAsync(
+        IHttpClientFactory httpClientFactory,
+        string apiToken,
+        string model,
+        IReadOnlyList<ChatHistoryMessage> conversation,
+        string userQuestion,
+        string fallbackQuery,
+        ILogger logger,
+        CancellationToken cancellationToken)
     {
-        if (hasSources)
+        var history = conversation
+            .Where(message => message.Role == "user" && !string.IsNullOrWhiteSpace(message.Content))
+            .TakeLast(3)
+            .Select(message => message.Content.Trim())
+            .ToArray();
+        var messages = new[]
         {
-            return null;
+            new InferenceMessage("system", """
+                Ты планировщик ограниченного агента АИ ООС. Твой единственный инструмент — поиск по внутренней базе знаний.
+                Не отвечай на вопрос пользователя и не выдумывай факты, документы, сайты или требования.
+                Верни только JSON без Markdown по схеме:
+                {"action":"search|clarify|answer","queries":["..."],"instruction":"..."}
+
+                Правила:
+                - При любом документном, нормативном или предметном запросе сначала выбирай search и дай от 1 до 3
+                  коротких поисковых формулировок на русском языке.
+                - Номер или реквизиты документа (например, 373, № 373, ГОСТ) — сильный сигнал: обязательно ищи их
+                  отдельным запросом, даже если ранее агент ждал уточнение.
+                - Используй историю только для восстановления темы, но новый явный документный запрос важнее старой ветки.
+                - clarify выбирай, только когда поиск невозможен без одного конкретного параметра. В instruction дай ровно
+                  один короткий вопрос из предметной области ООС.
+                - answer разрешён только для приветствий, благодарности или общих вопросов, не требующих поиска.
+                - Для search instruction оставь пустым. Для clarify и answer не передавай queries.
+                """),
+            new InferenceMessage("user", $"История запросов инспектора:\n{string.Join("\n", history)}\n\nТекущий запрос:\n{userQuestion}")
+        };
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "v1/chat/completions")
+        {
+            Content = new StringContent(
+                JsonSerializer.Serialize(new { model, messages, temperature = 0, response_format = new { type = "json_object" } }),
+                Encoding.UTF8,
+                MediaTypeNames.Application.Json)
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiToken);
+
+        try
+        {
+            using var response = await httpClientFactory.CreateClient("AmveraInference").SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogWarning("Планировщик агента вернул HTTP {StatusCode}; использован прямой поиск.", (int)response.StatusCode);
+                return OosAgentPlan.Fallback(fallbackQuery);
+            }
+
+            await using var content = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var payload = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
+            var planContent = payload.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
+            if (string.IsNullOrWhiteSpace(planContent))
+            {
+                return OosAgentPlan.Fallback(fallbackQuery);
+            }
+
+            using var plan = JsonDocument.Parse(planContent);
+            var root = plan.RootElement;
+            var action = root.TryGetProperty("action", out var actionElement) ? actionElement.GetString() : null;
+            var instruction = root.TryGetProperty("instruction", out var instructionElement) ? instructionElement.GetString()?.Trim() : null;
+            if (instruction?.Length > MaxInstructionLength)
+            {
+                instruction = instruction[..MaxInstructionLength];
+            }
+            var queries = action == "search" && root.TryGetProperty("queries", out var queriesElement) && queriesElement.ValueKind == JsonValueKind.Array
+                ? queriesElement.EnumerateArray()
+                    .Where(element => element.ValueKind == JsonValueKind.String)
+                    .Select(element => element.GetString()?.Trim())
+                    .Where(query => !string.IsNullOrWhiteSpace(query) && query.Length <= MaxQueryLength)
+                    .Select(query => query!)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(MaxQueries)
+                    .ToArray()
+                : Array.Empty<string>();
+
+            if (action == "search" && queries.Length > 0)
+            {
+                logger.LogInformation("Агент ООС выбрал поиск: {Queries}", string.Join(" | ", queries));
+                return new(queries, null);
+            }
+
+            if (action is "clarify" or "answer")
+            {
+                logger.LogInformation("Агент ООС выбрал действие {Action}.", action);
+                return new(Array.Empty<string>(), instruction ?? (action == "clarify"
+                    ? "Задай один короткий уточняющий вопрос по теме ООС."
+                    : "Ответь естественно как помощник инспектора ООС, не выдумывая факты."));
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception, "Планировщик агента недоступен; использован прямой поиск.");
         }
 
-        var normalized = query.Trim().ToLowerInvariant();
-        if (normalized is "оос" or "что такое оос" || normalized.Contains("что такое оос", StringComparison.Ordinal))
-        {
-            return "Объясни, что ООС — это охрана окружающей среды, и кратко опиши роль ассистента инспектора ООС.";
-        }
-
-        if (normalized.Contains("региональн", StringComparison.Ordinal) &&
-            (normalized.Contains("требован", StringComparison.Ordinal) || normalized.Contains("реестр", StringComparison.Ordinal)))
-        {
-            return "Не утверждай, что в базе есть региональный реестр. Задай ровно два вопроса: какой субъект РФ и по какой теме нужны требования (воздух, вода, отходы, ПЭК или СЭМ). После ответа выполни поиск по этим данным.";
-        }
-
-        if (normalized.Contains("чек-лист", StringComparison.Ordinal) || normalized.Contains("чек лист", StringComparison.Ordinal))
-        {
-            return "Если область проверки уже названа, подготовь нейтральный рабочий черновик чек-листа из разделов «Документы», «Фактическое состояние», «Подтверждения», «Отклонения и действия». Не называй нормы, разрешения, государственные системы, формы отчётности, периодичность или обязательность без источников. Если область проверки не названа, задай один вопрос о ней.";
-        }
-
-        if (normalized.Contains("основные требования", StringComparison.Ordinal) ||
-            normalized.Contains("какие требования", StringComparison.Ordinal) ||
-            normalized.Contains("что нужно", StringComparison.Ordinal))
-        {
-            return "Не перечисляй требования наугад. Сначала попроси выбрать предмет проверки: воздух, вода, отходы, производственный экологический контроль, СЭМ, отчётность или конкретный документ.";
-        }
-
-        if (normalized.Contains("где искать", StringComparison.Ordinal) || normalized.Contains("найди", StringComparison.Ordinal))
-        {
-            return "Не выдумывай внешние сайты, реестры или организации. Спроси название или реквизиты документа, организацию либо объект, период и цель поиска; предложи загрузить документ в базу знаний.";
-        }
-
-        return null;
+        return OosAgentPlan.Fallback(fallbackQuery);
     }
 }
 
