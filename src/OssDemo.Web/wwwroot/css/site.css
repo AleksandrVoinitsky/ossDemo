@@ -1592,7 +1592,7 @@ a {
 .facility-list {
   display: grid;
   flex: 1 1 auto;
-  grid-auto-columns: minmax(9rem, 12rem);
+  grid-auto-columns: clamp(10.5rem, 14vw, 13rem);
   grid-auto-flow: column;
   grid-template-rows: 1fr;
   gap: .75rem;
@@ -1695,13 +1695,13 @@ a {
   }
 
   .facility-list {
-    grid-auto-columns: minmax(9rem, 12rem);
+    grid-auto-columns: clamp(10rem, 30vw, 12rem);
   }
 }
 
 @media (max-width: 575.98px) {
   .facility-list {
-    grid-auto-columns: minmax(9rem, 10rem);
+    grid-auto-columns: minmax(10rem, 80%);
   }
 }
 
