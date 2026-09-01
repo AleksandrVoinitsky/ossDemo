@@ -7,6 +7,8 @@ internal sealed class KnowledgeImportService(
     ILogger<KnowledgeImportService> logger) : BackgroundService
 {
     private const long MaxFileSize = 20 * 1024 * 1024;
+    private const int EmbeddingRetryCount = 6;
+    private static readonly TimeSpan EmbeddingRetryDelay = TimeSpan.FromSeconds(10);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -37,7 +39,7 @@ internal sealed class KnowledgeImportService(
                 try
                 {
                     var sourceFileName = Path.GetRelativePath(directory, path).Replace(Path.DirectorySeparatorChar, '/');
-                    await ImportFileAsync(path, sourceFileName, stoppingToken);
+                    await ImportFileWithRetryAsync(path, sourceFileName, stoppingToken);
                 }
                 catch (RagIngestionException exception)
                 {
@@ -47,6 +49,28 @@ internal sealed class KnowledgeImportService(
                 {
                     logger.LogError(exception, "Не удалось импортировать файл {FileName} из папки базы знаний.", Path.GetFileName(path));
                 }
+            }
+        }
+    }
+
+    private async Task ImportFileWithRetryAsync(string path, string sourceFileName, CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await ImportFileAsync(path, sourceFileName, cancellationToken);
+                return;
+            }
+            catch (HttpRequestException) when (attempt < EmbeddingRetryCount)
+            {
+                logger.LogWarning(
+                    "Сервис эмбеддингов временно недоступен. Повтор импорта файла {FileName} через {DelaySeconds} с (попытка {Attempt}/{MaxAttempts}).",
+                    Path.GetFileName(path),
+                    EmbeddingRetryDelay.TotalSeconds,
+                    attempt,
+                    EmbeddingRetryCount);
+                await Task.Delay(EmbeddingRetryDelay, cancellationToken);
             }
         }
     }
