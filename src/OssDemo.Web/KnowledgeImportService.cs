@@ -7,13 +7,22 @@ internal sealed class KnowledgeImportService(
     ILogger<KnowledgeImportService> logger) : BackgroundService
 {
     private const long MaxFileSize = 20 * 1024 * 1024;
-    private const int EmbeddingRetryCount = 6;
-    private static readonly TimeSpan EmbeddingRetryDelay = TimeSpan.FromSeconds(10);
+    private readonly SemaphoreSlim _reindexLock = new(1, 1);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken);
+        await ReindexAsync(stoppingToken, force: false);
+    }
 
+    public async Task<RagReindexResult> ReindexAsync(CancellationToken cancellationToken) =>
+        await ReindexAsync(cancellationToken, force: true);
+
+    private async Task<RagReindexResult> ReindexAsync(CancellationToken cancellationToken, bool force)
+    {
+        await _reindexLock.WaitAsync(cancellationToken);
+        try
+        {
         var volumeDirectory = configuration["KnowledgeImport:Directory"] ?? "/data/inbox";
         if (!Directory.Exists(volumeDirectory))
         {
@@ -27,19 +36,24 @@ internal sealed class KnowledgeImportService(
             Path.Combine(AppContext.BaseDirectory, "knowledge-inbox")
         }.Distinct(StringComparer.OrdinalIgnoreCase);
 
+        var result = new RagReindexResult();
+        if (force)
+        {
+            using var scope = serviceProvider.CreateScope();
+            result.ClearedChunkCount = await scope.ServiceProvider.GetRequiredService<RagService>().ClearAsync(cancellationToken);
+        }
+
         foreach (var directory in directories.Where(Directory.Exists))
         {
             foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
             {
-                if (stoppingToken.IsCancellationRequested)
-                {
-                    return;
-                }
+                cancellationToken.ThrowIfCancellationRequested();
 
                 try
                 {
                     var sourceFileName = Path.GetRelativePath(directory, path).Replace(Path.DirectorySeparatorChar, '/');
-                    await ImportFileWithRetryAsync(path, sourceFileName, stoppingToken);
+                    var importResult = await ImportFileAsync(path, sourceFileName, cancellationToken, force);
+                    result.Add(importResult);
                 }
                 catch (RagIngestionException exception)
                 {
@@ -51,44 +65,28 @@ internal sealed class KnowledgeImportService(
                 }
             }
         }
-    }
-
-    private async Task ImportFileWithRetryAsync(string path, string sourceFileName, CancellationToken cancellationToken)
-    {
-        for (var attempt = 1; ; attempt++)
+        return result;
+        }
+        finally
         {
-            try
-            {
-                await ImportFileAsync(path, sourceFileName, cancellationToken);
-                return;
-            }
-            catch (HttpRequestException) when (attempt < EmbeddingRetryCount)
-            {
-                logger.LogWarning(
-                    "Сервис эмбеддингов временно недоступен. Повтор импорта файла {FileName} через {DelaySeconds} с (попытка {Attempt}/{MaxAttempts}).",
-                    Path.GetFileName(path),
-                    EmbeddingRetryDelay.TotalSeconds,
-                    attempt,
-                    EmbeddingRetryCount);
-                await Task.Delay(EmbeddingRetryDelay, cancellationToken);
-            }
+            _reindexLock.Release();
         }
     }
 
-    private async Task ImportFileAsync(string path, string sourceFileName, CancellationToken cancellationToken)
+    private async Task<RagImportResult> ImportFileAsync(string path, string sourceFileName, CancellationToken cancellationToken, bool force)
     {
         var extension = Path.GetExtension(path).ToLowerInvariant();
-        if (extension != ".md")
+        if (extension is not (".pdf" or ".docx" or ".xlsx" or ".html" or ".htm" or ".md" or ".txt" or ".csv" or ".json" or ".jsonl"))
         {
-            logger.LogInformation("Пропущен файл {FileName}: bundled-документы должны быть в формате Markdown.", Path.GetFileName(path));
-            return;
+            logger.LogInformation("Пропущен файл {FileName}: формат не поддерживается RAGify.", Path.GetFileName(path));
+            return RagImportResult.Skipped;
         }
 
         var fileInfo = new FileInfo(path);
         if (fileInfo.Length == 0 || fileInfo.Length > MaxFileSize)
         {
             logger.LogWarning("Пропущен файл {FileName}: размер должен быть от 1 байта до 20 МБ.", fileInfo.Name);
-            return;
+            return RagImportResult.Skipped;
         }
 
         await using var stream = File.OpenRead(path);
@@ -97,10 +95,10 @@ internal sealed class KnowledgeImportService(
 
         using var scope = serviceProvider.CreateScope();
         var ragService = scope.ServiceProvider.GetRequiredService<RagService>();
-        if (await ragService.IsSourceImportedAsync(sourceFileName, sourceHash, cancellationToken))
+        if (!force && await ragService.IsSourceImportedAsync(sourceFileName, sourceHash, cancellationToken))
         {
             logger.LogInformation("Файл {FileName} не изменился, повторный импорт не нужен.", fileInfo.Name);
-            return;
+            return RagImportResult.Skipped;
         }
 
         var formFile = new FormFile(stream, 0, fileInfo.Length, "file", sourceFileName)
@@ -110,6 +108,7 @@ internal sealed class KnowledgeImportService(
         };
         var document = await ragService.IngestAsync(formFile, sourceHash, cancellationToken);
         logger.LogInformation("Файл {FileName} импортирован в базу знаний: {ChunkCount} фрагментов.", fileInfo.Name, document.ChunkCount);
+        return new(true, document.ChunkCount);
     }
 
     private static string ContentTypeFor(string extension) => extension switch
@@ -117,8 +116,37 @@ internal sealed class KnowledgeImportService(
         ".pdf" => "application/pdf",
         ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".html" or ".htm" => "text/html",
+        ".csv" => "text/csv",
+        ".json" or ".jsonl" => "application/json",
         ".txt" => "text/plain",
         ".md" => "text/markdown",
         _ => "application/octet-stream"
     };
+}
+
+internal sealed class RagReindexResult
+{
+    public int ClearedChunkCount { get; set; }
+    public int IndexedFileCount { get; private set; }
+    public int IndexedChunkCount { get; private set; }
+    public int SkippedFileCount { get; private set; }
+
+    public void Add(RagImportResult result)
+    {
+        if (result.Indexed)
+        {
+            IndexedFileCount++;
+            IndexedChunkCount += result.ChunkCount;
+        }
+        else
+        {
+            SkippedFileCount++;
+        }
+    }
+}
+
+internal sealed record RagImportResult(bool Indexed, int ChunkCount)
+{
+    public static RagImportResult Skipped { get; } = new(false, 0);
 }

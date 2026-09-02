@@ -8,11 +8,22 @@
 
   <ItemGroup>
     <PackageReference Include="Npgsql" Version="10.0.1" />
+    <PackageReference Include="RAGify" Version="3.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <Content Include="..\..\knowledge-inbox\**\*">
       <Link>knowledge-inbox\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\..\..\paraphrase-multilingual-MiniLM-L12-v2\onnx\model_O1.onnx">
+      <Link>Models\paraphrase-multilingual-MiniLM-L12-v2\model_O1.onnx</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\..\..\paraphrase-multilingual-MiniLM-L12-v2\tokenizer.json">
+      <Link>Models\paraphrase-multilingual-MiniLM-L12-v2\tokenizer.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
   </ItemGroup>

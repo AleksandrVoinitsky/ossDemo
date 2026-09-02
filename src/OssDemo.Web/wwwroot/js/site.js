@@ -622,7 +622,14 @@
     });
 
     if (!response.ok) {
-      throw new Error(`AI endpoint failed: ${response.status}`);
+      let message = `AI endpoint failed: ${response.status}`;
+      try {
+        const problem = await response.json();
+        message = [problem.title, problem.detail].filter(Boolean).join(': ') || message;
+      } catch (error) {
+        // Неструктурированный ответ прокси не содержит безопасных деталей для показа.
+      }
+      throw new Error(message);
     }
 
     const contentType = response.headers.get('content-type') || '';

@@ -3,6 +3,10 @@ using System.Net.Http.Json;
 using System.Net.Mime;
 using System.Text;
 using System.Text.Json;
+using RAGify;
+using RAGify.Abstractions;
+using RAGify.Core;
+using RAGify.VectorStores;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,21 +17,45 @@ builder.Services.AddHttpClient("AmveraInference", client =>
     client.BaseAddress = new Uri("https://inference.waw0.amvera.ru/");
     client.Timeout = TimeSpan.FromSeconds(60);
 });
-builder.Services.AddHttpClient("Embeddings", client =>
+builder.Services.AddSingleton<IVectorStore>(serviceProvider =>
 {
-    client.Timeout = TimeSpan.FromSeconds(30);
+    var connectionString = builder.Configuration.GetConnectionString("OssDatabase")
+        ?? throw new InvalidOperationException("Не задана строка подключения ConnectionStrings__OssDatabase.");
+    return new PgVectorStore(connectionString, "ragify_vectors", 384, new PgVectorStoreOptions());
 });
-builder.Services.AddHttpClient("Docling", client =>
+builder.Services.AddSingleton<IRagify>(serviceProvider =>
 {
-    client.Timeout = TimeSpan.FromMinutes(5);
+    var modelPath = Path.Combine(AppContext.BaseDirectory, "Models", "paraphrase-multilingual-MiniLM-L12-v2", "model_O1.onnx");
+    if (!File.Exists(modelPath))
+    {
+        throw new FileNotFoundException("Не найден встроенный ONNX-файл модели эмбеддингов.", modelPath);
+    }
+
+    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+    var inferenceToken = configuration["AI:ApiToken"];
+    var ragifyConfiguration = new RagifyConfig()
+        .WithChunking(ChunkingStrategyType.Markdown, new ChunkingOptions
+        {
+            ChunkSize = 1_800,
+            OverlapSize = 200,
+            RespectSentenceBoundaries = true
+        })
+        .WithOnnxEmbeddings(modelPath, dimension: 384)
+        .WithVectorStore(serviceProvider.GetRequiredService<IVectorStore>())
+        .WithLexicalReranker()
+        .WithInMemoryEmbeddingCache(maxEntries: 10_000)
+        .WithLogger(serviceProvider.GetRequiredService<ILogger<RAGify.Ragify>>());
+
+    if (!string.IsNullOrWhiteSpace(inferenceToken))
+    {
+        ragifyConfiguration.WithOpenAIChat(inferenceToken, model: "qwen3_30b", baseUrl: "https://inference.waw0.amvera.ru/");
+    }
+
+    return ragifyConfiguration.Build();
 });
-builder.Services.AddHttpClient("Reranker", client =>
-{
-    client.Timeout = TimeSpan.FromSeconds(10);
-});
-builder.Services.AddSingleton<IRagReranker, ConfiguredRagReranker>();
 builder.Services.AddSingleton<RagService>();
-builder.Services.AddHostedService<KnowledgeImportService>();
+builder.Services.AddSingleton<KnowledgeImportService>();
+builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<KnowledgeImportService>());
 
 var app = builder.Build();
 
@@ -155,84 +183,22 @@ app.MapGet("/api/knowledge/documents/{id:guid}", async (
     }
 });
 app.MapPost("/api/rag/embedding-check", async (
-    IHttpClientFactory httpClientFactory,
-    IConfiguration configuration,
-    ILogger<Program> logger,
+    IRagify ragify,
     CancellationToken cancellationToken) =>
 {
-    var baseUrl = configuration["Embeddings:BaseUrl"];
-    var apiKey = configuration["Embeddings:ApiKey"];
-    var configuredModel = configuration["Embeddings:Model"] ?? "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2";
-
-    if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var serviceUri) || string.IsNullOrWhiteSpace(apiKey))
+    var result = await ragify.QueryAsync("Проверка встроенной ONNX-модели.", new QueryOptions
     {
-        return Results.Problem(
-            title: "Embedding-сервис не настроен",
-            detail: "Задайте Embeddings__BaseUrl и Embeddings__ApiKey в секретах Amvera.",
-            statusCode: StatusCodes.Status503ServiceUnavailable);
-    }
-
-    using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(serviceUri, "embed"))
-    {
-        Content = JsonContent.Create(new { inputs = new[] { "Проверка подключения embedding-сервиса." } })
-    };
-    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-
-    try
-    {
-        using var response = await httpClientFactory.CreateClient("Embeddings").SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            logger.LogWarning("Embedding-сервис вернул статус {StatusCode}.", (int)response.StatusCode);
-            return Results.Problem(title: "Embedding-сервис временно недоступен", statusCode: StatusCodes.Status502BadGateway);
-        }
-
-        await using var content = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var payload = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
-        var root = payload.RootElement;
-        var embeddings = root.GetProperty("embeddings");
-        var vector = embeddings.GetArrayLength() == 1 ? embeddings[0] : default;
-        var dimensions = vector.ValueKind == JsonValueKind.Array ? vector.GetArrayLength() : 0;
-        var validVector = dimensions == 384 && vector.EnumerateArray().All(value =>
-            value.ValueKind == JsonValueKind.Number && double.IsFinite(value.GetDouble()));
-
-        if (!validVector)
-        {
-            logger.LogWarning("Embedding-сервис вернул вектор неожиданной размерности или с некорректными значениями.");
-            return Results.Problem(title: "Embedding-сервис вернул некорректный вектор", statusCode: StatusCodes.Status502BadGateway);
-        }
-
-        var model = root.TryGetProperty("model", out var modelElement) ? modelElement.GetString() : null;
-        if (!string.Equals(model, configuredModel, StringComparison.Ordinal))
-        {
-            logger.LogWarning("Embedding-сервис вернул модель {ActualModel} вместо настроенной {ExpectedModel}.", model, configuredModel);
-            return Results.Problem(title: "Embedding-сервис использует другую модель", statusCode: StatusCodes.Status502BadGateway);
-        }
-
-        return Results.Ok(new { ready = true, model, dimensions });
-    }
-    catch (HttpRequestException exception)
-    {
-        logger.LogError(exception, "Не удалось подключиться к embedding-сервису.");
-        return Results.Problem(title: "Embedding-сервис временно недоступен", statusCode: StatusCodes.Status502BadGateway);
-    }
-    catch (JsonException exception)
-    {
-        logger.LogError(exception, "Embedding-сервис вернул ответ в неожиданном формате.");
-        return Results.Problem(title: "Embedding-сервис вернул некорректный ответ", statusCode: StatusCodes.Status502BadGateway);
-    }
+        Retrieval = new RetrievalOptions { TopK = 1, SimilarityThreshold = -1 }
+    }, cancellationToken);
+    return Results.Ok(new { ready = true, model = RagService.Model, dimensions = 384, matchedChunks = result.Context.Count });
 });
 app.MapPost("/api/ai/chat", async (
     ChatRequest request,
     RagService ragService,
-    IHttpClientFactory httpClientFactory,
-    IConfiguration configuration,
     ILogger<Program> logger,
-    HttpResponse httpResponse,
     CancellationToken cancellationToken) =>
 {
     const int maxMessageLength = 4_000;
-    const int maxConversationMessages = 6;
     const string model = "qwen3_30b";
 
     if (string.IsNullOrWhiteSpace(request.Message) || request.Message.Length > maxMessageLength)
@@ -256,6 +222,39 @@ app.MapPost("/api/ai/chat", async (
         });
     }
 
+    if (string.Equals(request.Message.Trim(), "!reindex", StringComparison.OrdinalIgnoreCase))
+    {
+        try
+        {
+            var importService = app.Services.GetRequiredService<KnowledgeImportService>();
+            var result = await importService.ReindexAsync(cancellationToken);
+            return Results.Ok(new
+            {
+                answer = $"""
+                    ## Переиндексация RAGify завершена
+
+                    Очищено векторов: {result.ClearedChunkCount}.
+                    Проиндексировано файлов: {result.IndexedFileCount}.
+                    Создано фрагментов: {result.IndexedChunkCount}.
+                    Пропущено файлов: {result.SkippedFileCount}.
+
+                    Команда очистила только таблицу `ragify_vectors`. Исторические таблицы предыдущего конвейера не изменялись.
+                    """,
+                grounded = false,
+                sources = Array.Empty<ChatSource>(),
+                mode = "rag-reindex"
+            });
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogError(exception, "Не удалось переиндексировать базу знаний RAGify.");
+            return Results.Problem(
+                title: "Переиндексация базы знаний не выполнена",
+                detail: RagService.DescribeFailure(exception),
+                statusCode: StatusCodes.Status502BadGateway);
+        }
+    }
+
     var rawQuestion = request.Message.Trim();
     if (rawQuestion.StartsWith('!'))
     {
@@ -275,123 +274,40 @@ app.MapPost("/api/ai/chat", async (
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             logger.LogError(exception, "Не удалось выполнить диагностический поиск RAG. Query={Query}", debugQuery);
-            return Results.Problem(title: "Поиск по базе знаний временно недоступен", detail: "Повторите запрос позже.", statusCode: StatusCodes.Status502BadGateway);
+            return Results.Problem(
+                title: "Поиск по базе знаний временно недоступен",
+                detail: RagService.DescribeFailure(exception),
+                statusCode: StatusCodes.Status502BadGateway);
         }
     }
 
-    var apiToken = configuration["AI:ApiToken"];
-    if (string.IsNullOrWhiteSpace(apiToken))
-    {
-        logger.LogError("Не настроен секрет AI__ApiToken для Amvera LLM Inference.");
-        return Results.Problem(
-            title: "ИИ-консультант пока не настроен",
-            detail: "Добавьте секрет AI__ApiToken в переменные Amvera и перезапустите приложение.",
-            statusCode: StatusCodes.Status503ServiceUnavailable);
-    }
-
-    var userQuestion = rawQuestion;
-    // Для диагностики и точного FTS используем дословно текущую реплику, не смешивая её с историей.
-    var ragQuestion = userQuestion;
-    RagSearchResult searchResult = RagSearchResult.Empty;
     try
     {
-        searchResult = await ragService.SearchAsync(ragQuestion, cancellationToken);
+        var result = await ragService.AnswerAsync(rawQuestion, cancellationToken);
+        var sources = result.Context.Select((context, index) => new ChatSource(
+            $"[{index + 1}] {context.Source}",
+            context.Chunk.Text,
+            Math.Round(context.Similarity, 3),
+            false,
+            true,
+            "source"));
+        return Results.Ok(new
+        {
+            answer = result.Answer,
+            grounded = result.Context.Count > 0,
+            sources,
+            model = result.Generation?.Model ?? model
+        });
+    }
+    catch (InvalidOperationException exception)
+    {
+        logger.LogError(exception, "RAGify не смог сгенерировать ответ.");
+        return Results.Problem(title: "ИИ-консультант пока не настроен", detail: "Добавьте секрет AI__ApiToken и перезапустите приложение.", statusCode: StatusCodes.Status503ServiceUnavailable);
     }
     catch (Exception exception) when (exception is not OperationCanceledException)
     {
-        logger.LogWarning(exception, "Не удалось выполнить исходный поиск по базе знаний. Query={Query}", ragQuestion);
-    }
-
-    var matches = searchResult.Matches;
-    var context = string.Join("\n\n", matches.Select((match, index) =>
-        $"[S{index + 1}] Документ: {match.DocumentTitle}\nРаздел: {match.SourceLabel}\nТекст: {match.Text}"));
-    var messages = new List<InferenceMessage>
-    {
-        new("system", ChatPrompt.BuildSystemMessage(
-            context,
-            matches.Count > 0,
-            searchResult.AmbiguousDocuments,
-            null))
-    };
-
-    foreach (var message in request.Conversation
-                 .Where(item => item.Role is "user" or "assistant")
-                 .TakeLast(maxConversationMessages))
-    {
-        if (!string.IsNullOrWhiteSpace(message.Content))
-        {
-            messages.Add(new InferenceMessage(message.Role, message.Content[..Math.Min(message.Content.Length, maxMessageLength)]));
-        }
-    }
-
-    messages.Add(new InferenceMessage("user", userQuestion));
-
-    using var upstreamRequest = new HttpRequestMessage(HttpMethod.Post, "v1/chat/completions")
-    {
-        Content = new StringContent(
-            JsonSerializer.Serialize(new { model, messages, temperature = 0.3, stream = request.Stream }),
-            Encoding.UTF8,
-            MediaTypeNames.Application.Json)
-    };
-    upstreamRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiToken);
-
-    try
-    {
-        using var response = await httpClientFactory.CreateClient("AmveraInference")
-            .SendAsync(upstreamRequest, request.Stream ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead, cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            logger.LogWarning("Amvera LLM Inference вернул статус {StatusCode}.", (int)response.StatusCode);
-            return Results.Problem(
-                title: "Сервис ИИ временно недоступен",
-                detail: "Повторите запрос позже.",
-                statusCode: StatusCodes.Status502BadGateway);
-        }
-
-        var sources = matches.Count > 0
-            ? matches.Select((match, index) => new ChatSource(
-                $"[S{index + 1}] {match.DocumentTitle}, {match.SourceLabel}",
-                match.Text,
-                Math.Round(match.Similarity, 3),
-                match.HasLexicalMatch,
-                match.IsRelevant,
-                "source"))
-            : searchResult.IsAmbiguous
-                ? searchResult.AmbiguousDocuments.Select((title, index) => new ChatSource($"[S{index + 1}] {title}", string.Empty, 0d, false, true, "ambiguous"))
-                : Enumerable.Empty<ChatSource>();
-
-        if (request.Stream)
-        {
-            await ChatStreaming.WriteAsync(httpResponse, response, sources, matches.Count > 0 || searchResult.IsAmbiguous, cancellationToken);
-            return Results.Empty;
-        }
-
-        await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var payload = await JsonDocument.ParseAsync(contentStream, cancellationToken: cancellationToken);
-        var answer = payload.RootElement
-            .GetProperty("choices")[0]
-            .GetProperty("message")
-            .GetProperty("content")
-            .GetString();
-
-        if (string.IsNullOrWhiteSpace(answer))
-        {
-            logger.LogWarning("Amvera LLM Inference вернул пустой ответ.");
-            return Results.Problem(title: "ИИ не вернул ответ", statusCode: StatusCodes.Status502BadGateway);
-        }
-
-        return Results.Ok(new { answer, grounded = matches.Count > 0 || searchResult.IsAmbiguous, sources, model });
-    }
-    catch (HttpRequestException exception)
-    {
-        logger.LogError(exception, "Не удалось подключиться к Amvera LLM Inference.");
-        return Results.Problem(title: "Сервис ИИ временно недоступен", detail: "Повторите запрос позже.", statusCode: StatusCodes.Status502BadGateway);
-    }
-    catch (JsonException exception)
-    {
-        logger.LogError(exception, "Amvera LLM Inference вернул ответ в неожиданном формате.");
-        return Results.Problem(title: "Сервис ИИ вернул некорректный ответ", statusCode: StatusCodes.Status502BadGateway);
+        logger.LogError(exception, "RAGify не смог обработать вопрос.");
+        return Results.Problem(title: "Поиск по базе знаний временно недоступен", detail: RagService.DescribeFailure(exception), statusCode: StatusCodes.Status502BadGateway);
     }
 });
 app.MapRazorPages()
@@ -601,7 +517,7 @@ internal static class RagStatusFormatter
             | Проверка | Состояние |
             | --- | --- |
             | Подключение к PostgreSQL | {database} |
-            | Embedding-сервис | {embeddings} |
+            | Встроенная ONNX-векторизация | {embeddings} |
             | Модель | `{status.Model}` |
             | Документов | {status.DocumentCount} |
             | Проиндексированных фрагментов | {status.ChunkCount} |

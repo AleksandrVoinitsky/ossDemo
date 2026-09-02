@@ -1,765 +1,196 @@
-using System.Globalization;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
-using System.Net.Mime;
-using System.Text.Json;
-using Npgsql;
-using NpgsqlTypes;
+using System.Security.Cryptography;
+using System.Text;
+using RAGify.Abstractions;
+using RAGify.Ingestion;
 
 internal sealed class RagService(
-    IHttpClientFactory httpClientFactory,
+    IRagify ragify,
+    IVectorStore vectorStore,
     IConfiguration configuration,
-    ILogger<RagService> logger,
-    IRagReranker reranker)
+    ILogger<RagService> logger)
 {
-    private const string Model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2";
-    private readonly SemaphoreSlim _initializationLock = new(1, 1);
-    private volatile bool _initialized;
-
-    public async Task InitializeAsync(CancellationToken cancellationToken)
-    {
-        if (_initialized)
-        {
-            return;
-        }
-
-        var connectionString = configuration.GetConnectionString("OssDatabase");
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            logger.LogWarning("RAG не инициализирован: отсутствует ConnectionStrings__OssDatabase.");
-            return;
-        }
-
-        await _initializationLock.WaitAsync(cancellationToken);
-        try
-        {
-            if (_initialized)
-            {
-                return;
-            }
-
-            await using var connection = new NpgsqlConnection(connectionString);
-            await connection.OpenAsync(cancellationToken);
-            await ExecuteAsync(connection, "CREATE EXTENSION IF NOT EXISTS vector;", cancellationToken);
-            await ExecuteAsync(connection, """
-                CREATE TABLE IF NOT EXISTS knowledge_documents (
-                    id uuid PRIMARY KEY,
-                    title text NOT NULL UNIQUE,
-                    source_type text NOT NULL,
-                    status text NOT NULL,
-                    markdown text NULL,
-                    original_file_name text NULL,
-                    content_type text NULL,
-                    size_bytes bigint NULL,
-                    source_hash text NULL,
-                    created_at timestamptz NOT NULL DEFAULT now(),
-                    updated_at timestamptz NOT NULL DEFAULT now()
-                );
-                ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS markdown text NULL;
-                ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS original_file_name text NULL;
-                ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS content_type text NULL;
-                ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS size_bytes bigint NULL;
-                ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS source_hash text NULL;
-                ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS document_kind text NULL;
-                ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS document_number text NULL;
-                ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS issuer text NULL;
-                ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS document_date date NULL;
-                ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS search_text text NULL;
-                CREATE TABLE IF NOT EXISTS knowledge_chunks (
-                    id uuid PRIMARY KEY,
-                    document_id uuid NOT NULL REFERENCES knowledge_documents(id) ON DELETE CASCADE,
-                    ordinal integer NOT NULL,
-                    source_label text NOT NULL,
-                    text text NOT NULL,
-                    embedding vector(384) NOT NULL,
-                    embedding_model text NOT NULL,
-                    created_at timestamptz NOT NULL DEFAULT now(),
-                    UNIQUE(document_id, ordinal)
-                );
-                ALTER TABLE knowledge_chunks ADD COLUMN IF NOT EXISTS search_vector tsvector;
-                UPDATE knowledge_chunks SET search_vector = to_tsvector('simple', text) WHERE search_vector IS NULL;
-                CREATE INDEX IF NOT EXISTS ix_knowledge_chunks_search_vector ON knowledge_chunks USING gin (search_vector);
-                CREATE INDEX IF NOT EXISTS ix_knowledge_documents_requisites
-                    ON knowledge_documents(document_kind, document_number, issuer, document_date)
-                    WHERE status = 'indexed';
-                CREATE INDEX IF NOT EXISTS ix_knowledge_chunks_embedding_hnsw
-                    ON knowledge_chunks USING hnsw (embedding vector_cosine_ops)
-                    WITH (m = 16, ef_construction = 64);
-                CREATE INDEX IF NOT EXISTS ix_knowledge_chunks_document_ordinal
-                    ON knowledge_chunks(document_id, ordinal);
-                UPDATE knowledge_documents d
-                SET markdown = concat('# ', d.title, E'\n\n', c.text),
-                    original_file_name = coalesce(d.original_file_name, concat(d.title, '.md'))
-                FROM knowledge_chunks c
-                WHERE c.document_id = d.id AND c.ordinal = 1 AND d.markdown IS NULL;
-                """, cancellationToken);
-
-            await BackfillDocumentReferencesAsync(connection, cancellationToken);
-
-            _initialized = true;
-            logger.LogInformation("RAG-схема готова.");
-        }
-        finally
-        {
-            _initializationLock.Release();
-        }
-    }
+    internal const string Model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/model_O1.onnx";
 
     public async Task<RagStatus> GetStatusAsync(CancellationToken cancellationToken)
     {
-        var hasDatabase = !string.IsNullOrWhiteSpace(configuration.GetConnectionString("OssDatabase"));
-        var hasEmbeddings = Uri.TryCreate(configuration["Embeddings:BaseUrl"], UriKind.Absolute, out _)
-            && !string.IsNullOrWhiteSpace(configuration["Embeddings:ApiKey"]);
-
-        if (!hasDatabase || !hasEmbeddings)
+        if (string.IsNullOrWhiteSpace(configuration.GetConnectionString("OssDatabase")))
         {
-            var problem = !hasDatabase
-                ? "Не задана строка подключения ConnectionStrings__OssDatabase."
-                : "Не задана конфигурация embedding-сервиса: Embeddings__BaseUrl или Embeddings__ApiKey.";
-            return new(false, hasDatabase, hasEmbeddings, 0, 0, Array.Empty<RagDocumentStatus>(), Model, problem);
+            return new(false, false, true, 0, 0, Array.Empty<RagDocumentStatus>(), Model,
+                "Не задана строка подключения ConnectionStrings__OssDatabase.");
         }
 
         try
         {
-            await InitializeAsync(cancellationToken);
-            await using var connection = new NpgsqlConnection(configuration.GetConnectionString("OssDatabase"));
-            await connection.OpenAsync(cancellationToken);
-            await using var command = new NpgsqlCommand("SELECT count(*) FROM knowledge_chunks;", connection);
-            var chunkCount = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
-            var documents = new List<RagDocumentStatus>();
-            await using var documentsCommand = new NpgsqlCommand("""
-                SELECT d.title, d.source_type, d.status, count(c.id)
-                FROM knowledge_documents d
-                LEFT JOIN knowledge_chunks c ON c.document_id = d.id
-                GROUP BY d.id, d.title, d.source_type, d.status
-                ORDER BY d.title;
-                """, connection);
-            await using var reader = await documentsCommand.ExecuteReaderAsync(cancellationToken);
-            while (await reader.ReadAsync(cancellationToken))
+            var documentIds = await ragify.GetIndexedDocumentsAsync(cancellationToken);
+            var chunkCount = await vectorStore.GetCountAsync(cancellationToken);
+            var documents = new List<RagDocumentStatus>(documentIds.Count);
+            foreach (var documentId in documentIds)
             {
-                documents.Add(new RagDocumentStatus(
-                    reader.GetString(0),
-                    reader.GetString(1),
-                    reader.GetString(2),
-                    reader.GetInt32(3)));
+                var chunks = await ragify.GetChunksAsync(documentId, cancellationToken);
+                documents.Add(new(documentId, "ragify", "indexed", chunks.Count));
             }
 
-            return new(_initialized && chunkCount > 0, true, true, chunkCount, documents.Count, documents, Model, null);
+            return new(chunkCount > 0, true, true, chunkCount, documents.Count, documents, Model, null);
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "Не удалось получить статус RAG.");
-            return new(false, hasDatabase, hasEmbeddings, 0, 0, Array.Empty<RagDocumentStatus>(), Model, DescribeStatusFailure(exception));
+            logger.LogError(exception, "Не удалось получить статус RAGify.");
+            return new(false, true, true, 0, 0, Array.Empty<RagDocumentStatus>(), Model, DescribeFailure(exception));
         }
     }
 
     public async Task<RagSearchResult> SearchAsync(string question, CancellationToken cancellationToken)
     {
-        await InitializeAsync(cancellationToken);
-        if (!_initialized)
+        var result = await ragify.QueryAsync(question, new QueryOptions
         {
-            return RagSearchResult.Empty;
-        }
+            Retrieval = new RetrievalOptions
+            {
+                TopK = 8,
+                SimilarityThreshold = 0.30,
+                EnableDynamicTopK = true,
+                EnableDeduplication = true
+            }
+        }, cancellationToken);
 
-        var reference = DocumentReferenceParser.Parse(question);
-
-        await using var connection = new NpgsqlConnection(configuration.GetConnectionString("OssDatabase"));
-        await connection.OpenAsync(cancellationToken);
-        var exactDocuments = await FindDocumentsByReferenceAsync(connection, reference, cancellationToken);
-        if (reference.HasRequisites && exactDocuments.Count > 1)
-        {
-            logger.LogInformation("RAG: неоднозначные реквизиты Kind={Kind}, Number={Number}, Issuer={Issuer}, Date={Date}, Candidates={CandidateCount}.", reference.Kind, reference.Number, reference.Issuer, reference.Date, exactDocuments.Count);
-            return new(Array.Empty<RagMatch>(), true, exactDocuments.Select(document => document.Title).ToArray());
-        }
-
-        var embedding = await CreateEmbeddingAsync(question, cancellationToken);
-        var vector = ToVectorLiteral(embedding);
-        var exactDocumentId = exactDocuments.Count == 1 ? exactDocuments[0].Id : (Guid?)null;
-        IReadOnlyList<RankedChunk> lexical;
-        try
-        {
-            lexical = await SearchLexicalAsync(connection, question, exactDocumentId, cancellationToken);
-        }
-        catch (NpgsqlException exception)
-        {
-            logger.LogWarning(exception, "RAG: полнотекстовый поиск недоступен; использован векторный поиск. Route={Route}, Kind={Kind}, Number={Number}.", exactDocumentId is null ? "hybrid_rrf" : "exact_document_hybrid", reference.Kind, reference.Number);
-            lexical = Array.Empty<RankedChunk>();
-        }
-
-        var semantic = await SearchSemanticAsync(connection, vector, exactDocumentId, cancellationToken);
-        var fused = ReciprocalRankFusion.Merge(lexical, semantic, take: 8);
-        var reranked = await reranker.RerankAsync(question, fused, cancellationToken) ?? fused;
-        var matches = reranked
-            .Take(8)
-            .Select(chunk => new RagMatch(
-                chunk.DocumentTitle,
-                chunk.SourceLabel,
-                chunk.Text,
-                chunk.SemanticSimilarity,
-                chunk.LexicalScore > 0,
-                exactDocumentId is not null,
-                chunk.Score))
+        var matches = result.Context
+            .Select(context => new RagMatch(
+                context.Source ?? "Документ",
+                context.Chunk.Metadata.TryGetValue("heading", out var heading) ? heading?.ToString() ?? "Документ" : "Документ",
+                context.Chunk.Text,
+                context.Similarity,
+                false,
+                false,
+                context.Similarity))
             .ToArray();
-        logger.LogInformation("RAG: route={Route}, Kind={Kind}, Number={Number}, Issuer={Issuer}, ExactCandidates={ExactCandidates}, FtsCandidates={FtsCandidates}, VectorCandidates={VectorCandidates}, ReturnedChunks={ReturnedChunks}, RelevantChunks={RelevantChunks}.", exactDocumentId is null ? "hybrid_rrf" : "exact_document_hybrid", reference.Kind, reference.Number, reference.Issuer, exactDocuments.Count, lexical.Count, semantic.Count, matches.Length, matches.Count(match => match.IsRelevant));
         return new(matches, false, Array.Empty<string>());
     }
 
-    private static async Task<IReadOnlyList<ReferencedDocument>> FindDocumentsByReferenceAsync(NpgsqlConnection connection, DocumentReference reference, CancellationToken cancellationToken)
-    {
-        if (!reference.HasRequisites)
+    public Task<QueryResult> AnswerAsync(string question, CancellationToken cancellationToken) =>
+        ragify.AnswerAsync(question, new QueryOptions
         {
-            return Array.Empty<ReferencedDocument>();
-        }
+            Retrieval = new RetrievalOptions
+            {
+                TopK = 6,
+                SimilarityThreshold = 0.30,
+                EnableDynamicTopK = true,
+                EnableDeduplication = true
+            },
+            Generation = new GenerationOptions
+            {
+                SystemPrompt = """
+                    Ты ИИ-консультант АИ ООС. Отвечай только по найденным фрагментам базы знаний.
+                    Не придумывай документы, требования, статьи, сроки или факты. Если источников недостаточно,
+                    прямо сообщи об этом. Каждое фактическое утверждение сопровождай ссылкой на источник в формате [1], [2].
+                    """,
+                Temperature = 0.2,
+                IncludeCitations = true
+            }
+        }, cancellationToken);
 
-        await using var command = new NpgsqlCommand("""
-            SELECT id, title
-            FROM knowledge_documents
-            WHERE status = 'indexed'
-              AND (@kind IS NULL OR document_kind = @kind)
-              AND (@number IS NULL OR document_number = @number)
-              AND (@issuer IS NULL OR issuer = @issuer)
-              AND (@date IS NULL OR document_date = @date)
-            ORDER BY updated_at DESC
-            LIMIT 10;
-            """, connection);
-        AddReferenceParameters(command, reference);
-        var documents = new List<ReferencedDocument>();
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken)) documents.Add(new(reader.GetGuid(0), reader.GetString(1)));
-        return documents;
+    public async Task<int> ClearAsync(CancellationToken cancellationToken)
+    {
+        var chunkCount = await vectorStore.GetCountAsync(cancellationToken);
+        await ragify.ClearAsync(cancellationToken);
+        logger.LogInformation("Очищено векторов RAGify: {ChunkCount}.", chunkCount);
+        return chunkCount;
     }
 
-    private static async Task<IReadOnlyList<RankedChunk>> SearchLexicalAsync(NpgsqlConnection connection, string query, Guid? documentId, CancellationToken cancellationToken)
+    public async Task<bool> IsSourceImportedAsync(string sourceFileName, string sourceHash, CancellationToken cancellationToken)
     {
-        await using var command = new NpgsqlCommand("""
-            SELECT c.id, d.title, c.source_label, c.text,
-                   ts_rank_cd(c.search_vector, websearch_to_tsquery('simple', @query))
-            FROM knowledge_chunks c
-            JOIN knowledge_documents d ON d.id = c.document_id
-            WHERE d.status = 'indexed'
-              AND (@documentId IS NULL OR c.document_id = @documentId)
-              AND c.search_vector @@ websearch_to_tsquery('simple', @query)
-            ORDER BY ts_rank_cd(c.search_vector, websearch_to_tsquery('simple', @query)) DESC
-            LIMIT 20;
-            """, connection);
-        command.Parameters.AddWithValue("documentId", (object?)documentId ?? DBNull.Value);
-        command.Parameters.AddWithValue("query", query);
-        return await ReadRankedChunksAsync(command, hasLexicalScore: true, cancellationToken);
-    }
-
-    private static async Task<IReadOnlyList<RankedChunk>> SearchSemanticAsync(NpgsqlConnection connection, string vector, Guid? documentId, CancellationToken cancellationToken)
-    {
-        await using var command = new NpgsqlCommand("""
-            SELECT c.id, d.title, c.source_label, c.text,
-                   1 - (c.embedding <=> CAST(@embedding AS vector)) AS similarity
-            FROM knowledge_chunks c
-            JOIN knowledge_documents d ON d.id = c.document_id
-            WHERE d.status = 'indexed'
-              AND c.embedding_model = @model
-              AND (@documentId IS NULL OR c.document_id = @documentId)
-            ORDER BY c.embedding <=> CAST(@embedding AS vector)
-            LIMIT 20;
-            """, connection);
-        command.Parameters.AddWithValue("documentId", (object?)documentId ?? DBNull.Value);
-        command.Parameters.AddWithValue("embedding", vector);
-        command.Parameters.AddWithValue("model", Model);
-        return await ReadRankedChunksAsync(command, hasLexicalScore: false, cancellationToken);
-    }
-
-    private static async Task<IReadOnlyList<RankedChunk>> ReadRankedChunksAsync(NpgsqlCommand command, bool hasLexicalScore, CancellationToken cancellationToken)
-    {
-        var chunks = new List<RankedChunk>();
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            var signal = reader.GetDouble(4);
-            chunks.Add(new(
-                reader.GetGuid(0),
-                reader.GetString(1),
-                reader.GetString(2),
-                reader.GetString(3),
-                0,
-                hasLexicalScore ? 0 : signal,
-                hasLexicalScore ? signal : 0));
-        }
-        return chunks;
-    }
-
-    private static async Task BackfillDocumentReferencesAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
-    {
-        var documents = new List<(Guid Id, string Title, string? FileName)>();
-        await using (var select = new NpgsqlCommand("SELECT id, title, original_file_name FROM knowledge_documents WHERE document_kind IS NULL OR search_text IS NULL;", connection))
-        await using (var reader = await select.ExecuteReaderAsync(cancellationToken))
-        {
-            while (await reader.ReadAsync(cancellationToken)) documents.Add((reader.GetGuid(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2)));
-        }
-
-        foreach (var document in documents)
-        {
-            var reference = DocumentReferenceParser.Parse($"{document.Title} {Path.GetFileNameWithoutExtension(document.FileName ?? string.Empty)}");
-            await using var update = new NpgsqlCommand("""
-                UPDATE knowledge_documents
-                SET document_kind = @kind, document_number = @number, issuer = @issuer, document_date = @date,
-                    search_text = lower(concat_ws(' ', title, original_file_name, @kind, @number, @issuer))
-                WHERE id = @id;
-                """, connection);
-            AddReferenceParameters(update, reference);
-            update.Parameters.AddWithValue("id", document.Id);
-            await update.ExecuteNonQueryAsync(cancellationToken);
-        }
-    }
-
-    private static void AddReferenceParameters(NpgsqlCommand command, DocumentReference reference)
-    {
-        command.Parameters.Add("kind", NpgsqlDbType.Text).Value = (object?)reference.Kind ?? DBNull.Value;
-        command.Parameters.Add("number", NpgsqlDbType.Text).Value = (object?)reference.Number ?? DBNull.Value;
-        command.Parameters.Add("issuer", NpgsqlDbType.Text).Value = (object?)reference.Issuer ?? DBNull.Value;
-        command.Parameters.Add("date", NpgsqlDbType.Date).Value = (object?)reference.Date ?? DBNull.Value;
-    }
-
-    public async Task<IReadOnlyList<KnowledgeDocumentSummary>> GetKnowledgeDocumentsAsync(CancellationToken cancellationToken)
-    {
-        await InitializeAsync(cancellationToken);
-        if (!_initialized)
-        {
-            return Array.Empty<KnowledgeDocumentSummary>();
-        }
-
-        await using var connection = new NpgsqlConnection(configuration.GetConnectionString("OssDatabase"));
-        await connection.OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("""
-            SELECT d.id, d.title, d.source_type, d.status, d.original_file_name, d.updated_at, d.size_bytes, count(c.id)
-            FROM knowledge_documents d
-            LEFT JOIN knowledge_chunks c ON c.document_id = d.id
-            WHERE d.markdown IS NOT NULL
-            GROUP BY d.id, d.title, d.source_type, d.status, d.original_file_name, d.updated_at, d.size_bytes
-            ORDER BY d.updated_at DESC, d.title;
-            """, connection);
-
-        var documents = new List<KnowledgeDocumentSummary>();
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            documents.Add(new KnowledgeDocumentSummary(
-                reader.GetGuid(0),
-                reader.GetString(1),
-                reader.GetString(2),
-                reader.GetString(3),
-                reader.IsDBNull(4) ? null : reader.GetString(4),
-                reader.GetFieldValue<DateTimeOffset>(5),
-                reader.IsDBNull(6) ? null : reader.GetInt64(6),
-                reader.GetInt32(7)));
-        }
-
-        return documents;
-    }
-
-    public async Task<KnowledgeDocumentContent?> GetKnowledgeDocumentAsync(Guid id, CancellationToken cancellationToken)
-    {
-        await InitializeAsync(cancellationToken);
-        if (!_initialized)
-        {
-            return null;
-        }
-
-        await using var connection = new NpgsqlConnection(configuration.GetConnectionString("OssDatabase"));
-        await connection.OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("""
-            SELECT d.id, d.title, d.source_type, d.status, d.original_file_name, d.updated_at, d.size_bytes, d.markdown, count(c.id)
-            FROM knowledge_documents d
-            LEFT JOIN knowledge_chunks c ON c.document_id = d.id
-            WHERE d.id = @id AND d.markdown IS NOT NULL
-            GROUP BY d.id, d.title, d.source_type, d.status, d.original_file_name, d.updated_at, d.size_bytes, d.markdown;
-            """, connection);
-        command.Parameters.AddWithValue("id", id);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken))
-        {
-            return null;
-        }
-
-        return new KnowledgeDocumentContent(
-            reader.GetGuid(0),
-            reader.GetString(1),
-            reader.GetString(2),
-            reader.GetString(3),
-            reader.IsDBNull(4) ? null : reader.GetString(4),
-            reader.GetFieldValue<DateTimeOffset>(5),
-            reader.IsDBNull(6) ? null : reader.GetInt64(6),
-            reader.GetString(7),
-            reader.GetInt32(8));
-    }
-
-    public async Task<bool> IsSourceImportedAsync(string fileName, string sourceHash, CancellationToken cancellationToken)
-    {
-        await InitializeAsync(cancellationToken);
-        if (!_initialized)
+        var documentId = CreateDocumentId(sourceFileName).ToString("N");
+        var indexedDocumentIds = await ragify.GetIndexedDocumentsAsync(cancellationToken);
+        if (!indexedDocumentIds.Contains(documentId, StringComparer.Ordinal))
         {
             return false;
         }
 
-        await using var connection = new NpgsqlConnection(configuration.GetConnectionString("OssDatabase"));
-        await connection.OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("""
-            SELECT EXISTS (
-                SELECT 1 FROM knowledge_documents
-                WHERE original_file_name = @fileName AND source_hash = @sourceHash AND status = 'indexed'
-            );
-            """, connection);
-        command.Parameters.AddWithValue("fileName", fileName);
-        command.Parameters.AddWithValue("sourceHash", sourceHash);
-        return (bool)(await command.ExecuteScalarAsync(cancellationToken) ?? false);
+        var chunks = await ragify.GetChunksAsync(documentId, cancellationToken);
+        return chunks.Count > 0
+            && chunks[0].Metadata.TryGetValue("sourceHash", out var indexedHash)
+            && string.Equals(indexedHash?.ToString(), sourceHash, StringComparison.Ordinal);
     }
 
     public async Task<KnowledgeDocumentSummary> IngestAsync(IFormFile file, string? sourceHash, CancellationToken cancellationToken)
     {
-        const long maxFileSize = 20 * 1024 * 1024;
-        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
         if (file.Length == 0)
         {
-            throw new RagIngestionException(StatusCodes.Status400BadRequest, "Выберите непустой файл.");
+            throw new RagIngestionException(StatusCodes.Status400BadRequest, "Файл не содержит данных.");
         }
 
-        if (file.Length > maxFileSize)
+        var sourceFileName = file.FileName.Replace('\\', '/');
+        var documentId = CreateDocumentId(sourceFileName);
+        var ragifyDocumentId = documentId.ToString("N");
+        var metadata = new Dictionary<string, object>
         {
-            throw new RagIngestionException(StatusCodes.Status400BadRequest, "Размер файла не должен превышать 20 МБ.");
-        }
-
-        if (extension is not ".pdf" and not ".docx" and not ".xlsx" and not ".txt" and not ".md")
-        {
-            throw new RagIngestionException(StatusCodes.Status400BadRequest, "Поддерживаются файлы PDF, DOCX, XLSX, TXT и Markdown.");
-        }
-
-        var title = Path.GetFileNameWithoutExtension(file.FileName).Trim();
-        if (string.IsNullOrWhiteSpace(title))
-        {
-            throw new RagIngestionException(StatusCodes.Status400BadRequest, "У файла должно быть имя.");
-        }
-        var reference = DocumentReferenceParser.Parse($"{title} {Path.GetFileNameWithoutExtension(file.FileName)}");
-
-        var markdown = extension is ".txt" or ".md"
-            ? await ReadPlainTextAsync(file, cancellationToken)
-            : await ConvertToMarkdownAsync(file, cancellationToken);
-        var chunks = SplitMarkdown(markdown);
-        if (chunks.Count == 0)
-        {
-            throw new RagIngestionException(StatusCodes.Status422UnprocessableEntity, "Файл не содержит текста для индексации.");
-        }
-
-        await InitializeAsync(cancellationToken);
-        if (!_initialized)
-        {
-            throw new RagIngestionException(StatusCodes.Status503ServiceUnavailable, "База знаний не настроена.");
-        }
-
-        var embeddings = new List<float[]>(chunks.Count);
-        foreach (var chunk in chunks)
-        {
-            embeddings.Add(await CreateEmbeddingAsync(chunk.Text, cancellationToken));
-        }
-
-        await using var connection = new NpgsqlConnection(configuration.GetConnectionString("OssDatabase"));
-        await connection.OpenAsync(cancellationToken);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        Guid documentId;
-        await using (var findDocument = new NpgsqlCommand("SELECT id FROM knowledge_documents WHERE title = @title;", connection, transaction))
-        {
-            findDocument.Parameters.AddWithValue("title", title);
-            var existing = await findDocument.ExecuteScalarAsync(cancellationToken);
-            documentId = existing is Guid existingId ? existingId : Guid.NewGuid();
-        }
-
-        await using (var upsertDocument = new NpgsqlCommand("""
-            INSERT INTO knowledge_documents (id, title, source_type, status, markdown, original_file_name, content_type, size_bytes, source_hash, document_kind, document_number, issuer, document_date, search_text)
-            VALUES (@id, @title, 'volume', 'indexed', @markdown, @fileName, @contentType, @sizeBytes, @sourceHash, @kind, @number, @issuer, @date, @searchText)
-            ON CONFLICT (title) DO UPDATE SET
-                source_type = 'volume',
-                status = EXCLUDED.status,
-                markdown = EXCLUDED.markdown,
-                original_file_name = EXCLUDED.original_file_name,
-                content_type = EXCLUDED.content_type,
-                size_bytes = EXCLUDED.size_bytes,
-                source_hash = EXCLUDED.source_hash,
-                document_kind = EXCLUDED.document_kind,
-                document_number = EXCLUDED.document_number,
-                issuer = EXCLUDED.issuer,
-                document_date = EXCLUDED.document_date,
-                search_text = EXCLUDED.search_text,
-                updated_at = now();
-            """, connection, transaction))
-        {
-            upsertDocument.Parameters.AddWithValue("id", documentId);
-            upsertDocument.Parameters.AddWithValue("title", title);
-            upsertDocument.Parameters.AddWithValue("markdown", markdown);
-            upsertDocument.Parameters.AddWithValue("fileName", file.FileName);
-            upsertDocument.Parameters.AddWithValue("contentType", string.IsNullOrWhiteSpace(file.ContentType) ? MediaTypeNames.Application.Octet : file.ContentType);
-            upsertDocument.Parameters.AddWithValue("sizeBytes", file.Length);
-            upsertDocument.Parameters.AddWithValue("sourceHash", (object?)sourceHash ?? DBNull.Value);
-            AddReferenceParameters(upsertDocument, reference);
-            upsertDocument.Parameters.AddWithValue("searchText", $"{title} {file.FileName} {reference.Kind} {reference.Number} {reference.Issuer}".ToLowerInvariant());
-            await upsertDocument.ExecuteNonQueryAsync(cancellationToken);
-        }
-
-        await using (var deleteChunks = new NpgsqlCommand("DELETE FROM knowledge_chunks WHERE document_id = @documentId;", connection, transaction))
-        {
-            deleteChunks.Parameters.AddWithValue("documentId", documentId);
-            await deleteChunks.ExecuteNonQueryAsync(cancellationToken);
-        }
-
-        for (var index = 0; index < chunks.Count; index++)
-        {
-            await using var insertChunk = new NpgsqlCommand("""
-                INSERT INTO knowledge_chunks (id, document_id, ordinal, source_label, text, embedding, embedding_model, search_vector)
-                VALUES (@id, @documentId, @ordinal, @sourceLabel, @text, CAST(@embedding AS vector), @model, to_tsvector('simple', @text));
-                """, connection, transaction);
-            insertChunk.Parameters.AddWithValue("id", Guid.NewGuid());
-            insertChunk.Parameters.AddWithValue("documentId", documentId);
-            insertChunk.Parameters.AddWithValue("ordinal", index + 1);
-            insertChunk.Parameters.AddWithValue("sourceLabel", chunks[index].SourceLabel);
-            insertChunk.Parameters.AddWithValue("text", chunks[index].Text);
-            insertChunk.Parameters.AddWithValue("embedding", ToVectorLiteral(embeddings[index]));
-            insertChunk.Parameters.AddWithValue("model", Model);
-            await insertChunk.ExecuteNonQueryAsync(cancellationToken);
-        }
-
-        await transaction.CommitAsync(cancellationToken);
-        logger.LogInformation("Импортирован и проиндексирован документ {Title}: {ChunkCount} фрагментов.", title, chunks.Count);
-        return new KnowledgeDocumentSummary(documentId, title, "volume", "indexed", file.FileName, DateTimeOffset.UtcNow, file.Length, chunks.Count);
-    }
-
-    private async Task<string> ConvertToMarkdownAsync(IFormFile file, CancellationToken cancellationToken)
-    {
-        var baseUrl = configuration["Docling:BaseUrl"];
-        var apiKey = configuration["Docling:ApiKey"];
-        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var serviceUri) || string.IsNullOrWhiteSpace(apiKey))
-        {
-            throw new RagIngestionException(StatusCodes.Status503ServiceUnavailable, "Сервис преобразования документов не настроен.");
-        }
-
-        using var form = new MultipartFormDataContent();
-        await using var fileStream = file.OpenReadStream();
-        using var fileContent = new StreamContent(fileStream);
-        fileContent.Headers.ContentType = new MediaTypeHeaderValue(string.IsNullOrWhiteSpace(file.ContentType)
-            ? MediaTypeNames.Application.Octet
-            : file.ContentType);
-        form.Add(fileContent, "files", Path.GetFileName(file.FileName));
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(serviceUri, "v1/convert/file"))
-        {
-            Content = form
+            ["sourceHash"] = sourceHash ?? string.Empty,
+            ["fileName"] = sourceFileName,
+            ["heading"] = Path.GetFileNameWithoutExtension(sourceFileName)
         };
-        request.Headers.Add("X-Api-Key", apiKey);
 
-        using var response = await httpClientFactory.CreateClient("Docling").SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            logger.LogWarning("Docling вернул статус {StatusCode} для файла {FileName}.", (int)response.StatusCode, Path.GetFileName(file.FileName));
-            throw new RagIngestionException(StatusCodes.Status502BadGateway, "Docling не смог преобразовать файл. Проверьте формат и повторите попытку.");
+            await vectorStore.DeleteByDocumentIdAsync(ragifyDocumentId, cancellationToken);
+            await using var stream = file.OpenReadStream();
+            var document = await DocumentIngestionService.CreateDefault().IngestFromStreamAsync(
+                stream,
+                sourceFileName,
+                ragifyDocumentId,
+                file.ContentType,
+                metadata,
+                cancellationToken);
+            await ragify.IngestAsync(document, cancellationToken);
+            var chunks = await ragify.GetChunksAsync(ragifyDocumentId, cancellationToken);
+            logger.LogInformation("RAGify проиндексировал документ {DocumentId}: {ChunkCount} фрагментов.", ragifyDocumentId, chunks.Count);
+            return new(documentId, Path.GetFileNameWithoutExtension(sourceFileName), "ragify", "indexed", sourceFileName,
+                DateTimeOffset.UtcNow, file.Length, chunks.Count);
         }
-
-        await using var content = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var payload = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
-        var root = payload.RootElement;
-        var status = root.TryGetProperty("status", out var statusElement) ? statusElement.GetString() : null;
-        var document = root.TryGetProperty("document", out var documentElement)
-            ? documentElement
-            : root.TryGetProperty("content", out var legacyDocumentElement) ? legacyDocumentElement : default;
-        var markdown = document.ValueKind == JsonValueKind.Object && document.TryGetProperty("md_content", out var markdownElement)
-            ? markdownElement.GetString()
-            : null;
-
-        if (!string.Equals(status, "success", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(markdown))
+        catch (RagIngestionException)
         {
-            logger.LogWarning("Docling не вернул Markdown для файла {FileName}; статус {Status}.", Path.GetFileName(file.FileName), status);
-            throw new RagIngestionException(StatusCodes.Status422UnprocessableEntity, "Docling не вернул Markdown для этого файла.");
+            throw;
         }
-
-        return markdown.Trim();
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "RAGify не смог проиндексировать файл {FileName}.", sourceFileName);
+            throw new RagIngestionException(StatusCodes.Status422UnprocessableEntity, "RAGify не смог извлечь или проиндексировать содержимое файла.");
+        }
     }
 
-    private static async Task<string> ReadPlainTextAsync(IFormFile file, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<KnowledgeDocumentSummary>> GetKnowledgeDocumentsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<KnowledgeDocumentSummary>>(Array.Empty<KnowledgeDocumentSummary>());
+
+    public Task<KnowledgeDocumentContent?> GetKnowledgeDocumentAsync(Guid id, CancellationToken cancellationToken) =>
+        Task.FromResult<KnowledgeDocumentContent?>(null);
+
+    internal static string DescribeFailure(Exception exception) => exception switch
     {
-        await using var stream = file.OpenReadStream();
-        using var reader = new StreamReader(stream, detectEncodingFromByteOrderMarks: true);
-        return (await reader.ReadToEndAsync(cancellationToken)).Trim();
-    }
-
-    private static List<MarkdownChunk> SplitMarkdown(string markdown)
-    {
-        const int maxChunkLength = 1_800;
-        var chunks = new List<MarkdownChunk>();
-        var buffer = new List<string>();
-        var length = 0;
-        var sourceLabel = "Документ";
-
-        void Flush()
-        {
-            var text = string.Join("\n", buffer).Trim();
-            if (!string.IsNullOrWhiteSpace(text))
-            {
-                chunks.Add(new MarkdownChunk(sourceLabel, text));
-            }
-
-            buffer.Clear();
-            length = 0;
-        }
-
-        foreach (var rawLine in markdown.Replace("\r\n", "\n").Split('\n'))
-        {
-            var line = rawLine.TrimEnd();
-            if (line.StartsWith('#'))
-            {
-                var heading = line.TrimStart('#', ' ').Trim();
-                if (!string.IsNullOrWhiteSpace(heading))
-                {
-                    if (length > maxChunkLength / 2)
-                    {
-                        Flush();
-                    }
-
-                    sourceLabel = heading;
-                }
-            }
-
-            if (length > 0 && length + line.Length + 1 > maxChunkLength)
-            {
-                Flush();
-            }
-
-            if (line.Length > maxChunkLength)
-            {
-                for (var start = 0; start < line.Length; start += maxChunkLength)
-                {
-                    var partLength = Math.Min(maxChunkLength, line.Length - start);
-                    buffer.Add(line.Substring(start, partLength));
-                    Flush();
-                }
-                continue;
-            }
-
-            buffer.Add(line);
-            length += line.Length + 1;
-        }
-
-        Flush();
-        return chunks;
-    }
-
-    private async Task<float[]> CreateEmbeddingAsync(string text, CancellationToken cancellationToken)
-    {
-        var baseUrl = configuration["Embeddings:BaseUrl"];
-        var apiKey = configuration["Embeddings:ApiKey"];
-        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var serviceUri) || string.IsNullOrWhiteSpace(apiKey))
-        {
-            throw new InvalidOperationException("Embedding-сервис не настроен.");
-        }
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(serviceUri, "embed"))
-        {
-            Content = JsonContent.Create(new { inputs = new[] { text } })
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-
-        using var response = await httpClientFactory.CreateClient("Embeddings").SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        await using var content = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var payload = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
-        var root = payload.RootElement;
-        var responseModel = root.GetProperty("model").GetString();
-        var values = root.GetProperty("embeddings")[0].EnumerateArray().Select(value => value.GetSingle()).ToArray();
-
-        if (!string.Equals(responseModel, Model, StringComparison.Ordinal) || values.Length != 384 || values.Any(value => !float.IsFinite(value)))
-        {
-            throw new InvalidOperationException("Embedding-сервис вернул модель или вектор в неожиданном формате.");
-        }
-
-        return values;
-    }
-
-    private static async Task ExecuteAsync(NpgsqlConnection connection, string sql, CancellationToken cancellationToken)
-    {
-        await using var command = new NpgsqlCommand(sql, connection);
-        await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-    private static string ToVectorLiteral(IEnumerable<float> values) =>
-        $"[{string.Join(',', values.Select(value => value.ToString("R", CultureInfo.InvariantCulture)))}]";
-
-    private static string DescribeStatusFailure(Exception exception) => exception switch
-    {
-        PostgresException { SqlState: "42501" } => "У пользователя PostgreSQL недостаточно прав для создания расширения vector или таблиц базы знаний.",
-        PostgresException { SqlState: "0A000" } => "Расширение pgvector недоступно в этом экземпляре PostgreSQL.",
-        PostgresException { SqlState: "3D000" } => "База данных из строки подключения не найдена.",
-        PostgresException => "PostgreSQL отклонил запрос инициализации. Проверьте журнал ossDemo.",
-        NpgsqlException => "Не удалось подключиться к PostgreSQL. Проверьте внутренний хост, имя базы, пользователя и пароль.",
-        ArgumentException => "Строка подключения PostgreSQL имеет неверный формат. Если пароль содержит ;, кавычку или пробел, заключите значение Password в двойные кавычки и экранируйте двойную кавычку повтором.",
-        HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized } => "Embedding-сервис ответил 401: ключ Embeddings__ApiKey не совпадает с EMBEDDINGS_API_KEY в minilm.",
-        HttpRequestException { StatusCode: System.Net.HttpStatusCode.ServiceUnavailable } => "Embedding-сервис ответил 503: minilm ещё загружает модель либо не запущен.",
-        HttpRequestException { StatusCode: not null } httpException => $"Embedding-сервис ответил HTTP {(int)httpException.StatusCode.Value}. Проверьте журнал minilm.",
-        HttpRequestException => "Не удалось установить соединение с embedding-сервисом. Проверьте, что minilm запущен и использует внутренний адрес Amvera.",
-        JsonException => "Embedding-сервис вернул ответ в неожиданном формате.",
-        InvalidOperationException => "Embedding-сервис не настроен либо вернул вектор с неверной моделью или размерностью.",
-        _ => "Ошибка инициализации RAG неизвестного типа. Проверьте журнал ossDemo."
+        Npgsql.NpgsqlException => "Не удалось подключиться к PostgreSQL. Проверьте внутренний хост, имя базы, пользователя и пароль.",
+        InvalidOperationException => "RAGify не инициализирован. Проверьте встроенную ONNX-модель и конфигурацию PostgreSQL.",
+        _ => "Ошибка RAGify. Проверьте журнал ossDemo."
     };
 
-    private sealed record MarkdownChunk(string SourceLabel, string Text);
-    private sealed record ReferencedDocument(Guid Id, string Title);
+    private static Guid CreateDocumentId(string sourceFileName)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(sourceFileName.ToLowerInvariant()));
+        return new Guid(hash[..16]);
+    }
 }
 
-internal sealed record RagMatch(
-    string DocumentTitle,
-    string SourceLabel,
-    string Text,
-    double Similarity,
-    bool HasLexicalMatch,
-    bool IsExactDocumentMatch,
-    double RankingScore)
+internal sealed record RagMatch(string DocumentTitle, string SourceLabel, string Text, double Similarity, bool HasLexicalMatch, bool IsExactDocumentMatch, double RankingScore)
 {
-    // Пороги намеренно консервативны: одно общее слово из FTS не делает фрагмент источником для ответа.
-    public const double MinimumSemanticSimilarity = 0.45;
-    public const double MinimumHybridSimilarity = 0.30;
-
-    public bool IsRelevant => IsExactDocumentMatch || HasSufficientSignal(Similarity, HasLexicalMatch);
-
-    public static bool HasSufficientSignal(double similarity, bool hasLexicalMatch) =>
-        similarity >= MinimumSemanticSimilarity || (hasLexicalMatch && similarity >= MinimumHybridSimilarity);
+    public bool IsRelevant => Similarity >= 0.30;
 }
+
 internal sealed record RagSearchResult(IReadOnlyList<RagMatch> Matches, bool IsAmbiguous, IReadOnlyList<string> AmbiguousDocuments)
 {
     public static RagSearchResult Empty { get; } = new(Array.Empty<RagMatch>(), false, Array.Empty<string>());
-
-    public bool HasRelevantMatches => Matches.Any(match => match.IsRelevant);
 }
+
 internal sealed record RagDocumentStatus(string Title, string SourceType, string Status, int ChunkCount);
-internal sealed record KnowledgeDocumentSummary(
-    Guid Id,
-    string Title,
-    string SourceType,
-    string Status,
-    string? OriginalFileName,
-    DateTimeOffset UpdatedAt,
-    long? SizeBytes,
-    int ChunkCount);
-internal sealed record KnowledgeDocumentContent(
-    Guid Id,
-    string Title,
-    string SourceType,
-    string Status,
-    string? OriginalFileName,
-    DateTimeOffset UpdatedAt,
-    long? SizeBytes,
-    string Markdown,
-    int ChunkCount);
+internal sealed record KnowledgeDocumentSummary(Guid Id, string Title, string SourceType, string Status, string? OriginalFileName, DateTimeOffset UpdatedAt, long? SizeBytes, int ChunkCount);
+internal sealed record KnowledgeDocumentContent(Guid Id, string Title, string SourceType, string Status, string? OriginalFileName, DateTimeOffset UpdatedAt, long? SizeBytes, string Markdown, int ChunkCount);
 internal sealed class RagIngestionException(int statusCode, string message) : Exception(message)
 {
     public int StatusCode { get; } = statusCode;
 }
-internal sealed record RagStatus(
-    bool Ready,
-    bool DatabaseConfigured,
-    bool EmbeddingsConfigured,
-    int ChunkCount,
-    int DocumentCount,
-    IReadOnlyList<RagDocumentStatus> Documents,
-    string Model,
-    string? Problem);
+
+internal sealed record RagStatus(bool Ready, bool DatabaseConfigured, bool EmbeddingsConfigured, int ChunkCount, int DocumentCount, IReadOnlyList<RagDocumentStatus> Documents, string Model, string? Problem);

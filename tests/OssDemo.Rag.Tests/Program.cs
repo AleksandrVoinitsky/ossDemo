@@ -1,54 +1,14 @@
-var resolution = DocumentReferenceParser.Parse("постановление 373");
-AssertEqual("government_resolution", resolution.Kind);
-AssertEqual("373", resolution.Number);
-
-var governmentResolution = DocumentReferenceParser.Parse("Что за постановление Правительства РФ № 373?");
-AssertEqual("government_resolution", governmentResolution.Kind);
-AssertEqual("373", governmentResolution.Number);
-AssertEqual("Правительство РФ", governmentResolution.Issuer);
-
-var bareNumber = DocumentReferenceParser.Parse("373");
-AssertEqual("373", bareNumber.Number);
-AssertTrue(bareNumber.HasRequisites);
-
-var gost = DocumentReferenceParser.Parse("ГОСТ Р 54104-2010");
-AssertEqual("gost", gost.Kind);
-AssertEqual("54104-2010", gost.Number);
-
-var order = DocumentReferenceParser.Parse("Приказ Минприроды № 561");
-AssertEqual("order", order.Kind);
-AssertEqual("561", order.Number);
-AssertEqual("Минприроды России", order.Issuer);
-
-var freeText = DocumentReferenceParser.Parse("Как организовать производственный экологический контроль?");
-AssertTrue(!freeText.HasRequisites);
-
-var first = new RankedChunk(Guid.NewGuid(), "А", "Раздел", "текст", 0);
-var second = new RankedChunk(Guid.NewGuid(), "Б", "Раздел", "текст", 0);
-var fused = ReciprocalRankFusion.Merge(new[] { first, second }, new[] { second, first }, take: 2);
-AssertEqual(2, fused.Count);
-AssertEqual(first.Id, fused[0].Id);
-
 var weakSemantic = new RagMatch("А", "Раздел", "текст", 0.2, false, false, 0.01);
-var lexicalMatch = new RagMatch("Б", "Раздел", "текст", 0.1, true, false, 0.01);
-var hybridMatch = new RagMatch("Г", "Раздел", "текст", 0.35, true, false, 0.01);
-var exactDocumentMatch = new RagMatch("В", "Раздел", "текст", 0.1, false, true, 0.01);
+var relevantSemantic = new RagMatch("Б", "Раздел", "текст", 0.35, false, false, 0.01);
 AssertTrue(!weakSemantic.IsRelevant);
-AssertTrue(!lexicalMatch.IsRelevant);
-AssertTrue(hybridMatch.IsRelevant);
-AssertTrue(exactDocumentMatch.IsRelevant);
+AssertTrue(relevantSemantic.IsRelevant);
 
-var debugResponse = RagDebugResponse.Build("тест", new RagSearchResult(new[] { hybridMatch }, false, Array.Empty<string>()));
+var debugResponse = RagDebugResponse.Build("тест", new RagSearchResult(new[] { relevantSemantic }, false, Array.Empty<string>()));
 AssertTrue(debugResponse.Contains("## RAG: найденные чанки", StringComparison.Ordinal));
 AssertTrue(debugResponse.Contains("Текст: текст", StringComparison.Ordinal));
 AssertTrue(RagDebugResponse.Build("тест", RagSearchResult.Empty).Contains("чанки не найдены", StringComparison.Ordinal));
 
-Console.WriteLine("RAG parser and RRF checks passed.");
-
-static void AssertEqual<T>(T? expected, T? actual)
-{
-    if (!EqualityComparer<T>.Default.Equals(expected, actual)) throw new InvalidOperationException($"Expected '{expected}', got '{actual}'.");
-}
+Console.WriteLine("RAGify adapter checks passed.");
 
 static void AssertTrue(bool value)
 {
