@@ -52,6 +52,7 @@ builder.Services.AddSingleton<IRagify>(serviceProvider =>
 });
 builder.Services.AddSingleton<RagService>();
 builder.Services.AddSingleton<RagDatabaseInitializer>();
+builder.Services.AddSingleton<RagDiagnostics>();
 builder.Services.AddSingleton<KnowledgeImportService>();
 builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<KnowledgeImportService>());
 
