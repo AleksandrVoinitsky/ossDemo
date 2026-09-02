@@ -224,6 +224,7 @@ app.MapPost("/api/ai/chat", async (
     {
         var status = await ragService.GetStatusAsync(cancellationToken);
         var modelCache = RagifyModelCache.GetStatus(builder.Configuration);
+        var diagnostics = app.Services.GetRequiredService<RagDiagnostics>().GetStatus();
         logger.LogInformation(
             "Диагностика RAG: Ready={Ready}, Documents={DocumentCount}, Chunks={ChunkCount}, ModelCached={ModelCached}, TokenizerCached={TokenizerCached}.",
             status.Ready,
@@ -233,7 +234,7 @@ app.MapPost("/api/ai/chat", async (
             modelCache.TokenizerCached);
         return Results.Ok(new
         {
-            answer = RagStatusFormatter.BuildDetailedAnswer(status, modelCache),
+            answer = RagStatusFormatter.BuildDetailedAnswer(status, modelCache, diagnostics),
             grounded = false,
             sources = Array.Empty<ChatSource>(),
             mode = "rag-status"
@@ -252,9 +253,11 @@ app.MapPost("/api/ai/chat", async (
                     ## Переиндексация RAGify завершена
 
                     Очищено векторов: {result.ClearedChunkCount}.
+                    Найдено файлов в источниках: {result.FoundFileCount}.
                     Проиндексировано файлов: {result.IndexedFileCount}.
                     Создано фрагментов: {result.IndexedChunkCount}.
                     Пропущено файлов: {result.SkippedFileCount}.
+                    Ошибок импорта: {result.FailedFileCount}.
 
                     Команда очистила только таблицу `ragify_vectors`. Исторические таблицы предыдущего конвейера не изменялись.
                     """,
@@ -548,7 +551,7 @@ internal static class RagStatusFormatter
             """;
     }
 
-    public static string BuildDetailedAnswer(RagStatus status, RagifyModelCacheStatus modelCache)
+    public static string BuildDetailedAnswer(RagStatus status, RagifyModelCacheStatus modelCache, RagDiagnosticsStatus diagnostics)
     {
         var documents = status.Documents.Count == 0
             ? "Пока нет проиндексированных документов."
@@ -556,6 +559,9 @@ internal static class RagStatusFormatter
                 $"- `{document.Title}` — {document.ChunkCount} фрагментов."));
         var modelCacheState = modelCache.ModelCached ? "есть" : "нет";
         var tokenizerCacheState = modelCache.TokenizerCached ? "есть" : "нет";
+        var diagnosticEntries = diagnostics.Entries.Count == 0
+            ? "Записей пока нет."
+            : string.Join("\n", diagnostics.Entries.TakeLast(12).Select(entry => $"- `{entry.Level}` {entry.Message}"));
 
         return $"""
             ## Расширенная диагностика RAGify
@@ -575,6 +581,11 @@ internal static class RagStatusFormatter
 
             ### Проиндексированные документы
             {documents}
+
+            ### Последние события RAG
+            {diagnosticEntries}
+
+            Журнал в persistent volume: `{diagnostics.LogPath}`.
 
             {status.Problem}
             """;

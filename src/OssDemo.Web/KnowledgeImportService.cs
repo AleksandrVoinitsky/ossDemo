@@ -4,7 +4,8 @@ using Microsoft.AspNetCore.Http;
 internal sealed class KnowledgeImportService(
     IServiceProvider serviceProvider,
     IConfiguration configuration,
-    ILogger<KnowledgeImportService> logger) : BackgroundService
+    ILogger<KnowledgeImportService> logger,
+    RagDiagnostics diagnostics) : BackgroundService
 {
     private const long MaxFileSize = 20 * 1024 * 1024;
     private readonly SemaphoreSlim _reindexLock = new(1, 1);
@@ -13,6 +14,7 @@ internal sealed class KnowledgeImportService(
     {
         await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken);
         logger.LogInformation("Запускается фоновая проверка и индексация базы знаний RAGify.");
+        diagnostics.Record("info", "Запускается фоновая проверка и индексация базы знаний RAGify.");
         try
         {
             var result = await ReindexAsync(stoppingToken, force: false);
@@ -21,10 +23,12 @@ internal sealed class KnowledgeImportService(
                 result.IndexedFileCount,
                 result.IndexedChunkCount,
                 result.SkippedFileCount);
+            diagnostics.Record("info", $"Фоновая индексация завершена: найдено {result.FoundFileCount}, проиндексировано {result.IndexedFileCount}, фрагментов {result.IndexedChunkCount}, пропущено {result.SkippedFileCount}, ошибок {result.FailedFileCount}.");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             logger.LogError(exception, "Фоновая индексация RAGify не запущена: PostgreSQL не подготовлен.");
+            diagnostics.Record("error", $"Фоновая индексация не запущена: {exception.GetType().Name}: {exception.Message}");
         }
     }
 
@@ -55,6 +59,8 @@ internal sealed class KnowledgeImportService(
         }.Distinct(StringComparer.OrdinalIgnoreCase);
 
         var result = new RagReindexResult();
+        var existingDirectories = directories.Where(Directory.Exists).ToArray();
+        diagnostics.Record("info", $"Источники базы знаний: {string.Join(", ", directories.Select(directory => $"{directory} ({(Directory.Exists(directory) ? "доступна" : "отсутствует")})")).Replace("/app/knowledge-inbox", "knowledge-inbox")}");
         if (force)
         {
             using var scope = serviceProvider.CreateScope();
@@ -62,27 +68,36 @@ internal sealed class KnowledgeImportService(
             logger.LogInformation("Начата принудительная переиндексация RAGify. Очищено фрагментов: {ChunkCount}.", result.ClearedChunkCount);
         }
 
-        foreach (var directory in directories.Where(Directory.Exists))
+        foreach (var directory in existingDirectories)
         {
             foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                result.FoundFileCount++;
+                var sourceFileName = Path.GetRelativePath(directory, path).Replace(Path.DirectorySeparatorChar, '/');
 
                 try
                 {
-                    var sourceFileName = Path.GetRelativePath(directory, path).Replace(Path.DirectorySeparatorChar, '/');
                     var importResult = await ImportFileAsync(path, sourceFileName, cancellationToken, force);
                     result.Add(importResult);
                 }
                 catch (RagIngestionException exception)
                 {
                     logger.LogWarning("Файл {FileName} не импортирован: {Message}", Path.GetFileName(path), exception.Message);
+                    result.FailedFileCount++;
+                    diagnostics.Record("warning", $"Не импортирован {sourceFileName}: {exception.Message}");
                 }
                 catch (Exception exception)
                 {
                     logger.LogError(exception, "Не удалось импортировать файл {FileName} из папки базы знаний.", Path.GetFileName(path));
+                    result.FailedFileCount++;
+                    diagnostics.Record("error", $"Ошибка импорта {Path.GetFileName(path)}: {exception.GetType().Name}: {exception.Message}");
                 }
             }
+        }
+        if (result.FoundFileCount == 0)
+        {
+            diagnostics.Record("warning", "Для индексации не найдено файлов. Проверьте наличие knowledge-inbox в опубликованном образе и /data/inbox в volume.");
         }
         return result;
         }
@@ -147,9 +162,11 @@ internal sealed class KnowledgeImportService(
 internal sealed class RagReindexResult
 {
     public int ClearedChunkCount { get; set; }
+    public int FoundFileCount { get; set; }
     public int IndexedFileCount { get; private set; }
     public int IndexedChunkCount { get; private set; }
     public int SkippedFileCount { get; private set; }
+    public int FailedFileCount { get; set; }
 
     public void Add(RagImportResult result)
     {
