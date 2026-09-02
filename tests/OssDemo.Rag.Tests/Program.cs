@@ -8,6 +8,10 @@ AssertTrue(debugResponse.Contains("## RAG: найденные чанки", Strin
 AssertTrue(debugResponse.Contains("Текст: текст", StringComparison.Ordinal));
 AssertTrue(RagDebugResponse.Build("тест", RagSearchResult.Empty).Contains("чанки не найдены", StringComparison.Ordinal));
 
+var clarificationPrompt = ChatPrompt.BuildSystemMessage(string.Empty, false, Array.Empty<string>(), null);
+AssertTrue(clarificationPrompt.Contains("получить уточнение", StringComparison.Ordinal));
+AssertTrue(clarificationPrompt.Contains("максимум два коротких предложения", StringComparison.Ordinal));
+
 var modelDirectory = Path.Combine(AppContext.BaseDirectory, "Models", "paraphrase-multilingual-MiniLM-L12-v2");
 using var embeddingProvider = new MultilingualMiniLmEmbeddingProvider(
     Path.Combine(modelDirectory, "model_O1.onnx"),

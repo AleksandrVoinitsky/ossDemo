@@ -61,15 +61,13 @@ internal sealed class RagService(
         return new(matches, false, Array.Empty<string>());
     }
 
-    public async Task<RagAnswerResult> AnswerAsync(string question, CancellationToken cancellationToken)
+    public async Task<RagAnswerResult> AnswerAsync(
+        string question,
+        IReadOnlyList<ChatHistoryMessage> conversation,
+        CancellationToken cancellationToken)
     {
         var searchResult = await SearchAsync(question, cancellationToken);
-        if (searchResult.Matches.Count == 0)
-        {
-            return new("По этому запросу в базе знаний не найдены подходящие фрагменты. Уточните реквизиты документа, период или ключевой термин.", searchResult.Matches);
-        }
-
-        using var response = await SendAnswerRequestAsync(question, searchResult.Matches, stream: false, cancellationToken);
+        using var response = await SendAnswerRequestAsync(question, searchResult.Matches, conversation, stream: false, cancellationToken);
         var payload = await response.Content.ReadAsStringAsync(cancellationToken);
         EnsureSuccessfulQwenResponse(response, payload);
 
@@ -83,15 +81,13 @@ internal sealed class RagService(
         return new(answer, searchResult.Matches);
     }
 
-    public async Task<RagStreamingResult> StartStreamingAnswerAsync(string question, CancellationToken cancellationToken)
+    public async Task<RagStreamingResult> StartStreamingAnswerAsync(
+        string question,
+        IReadOnlyList<ChatHistoryMessage> conversation,
+        CancellationToken cancellationToken)
     {
         var searchResult = await SearchAsync(question, cancellationToken);
-        if (searchResult.Matches.Count == 0)
-        {
-            return new(null, searchResult.Matches, "По этому запросу в базе знаний не найдены подходящие фрагменты. Уточните реквизиты документа, период или ключевой термин.");
-        }
-
-        var response = await SendAnswerRequestAsync(question, searchResult.Matches, stream: true, cancellationToken);
+        var response = await SendAnswerRequestAsync(question, searchResult.Matches, conversation, stream: true, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             var payload = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -104,11 +100,26 @@ internal sealed class RagService(
     private async Task<HttpResponseMessage> SendAnswerRequestAsync(
         string question,
         IReadOnlyList<RagMatch> matches,
+        IReadOnlyList<ChatHistoryMessage> conversation,
         bool stream,
         CancellationToken cancellationToken)
     {
         var context = string.Join("\n\n", matches.Take(3).Select((match, index) =>
             $"[S{index + 1}] {match.DocumentTitle}\n{match.Text}"));
+        var hasSources = matches.Count > 0;
+        var messages = new List<InferenceMessage>
+        {
+            new("system", ChatPrompt.BuildSystemMessage(context, hasSources, Array.Empty<string>(), null))
+        };
+        if (!hasSources)
+        {
+            messages.AddRange(conversation
+                .Where(message => message.Role is "user" or "assistant")
+                .Where(message => !string.IsNullOrWhiteSpace(message.Content))
+                .TakeLast(6)
+                .Select(message => new InferenceMessage(message.Role, Truncate(message.Content.Trim(), 1_000))));
+        }
+        messages.Add(new InferenceMessage("user", question));
         var token = configuration["AI:ApiToken"]
             ?? throw new InvalidOperationException("Не задан секрет AI__ApiToken.");
         var client = httpClientFactory.CreateClient("AmveraInference");
@@ -117,11 +128,7 @@ internal sealed class RagService(
             Content = JsonContent.Create(new
             {
                 model = configuration["AI:Model"] ?? "qwen3_30b",
-                messages = new[]
-                {
-                    new InferenceMessage("system", ChatPrompt.BuildSystemMessage(context, true, Array.Empty<string>(), null)),
-                    new InferenceMessage("user", question)
-                },
+                messages,
                 temperature = 0.2,
                 max_tokens = 500,
                 stream
@@ -322,6 +329,9 @@ internal sealed class RagService(
             : rawValue?.ToString() ?? string.Empty;
         return !string.IsNullOrWhiteSpace(value);
     }
+
+    private static string Truncate(string value, int maxLength) =>
+        value.Length <= maxLength ? value : value[..maxLength];
 }
 
 internal sealed record RagMatch(string DocumentTitle, string SourceLabel, string Text, double Similarity, bool HasLexicalMatch, bool IsExactDocumentMatch, double RankingScore)
