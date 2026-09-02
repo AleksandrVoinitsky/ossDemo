@@ -1,5 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Npgsql;
 using RAGify.Abstractions;
 using RAGify.Ingestion;
@@ -7,6 +10,8 @@ using RAGify.Ingestion;
 internal sealed class RagService(
     IRagify ragify,
     IVectorStore vectorStore,
+    IEmbeddingProvider embeddingProvider,
+    IHttpClientFactory httpClientFactory,
     IConfiguration configuration,
     ILogger<RagService> logger)
 {
@@ -37,52 +42,70 @@ internal sealed class RagService(
 
     public async Task<RagSearchResult> SearchAsync(string question, CancellationToken cancellationToken)
     {
-        var result = await ragify.QueryAsync(question, new QueryOptions
-        {
-            Retrieval = new RetrievalOptions
-            {
-                TopK = 8,
-                SimilarityThreshold = 0.30,
-                EnableDynamicTopK = true,
-                EnableDeduplication = true
-            }
-        }, cancellationToken);
-
-        var matches = result.Context
-            .Select(context => new RagMatch(
-                context.Source ?? "Документ",
-                context.Chunk.Metadata.TryGetValue("heading", out var heading) ? heading?.ToString() ?? "Документ" : "Документ",
-                context.Chunk.Text,
-                context.Similarity,
+        var queryEmbedding = await embeddingProvider.EmbedAsync(question, cancellationToken);
+        var results = await vectorStore.SearchAsync(queryEmbedding, topK: 24, threshold: 0.30, cancellationToken: cancellationToken);
+        var matches = results
+            .Where(result => TryGetMetadataString(result.Metadata, "Text", out var text) && !string.IsNullOrWhiteSpace(text))
+            .Select(result => new RagMatch(
+                GetMetadataString(result.Metadata, "fileName", "Документ"),
+                GetMetadataString(result.Metadata, "heading", "Документ"),
+                GetMetadataString(result.Metadata, "Text", string.Empty),
+                result.Similarity,
                 false,
                 false,
-                context.Similarity))
+                result.Similarity))
+            .GroupBy(match => match.Text, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .Take(8)
             .ToArray();
         return new(matches, false, Array.Empty<string>());
     }
 
-    public Task<QueryResult> AnswerAsync(string question, CancellationToken cancellationToken) =>
-        ragify.AnswerAsync(question, new QueryOptions
+    public async Task<RagAnswerResult> AnswerAsync(string question, CancellationToken cancellationToken)
+    {
+        var searchResult = await SearchAsync(question, cancellationToken);
+        if (searchResult.Matches.Count == 0)
         {
-            Retrieval = new RetrievalOptions
+            return new("По этому запросу в базе знаний не найдены подходящие фрагменты. Уточните реквизиты документа, период или ключевой термин.", searchResult.Matches);
+        }
+
+        var context = string.Join("\n\n", searchResult.Matches.Take(3).Select((match, index) =>
+            $"[S{index + 1}] {match.DocumentTitle}\n{match.Text}"));
+        var token = configuration["AI:ApiToken"]
+            ?? throw new InvalidOperationException("Не задан секрет AI__ApiToken.");
+        var client = httpClientFactory.CreateClient("AmveraInference");
+        using var request = new HttpRequestMessage(HttpMethod.Post, "chat/completions")
+        {
+            Content = JsonContent.Create(new
             {
-                TopK = 3,
-                SimilarityThreshold = 0.30,
-                EnableDynamicTopK = true,
-                EnableDeduplication = true
-            },
-            Generation = new GenerationOptions
-            {
-                SystemPrompt = """
-                    Ты ИИ-консультант АИ ООС. Отвечай только по найденным фрагментам базы знаний.
-                    Не придумывай документы, требования, статьи, сроки или факты. Если источников недостаточно,
-                    прямо сообщи об этом. Каждое фактическое утверждение сопровождай ссылкой на источник в формате [1], [2].
-                    """,
-                Temperature = 0.2,
-                MaxTokens = 500,
-                IncludeCitations = true
-            }
-        }, cancellationToken);
+                model = configuration["AI:Model"] ?? "qwen3_30b",
+                messages = new[]
+                {
+                    new InferenceMessage("system", ChatPrompt.BuildSystemMessage(context, true, Array.Empty<string>(), null)),
+                    new InferenceMessage("user", question)
+                },
+                temperature = 0.2,
+                max_tokens = 500
+            })
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        using var response = await client.SendAsync(request, cancellationToken);
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogError("Qwen вернул HTTP {StatusCode}: {Payload}", (int)response.StatusCode, payload[..Math.Min(payload.Length, 2_000)]);
+            throw new HttpRequestException($"Qwen вернул HTTP {(int)response.StatusCode}.");
+        }
+
+        using var json = JsonDocument.Parse(payload);
+        var answer = json.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
+        if (string.IsNullOrWhiteSpace(answer))
+        {
+            throw new InvalidOperationException("Qwen вернул пустой ответ.");
+        }
+
+        return new(answer, searchResult.Matches);
+    }
 
     public async Task<int> ClearAsync(CancellationToken cancellationToken)
     {
@@ -196,6 +219,23 @@ internal sealed class RagService(
 
     private string GetConnectionString() => configuration.GetConnectionString("OssDatabase")
         ?? throw new InvalidOperationException("Не задана строка подключения ConnectionStrings__OssDatabase.");
+
+    private static string GetMetadataString(IReadOnlyDictionary<string, object> metadata, string key, string fallback) =>
+        TryGetMetadataString(metadata, key, out var value) ? value : fallback;
+
+    private static bool TryGetMetadataString(IReadOnlyDictionary<string, object> metadata, string key, out string value)
+    {
+        if (!metadata.TryGetValue(key, out var rawValue))
+        {
+            value = string.Empty;
+            return false;
+        }
+
+        value = rawValue is JsonElement element && element.ValueKind == JsonValueKind.String
+            ? element.GetString() ?? string.Empty
+            : rawValue?.ToString() ?? string.Empty;
+        return !string.IsNullOrWhiteSpace(value);
+    }
 }
 
 internal sealed record RagMatch(string DocumentTitle, string SourceLabel, string Text, double Similarity, bool HasLexicalMatch, bool IsExactDocumentMatch, double RankingScore)
@@ -207,6 +247,8 @@ internal sealed record RagSearchResult(IReadOnlyList<RagMatch> Matches, bool IsA
 {
     public static RagSearchResult Empty { get; } = new(Array.Empty<RagMatch>(), false, Array.Empty<string>());
 }
+
+internal sealed record RagAnswerResult(string Answer, IReadOnlyList<RagMatch> Matches);
 
 internal sealed record RagDocumentStatus(string Title, string SourceType, string Status, int ChunkCount);
 internal sealed record KnowledgeDocumentSummary(Guid Id, string Title, string SourceType, string Status, string? OriginalFileName, DateTimeOffset UpdatedAt, long? SizeBytes, int ChunkCount);

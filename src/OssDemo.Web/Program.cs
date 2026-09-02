@@ -26,6 +26,9 @@ builder.Services.AddSingleton<IVectorStore>(serviceProvider =>
         ?? throw new InvalidOperationException("Не задана строка подключения ConnectionStrings__OssDatabase.");
     return new PgVectorStore(connectionString, "ragify_vectors", 384, new PgVectorStoreOptions());
 });
+builder.Services.AddSingleton<IEmbeddingProvider>(_ => new MultilingualMiniLmEmbeddingProvider(
+    modelPath,
+    RagifyModelCache.GetTokenizerPath(modelPath)));
 builder.Services.AddSingleton<IRagify>(serviceProvider =>
 {
     var configuration = serviceProvider.GetRequiredService<IConfiguration>();
@@ -37,9 +40,7 @@ builder.Services.AddSingleton<IRagify>(serviceProvider =>
             OverlapSize = 200,
             RespectSentenceBoundaries = true
         })
-        .WithEmbeddings(new MultilingualMiniLmEmbeddingProvider(
-            modelPath,
-            RagifyModelCache.GetTokenizerPath(modelPath)))
+        .WithEmbeddings(serviceProvider.GetRequiredService<IEmbeddingProvider>())
         .WithVectorStore(serviceProvider.GetRequiredService<IVectorStore>())
         .WithLexicalReranker()
         .WithInMemoryEmbeddingCache(maxEntries: 10_000)
@@ -308,19 +309,19 @@ app.MapPost("/api/ai/chat", async (
     try
     {
         var result = await ragService.AnswerAsync(rawQuestion, cancellationToken);
-        var sources = result.Context.Select((context, index) => new ChatSource(
-            $"[{index + 1}] {context.Source}",
-            context.Chunk.Text,
-            Math.Round(context.Similarity, 3),
+        var sources = result.Matches.Select((match, index) => new ChatSource(
+            $"[{index + 1}] {match.DocumentTitle}",
+            match.Text,
+            Math.Round(match.Similarity, 3),
             false,
             true,
             "source"));
         return Results.Ok(new
         {
             answer = result.Answer,
-            grounded = result.Context.Count > 0,
+            grounded = result.Matches.Count > 0,
             sources,
-            model = result.Generation?.Model ?? model
+            model
         });
     }
     catch (InvalidOperationException exception)
