@@ -198,6 +198,7 @@ app.MapPost("/api/ai/chat", async (
     ChatRequest request,
     RagService ragService,
     ILogger<Program> logger,
+    HttpContext context,
     CancellationToken cancellationToken) =>
 {
     const int maxMessageLength = 4_000;
@@ -308,6 +309,32 @@ app.MapPost("/api/ai/chat", async (
 
     try
     {
+        if (request.Stream)
+        {
+            var streamingResult = await ragService.StartStreamingAnswerAsync(rawQuestion, cancellationToken);
+            var streamingSources = streamingResult.Matches.Select((match, index) => new ChatSource(
+                $"[{index + 1}] {match.DocumentTitle}",
+                match.Text,
+                Math.Round(match.Similarity, 3),
+                false,
+                true,
+                "source"));
+            if (streamingResult.UpstreamResponse is not null)
+            {
+                using var upstreamResponse = streamingResult.UpstreamResponse;
+                await ChatStreaming.WriteAsync(context.Response, upstreamResponse, streamingSources, true, cancellationToken);
+                return Results.Empty;
+            }
+
+            return Results.Ok(new
+            {
+                answer = streamingResult.ImmediateAnswer,
+                grounded = false,
+                sources = streamingSources,
+                model
+            });
+        }
+
         var result = await ragService.AnswerAsync(rawQuestion, cancellationToken);
         var sources = result.Matches.Select((match, index) => new ChatSource(
             $"[{index + 1}] {match.DocumentTitle}",

@@ -69,7 +69,45 @@ internal sealed class RagService(
             return new("По этому запросу в базе знаний не найдены подходящие фрагменты. Уточните реквизиты документа, период или ключевой термин.", searchResult.Matches);
         }
 
-        var context = string.Join("\n\n", searchResult.Matches.Take(3).Select((match, index) =>
+        using var response = await SendAnswerRequestAsync(question, searchResult.Matches, stream: false, cancellationToken);
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        EnsureSuccessfulQwenResponse(response, payload);
+
+        using var json = JsonDocument.Parse(payload);
+        var answer = json.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
+        if (string.IsNullOrWhiteSpace(answer))
+        {
+            throw new InvalidOperationException("Qwen вернул пустой ответ.");
+        }
+
+        return new(answer, searchResult.Matches);
+    }
+
+    public async Task<RagStreamingResult> StartStreamingAnswerAsync(string question, CancellationToken cancellationToken)
+    {
+        var searchResult = await SearchAsync(question, cancellationToken);
+        if (searchResult.Matches.Count == 0)
+        {
+            return new(null, searchResult.Matches, "По этому запросу в базе знаний не найдены подходящие фрагменты. Уточните реквизиты документа, период или ключевой термин.");
+        }
+
+        var response = await SendAnswerRequestAsync(question, searchResult.Matches, stream: true, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+            EnsureSuccessfulQwenResponse(response, payload);
+        }
+
+        return new(response, searchResult.Matches, null);
+    }
+
+    private async Task<HttpResponseMessage> SendAnswerRequestAsync(
+        string question,
+        IReadOnlyList<RagMatch> matches,
+        bool stream,
+        CancellationToken cancellationToken)
+    {
+        var context = string.Join("\n\n", matches.Take(3).Select((match, index) =>
             $"[S{index + 1}] {match.DocumentTitle}\n{match.Text}"));
         var token = configuration["AI:ApiToken"]
             ?? throw new InvalidOperationException("Не задан секрет AI__ApiToken.");
@@ -85,26 +123,12 @@ internal sealed class RagService(
                     new InferenceMessage("user", question)
                 },
                 temperature = 0.2,
-                max_tokens = 500
+                max_tokens = 500,
+                stream
             })
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        using var response = await client.SendAsync(request, cancellationToken);
-        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            logger.LogError("Qwen вернул HTTP {StatusCode}: {Payload}", (int)response.StatusCode, payload[..Math.Min(payload.Length, 2_000)]);
-            throw new HttpRequestException($"Qwen вернул HTTP {(int)response.StatusCode}.");
-        }
-
-        using var json = JsonDocument.Parse(payload);
-        var answer = json.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
-        if (string.IsNullOrWhiteSpace(answer))
-        {
-            throw new InvalidOperationException("Qwen вернул пустой ответ.");
-        }
-
-        return new(answer, searchResult.Matches);
+        return await client.SendAsync(request, stream ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead, cancellationToken);
     }
 
     public async Task<int> ClearAsync(CancellationToken cancellationToken)
@@ -175,11 +199,50 @@ internal sealed class RagService(
         }
     }
 
-    public Task<IReadOnlyList<KnowledgeDocumentSummary>> GetKnowledgeDocumentsAsync(CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<KnowledgeDocumentSummary>>(Array.Empty<KnowledgeDocumentSummary>());
+    public async Task<IReadOnlyList<KnowledgeDocumentSummary>> GetKnowledgeDocumentsAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = new NpgsqlConnection(GetConnectionString());
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand($"""
+            SELECT metadata ->> 'DocumentId', MIN(metadata ->> 'fileName'), COUNT(*)::integer
+            FROM {VectorTableName}
+            WHERE metadata ? 'DocumentId' AND metadata ? 'fileName'
+            GROUP BY metadata ->> 'DocumentId'
+            ORDER BY MIN(metadata ->> 'fileName')
+            """, connection);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var documents = new List<KnowledgeDocumentSummary>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var documentId = Guid.ParseExact(reader.GetString(0), "N");
+            var fileName = reader.GetString(1);
+            documents.Add(new(documentId, Path.GetFileNameWithoutExtension(fileName), "ragify", "indexed", fileName,
+                DateTimeOffset.MinValue, null, reader.GetInt32(2)));
+        }
 
-    public Task<KnowledgeDocumentContent?> GetKnowledgeDocumentAsync(Guid id, CancellationToken cancellationToken) =>
-        Task.FromResult<KnowledgeDocumentContent?>(null);
+        return documents;
+    }
+
+    public async Task<KnowledgeDocumentContent?> GetKnowledgeDocumentAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var documents = await GetKnowledgeDocumentsAsync(cancellationToken);
+        var document = documents.FirstOrDefault(item => item.Id == id);
+        if (document?.OriginalFileName is null)
+        {
+            return null;
+        }
+
+        var path = GetKnowledgeFilePath(document.OriginalFileName);
+        if (path is null)
+        {
+            return null;
+        }
+
+        var markdown = await File.ReadAllTextAsync(path, cancellationToken);
+        var fileInfo = new FileInfo(path);
+        return new(document.Id, document.Title, document.SourceType, document.Status, document.OriginalFileName,
+            new DateTimeOffset(fileInfo.LastWriteTimeUtc, TimeSpan.Zero), fileInfo.Length, markdown, document.ChunkCount);
+    }
 
     internal static string DescribeFailure(Exception exception) => exception switch
     {
@@ -220,6 +283,29 @@ internal sealed class RagService(
     private string GetConnectionString() => configuration.GetConnectionString("OssDatabase")
         ?? throw new InvalidOperationException("Не задана строка подключения ConnectionStrings__OssDatabase.");
 
+    private void EnsureSuccessfulQwenResponse(HttpResponseMessage response, string payload)
+    {
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        logger.LogError("Qwen вернул HTTP {StatusCode}: {Payload}", (int)response.StatusCode, payload[..Math.Min(payload.Length, 2_000)]);
+        throw new HttpRequestException($"Qwen вернул HTTP {(int)response.StatusCode}.");
+    }
+
+    private string? GetKnowledgeFilePath(string sourceFileName)
+    {
+        var directories = new[]
+        {
+            configuration["KnowledgeImport:Directory"] ?? "/data/inbox",
+            Path.Combine(AppContext.BaseDirectory, "knowledge-inbox")
+        };
+        return directories
+            .Select(directory => Path.GetFullPath(Path.Combine(directory, sourceFileName)))
+            .FirstOrDefault(File.Exists);
+    }
+
     private static string GetMetadataString(IReadOnlyDictionary<string, object> metadata, string key, string fallback) =>
         TryGetMetadataString(metadata, key, out var value) ? value : fallback;
 
@@ -249,6 +335,7 @@ internal sealed record RagSearchResult(IReadOnlyList<RagMatch> Matches, bool IsA
 }
 
 internal sealed record RagAnswerResult(string Answer, IReadOnlyList<RagMatch> Matches);
+internal sealed record RagStreamingResult(HttpResponseMessage? UpstreamResponse, IReadOnlyList<RagMatch> Matches, string? ImmediateAnswer);
 
 internal sealed record RagDocumentStatus(string Title, string SourceType, string Status, int ChunkCount);
 internal sealed record KnowledgeDocumentSummary(Guid Id, string Title, string SourceType, string Status, string? OriginalFileName, DateTimeOffset UpdatedAt, long? SizeBytes, int ChunkCount);
