@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Npgsql;
 using RAGify.Abstractions;
 using RAGify.Ingestion;
 
@@ -10,6 +11,7 @@ internal sealed class RagService(
     ILogger<RagService> logger)
 {
     internal const string Model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/model_O1.onnx";
+    private const string VectorTableName = "ragify_vectors";
 
     public async Task<RagStatus> GetStatusAsync(CancellationToken cancellationToken)
     {
@@ -21,14 +23,8 @@ internal sealed class RagService(
 
         try
         {
-            var documentIds = await ragify.GetIndexedDocumentsAsync(cancellationToken);
-            var chunkCount = await vectorStore.GetCountAsync(cancellationToken);
-            var documents = new List<RagDocumentStatus>(documentIds.Count);
-            foreach (var documentId in documentIds)
-            {
-                var chunks = await ragify.GetChunksAsync(documentId, cancellationToken);
-                documents.Add(new(documentId, "ragify", "indexed", chunks.Count));
-            }
+            var documents = await GetIndexedDocumentsFromStoreAsync(cancellationToken);
+            var chunkCount = documents.Sum(document => document.ChunkCount);
 
             return new(chunkCount > 0, true, true, chunkCount, documents.Count, documents, Model, null);
         }
@@ -99,16 +95,16 @@ internal sealed class RagService(
     public async Task<bool> IsSourceImportedAsync(string sourceFileName, string sourceHash, CancellationToken cancellationToken)
     {
         var documentId = CreateDocumentId(sourceFileName).ToString("N");
-        var indexedDocumentIds = await ragify.GetIndexedDocumentsAsync(cancellationToken);
-        if (!indexedDocumentIds.Contains(documentId, StringComparer.Ordinal))
-        {
-            return false;
-        }
-
-        var chunks = await ragify.GetChunksAsync(documentId, cancellationToken);
-        return chunks.Count > 0
-            && chunks[0].Metadata.TryGetValue("sourceHash", out var indexedHash)
-            && string.Equals(indexedHash?.ToString(), sourceHash, StringComparison.Ordinal);
+        await using var connection = new NpgsqlConnection(GetConnectionString());
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand($"""
+            SELECT COALESCE(bool_and(metadata ->> 'sourceHash' = @sourceHash), FALSE)
+            FROM {VectorTableName}
+            WHERE metadata ->> 'DocumentId' = @documentId
+            """, connection);
+        command.Parameters.AddWithValue("documentId", documentId);
+        command.Parameters.AddWithValue("sourceHash", sourceHash);
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken) ?? false);
     }
 
     public async Task<KnowledgeDocumentSummary> IngestAsync(IFormFile file, string? sourceHash, CancellationToken cancellationToken)
@@ -175,6 +171,31 @@ internal sealed class RagService(
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(sourceFileName.ToLowerInvariant()));
         return new Guid(hash[..16]);
     }
+
+    private async Task<List<RagDocumentStatus>> GetIndexedDocumentsFromStoreAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = new NpgsqlConnection(GetConnectionString());
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand($"""
+            SELECT metadata ->> 'DocumentId', COUNT(*)::integer
+            FROM {VectorTableName}
+            WHERE metadata ? 'DocumentId'
+            GROUP BY metadata ->> 'DocumentId'
+            ORDER BY metadata ->> 'DocumentId'
+            """, connection);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var documents = new List<RagDocumentStatus>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            documents.Add(new(reader.GetString(0), "ragify", "indexed", reader.GetInt32(1)));
+        }
+
+        return documents;
+    }
+
+    private string GetConnectionString() => configuration.GetConnectionString("OssDatabase")
+        ?? throw new InvalidOperationException("Не задана строка подключения ConnectionStrings__OssDatabase.");
 }
 
 internal sealed record RagMatch(string DocumentTitle, string SourceLabel, string Text, double Similarity, bool HasLexicalMatch, bool IsExactDocumentMatch, double RankingScore)
