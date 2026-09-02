@@ -29,7 +29,13 @@ internal sealed class RagDatabaseInitializer(
             logger.LogInformation("RAG: проверяется подключение к PostgreSQL и структура pgvector.");
             await connection.OpenAsync(cancellationToken);
 
-            await ExecuteAsync(connection, "CREATE EXTENSION IF NOT EXISTS vector", cancellationToken);
+            if (!await IsPgVectorInstalledAsync(connection, cancellationToken))
+            {
+                throw new InvalidOperationException(
+                    "В целевой базе не установлено расширение pgvector (vector). " +
+                    "Установите его от имени администратора PostgreSQL, затем повторите индексацию.");
+            }
+
             await ExecuteAsync(connection, $"""
                 CREATE TABLE IF NOT EXISTS {TableName} (
                     vector_id TEXT PRIMARY KEY,
@@ -60,6 +66,15 @@ internal sealed class RagDatabaseInitializer(
         {
             _initializationLock.Release();
         }
+    }
+
+    private static async Task<bool> IsPgVectorInstalledAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')",
+            connection);
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken)
+            ?? throw new InvalidOperationException("Не удалось проверить наличие расширения pgvector."));
     }
 
     private static async Task ExecuteAsync(NpgsqlConnection connection, string commandText, CancellationToken cancellationToken)
