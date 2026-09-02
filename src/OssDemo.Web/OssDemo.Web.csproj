@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <RagifyModelDirectory Condition="'$(RagifyModelDirectory)' == ''">$(MSBuildProjectDirectory)\..\..\..\paraphrase-multilingual-MiniLM-L12-v2</RagifyModelDirectory>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,12 +17,12 @@
       <Link>knowledge-inbox\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
-    <Content Include="..\..\..\paraphrase-multilingual-MiniLM-L12-v2\onnx\model_O1.onnx">
+    <Content Include="$(RagifyModelDirectory)\onnx\model_O1.onnx">
       <Link>Models\paraphrase-multilingual-MiniLM-L12-v2\model_O1.onnx</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
-    <Content Include="..\..\..\paraphrase-multilingual-MiniLM-L12-v2\tokenizer.json">
+    <Content Include="$(RagifyModelDirectory)\tokenizer.json">
       <Link>Models\paraphrase-multilingual-MiniLM-L12-v2\tokenizer.json</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
