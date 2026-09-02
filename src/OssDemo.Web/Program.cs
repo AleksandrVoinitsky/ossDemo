@@ -37,7 +37,9 @@ builder.Services.AddSingleton<IRagify>(serviceProvider =>
             OverlapSize = 200,
             RespectSentenceBoundaries = true
         })
-        .WithOnnxEmbeddings(modelPath, dimension: 384)
+        .WithEmbeddings(new MultilingualMiniLmEmbeddingProvider(
+            modelPath,
+            RagifyModelCache.GetTokenizerPath(modelPath)))
         .WithVectorStore(serviceProvider.GetRequiredService<IVectorStore>())
         .WithLexicalReranker()
         .WithInMemoryEmbeddingCache(maxEntries: 10_000)

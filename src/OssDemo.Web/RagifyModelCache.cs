@@ -50,6 +50,9 @@ internal static class RagifyModelCache
             tokenizerInfo.Exists ? tokenizerInfo.Length : 0);
     }
 
+    public static string GetTokenizerPath(string modelPath) =>
+        Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(modelPath)!)!, TokenizerFileName);
+
     private static async Task EnsureFileAsync(HttpClient client, string path, string url, string expectedHash, string displayName, ILogger logger, CancellationToken cancellationToken)
     {
         if (await HasExpectedHashAsync(path, expectedHash, cancellationToken))

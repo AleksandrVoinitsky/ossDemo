@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="Npgsql" Version="10.0.1" />
     <PackageReference Include="RAGify" Version="3.0.0" />
+    <PackageReference Include="Tokenizers.HuggingFace" Version="2.21.4" />
   </ItemGroup>
 
   <ItemGroup>
