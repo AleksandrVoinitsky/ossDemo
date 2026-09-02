@@ -70,7 +70,7 @@ internal sealed class RagService(
         {
             Retrieval = new RetrievalOptions
             {
-                TopK = 6,
+                TopK = 3,
                 SimilarityThreshold = 0.30,
                 EnableDynamicTopK = true,
                 EnableDeduplication = true
@@ -83,6 +83,7 @@ internal sealed class RagService(
                     прямо сообщи об этом. Каждое фактическое утверждение сопровождай ссылкой на источник в формате [1], [2].
                     """,
                 Temperature = 0.2,
+                MaxTokens = 500,
                 IncludeCitations = true
             }
         }, cancellationToken);
