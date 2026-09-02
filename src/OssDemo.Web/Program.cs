@@ -17,7 +17,7 @@ var modelPath = await RagifyModelCache.EnsureAsync(builder.Configuration, modelC
 builder.Services.AddRazorPages();
 builder.Services.AddHttpClient("AmveraInference", client =>
 {
-    client.BaseAddress = new Uri("https://inference.waw0.amvera.ru/");
+    client.BaseAddress = new Uri("https://inference.waw0.amvera.ru/v1/");
     client.Timeout = TimeSpan.FromSeconds(60);
 });
 builder.Services.AddSingleton<IVectorStore>(serviceProvider =>
@@ -48,7 +48,7 @@ builder.Services.AddSingleton<IRagify>(serviceProvider =>
 
     if (!string.IsNullOrWhiteSpace(inferenceToken))
     {
-        ragifyConfiguration.WithOpenAIChat(inferenceToken, model: "qwen3_30b", baseUrl: "https://inference.waw0.amvera.ru/");
+        ragifyConfiguration.WithOpenAIChat(inferenceToken, model: "qwen3_30b", baseUrl: "https://inference.waw0.amvera.ru/v1/");
     }
 
     return ragifyConfiguration.Build();
