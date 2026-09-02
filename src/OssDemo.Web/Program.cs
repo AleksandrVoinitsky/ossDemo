@@ -9,6 +9,9 @@ using RAGify.Core;
 using RAGify.VectorStores;
 
 var builder = WebApplication.CreateBuilder(args);
+var modelCacheLogger = LoggerFactory.Create(logging => logging.AddConsole())
+    .CreateLogger("RagifyModelCache");
+var modelPath = await RagifyModelCache.EnsureAsync(builder.Configuration, modelCacheLogger, CancellationToken.None);
 
 // Add services to the container.
 builder.Services.AddRazorPages();
@@ -25,12 +28,6 @@ builder.Services.AddSingleton<IVectorStore>(serviceProvider =>
 });
 builder.Services.AddSingleton<IRagify>(serviceProvider =>
 {
-    var modelPath = Path.Combine(AppContext.BaseDirectory, "Models", "paraphrase-multilingual-MiniLM-L12-v2", "model_O1.onnx");
-    if (!File.Exists(modelPath))
-    {
-        throw new FileNotFoundException("Не найден встроенный ONNX-файл модели эмбеддингов.", modelPath);
-    }
-
     var configuration = serviceProvider.GetRequiredService<IConfiguration>();
     var inferenceToken = configuration["AI:ApiToken"];
     var ragifyConfiguration = new RagifyConfig()
