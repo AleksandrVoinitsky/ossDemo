@@ -51,6 +51,7 @@ builder.Services.AddSingleton<IRagify>(serviceProvider =>
     return ragifyConfiguration.Build();
 });
 builder.Services.AddSingleton<RagService>();
+builder.Services.AddSingleton<RagDatabaseInitializer>();
 builder.Services.AddSingleton<KnowledgeImportService>();
 builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<KnowledgeImportService>());
 
@@ -216,6 +217,26 @@ app.MapPost("/api/ai/chat", async (
                 kind = "classifier"
             }),
             model
+        });
+    }
+
+    if (string.Equals(request.Message.Trim(), "!statusrag", StringComparison.OrdinalIgnoreCase))
+    {
+        var status = await ragService.GetStatusAsync(cancellationToken);
+        var modelCache = RagifyModelCache.GetStatus(builder.Configuration);
+        logger.LogInformation(
+            "Диагностика RAG: Ready={Ready}, Documents={DocumentCount}, Chunks={ChunkCount}, ModelCached={ModelCached}, TokenizerCached={TokenizerCached}.",
+            status.Ready,
+            status.DocumentCount,
+            status.ChunkCount,
+            modelCache.ModelCached,
+            modelCache.TokenizerCached);
+        return Results.Ok(new
+        {
+            answer = RagStatusFormatter.BuildDetailedAnswer(status, modelCache),
+            grounded = false,
+            sources = Array.Empty<ChatSource>(),
+            mode = "rag-status"
         });
     }
 
@@ -526,6 +547,45 @@ internal static class RagStatusFormatter
             Команда `!status` не вызывает Qwen и не раскрывает ключи, пароли, строки подключения или внутренние адреса.
             """;
     }
+
+    public static string BuildDetailedAnswer(RagStatus status, RagifyModelCacheStatus modelCache)
+    {
+        var documents = status.Documents.Count == 0
+            ? "Пока нет проиндексированных документов."
+            : string.Join("\n", status.Documents.Select(document =>
+                $"- `{document.Title}` — {document.ChunkCount} фрагментов."));
+        var modelCacheState = modelCache.ModelCached ? "есть" : "нет";
+        var tokenizerCacheState = modelCache.TokenizerCached ? "есть" : "нет";
+
+        return $"""
+            ## Расширенная диагностика RAGify
+
+            | Параметр | Значение |
+            | --- | --- |
+            | Готовность поиска | {(status.Ready ? "готов" : "не готов")} |
+            | PostgreSQL / pgvector | {(status.DatabaseConfigured ? "настроено" : "не настроено")} |
+            | Документов в индексе | {status.DocumentCount} |
+            | Чанков в `ragify_vectors` | {status.ChunkCount} |
+            | ONNX-модель | `{status.Model}` |
+            | Кэш ONNX в volume | {modelCacheState}, {FormatBytes(modelCache.ModelSizeBytes)} |
+            | Кэш токенизатора в volume | {tokenizerCacheState}, {FormatBytes(modelCache.TokenizerSizeBytes)} |
+            | Папка кэша | `{modelCache.Directory}` |
+            | Нарезка | Markdown, 1800 символов, overlap 200 |
+            | Реранжирование | встроенный lexical/BM25 RAGify |
+
+            ### Проиндексированные документы
+            {documents}
+
+            {status.Problem}
+            """;
+    }
+
+    private static string FormatBytes(long sizeBytes) => sizeBytes switch
+    {
+        <= 0 => "нет файла",
+        >= 1024L * 1024 * 1024 => $"{sizeBytes / (1024d * 1024 * 1024):F2} ГБ",
+        _ => $"{sizeBytes / (1024d * 1024):F1} МБ"
+    };
 }
 
 internal static class ExportFiles

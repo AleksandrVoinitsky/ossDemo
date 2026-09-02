@@ -163,6 +163,7 @@ internal sealed class RagService(
 
     internal static string DescribeFailure(Exception exception) => exception switch
     {
+        Npgsql.PostgresException postgresException => $"PostgreSQL отклонил операцию ({postgresException.SqlState}): {postgresException.MessageText}",
         Npgsql.NpgsqlException => "Не удалось подключиться к PostgreSQL. Проверьте внутренний хост, имя базы, пользователя и пароль.",
         InvalidOperationException => "RAGify не инициализирован. Проверьте встроенную ONNX-модель и конфигурацию PostgreSQL.",
         _ => "Ошибка RAGify. Проверьте журнал ossDemo."

@@ -12,7 +12,20 @@ internal sealed class KnowledgeImportService(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken);
-        await ReindexAsync(stoppingToken, force: false);
+        logger.LogInformation("Запускается фоновая проверка и индексация базы знаний RAGify.");
+        try
+        {
+            var result = await ReindexAsync(stoppingToken, force: false);
+            logger.LogInformation(
+                "Фоновая индексация RAGify завершена: проиндексировано файлов {IndexedFiles}, создано фрагментов {IndexedChunks}, пропущено файлов {SkippedFiles}.",
+                result.IndexedFileCount,
+                result.IndexedChunkCount,
+                result.SkippedFileCount);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogError(exception, "Фоновая индексация RAGify не запущена: PostgreSQL не подготовлен.");
+        }
     }
 
     public async Task<RagReindexResult> ReindexAsync(CancellationToken cancellationToken) =>
@@ -23,6 +36,11 @@ internal sealed class KnowledgeImportService(
         await _reindexLock.WaitAsync(cancellationToken);
         try
         {
+        using (var scope = serviceProvider.CreateScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<RagDatabaseInitializer>().EnsureInitializedAsync(cancellationToken);
+        }
+
         var volumeDirectory = configuration["KnowledgeImport:Directory"] ?? "/data/inbox";
         if (!Directory.Exists(volumeDirectory))
         {
@@ -41,6 +59,7 @@ internal sealed class KnowledgeImportService(
         {
             using var scope = serviceProvider.CreateScope();
             result.ClearedChunkCount = await scope.ServiceProvider.GetRequiredService<RagService>().ClearAsync(cancellationToken);
+            logger.LogInformation("Начата принудительная переиндексация RAGify. Очищено фрагментов: {ChunkCount}.", result.ClearedChunkCount);
         }
 
         foreach (var directory in directories.Where(Directory.Exists))

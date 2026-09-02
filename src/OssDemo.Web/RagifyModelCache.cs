@@ -35,6 +35,21 @@ internal static class RagifyModelCache
         return modelPath;
     }
 
+    public static RagifyModelCacheStatus GetStatus(IConfiguration configuration)
+    {
+        var cacheDirectory = configuration["Embeddings:CacheDirectory"] ?? "/data/ragify-model";
+        var modelPath = Path.Combine(cacheDirectory, "onnx", ModelFileName);
+        var tokenizerPath = Path.Combine(cacheDirectory, TokenizerFileName);
+        var modelInfo = new FileInfo(modelPath);
+        var tokenizerInfo = new FileInfo(tokenizerPath);
+        return new(
+            cacheDirectory,
+            modelInfo.Exists,
+            modelInfo.Exists ? modelInfo.Length : 0,
+            tokenizerInfo.Exists,
+            tokenizerInfo.Exists ? tokenizerInfo.Length : 0);
+    }
+
     private static async Task EnsureFileAsync(HttpClient client, string path, string url, string expectedHash, string displayName, ILogger logger, CancellationToken cancellationToken)
     {
         if (await HasExpectedHashAsync(path, expectedHash, cancellationToken))
@@ -79,3 +94,10 @@ internal static class RagifyModelCache
         return string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase);
     }
 }
+
+internal sealed record RagifyModelCacheStatus(
+    string Directory,
+    bool ModelCached,
+    long ModelSizeBytes,
+    bool TokenizerCached,
+    long TokenizerSizeBytes);

@@ -145,6 +145,10 @@ POST /api/rag/embedding-check
 Endpoint не обращается к внешнему embedding-сервису. `GET /api/rag/status`
 показывает статус RAGify и число векторов в pgvector.
 
+В чате доступны диагностические команды: `!status` — краткий статус, `!statusrag`
+— расширенные сведения об индексе, количестве документов и чанков, а также кэше
+ONNX-модели в volume; `!reindex` — очистка `ragify_vectors` и повторная индексация.
+
 При наличии `ConnectionStrings__OssDatabase` приложение само включает
 расширение `pgvector`, создаёт таблицу `ragify_vectors` и векторный индекс, а затем
 индексирует подготовленные demo-источники через RAGify. `/api/ai/chat` вызывает
