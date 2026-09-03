@@ -38,7 +38,7 @@
             <div class="app-breadcrumb-bar" aria-label="Текущее расположение"><div class="app-breadcrumb-container">@breadcrumb</div></div>
             <div class="app-content">
                 <main role="main" class="app-shell">@RenderBody()</main>
-                <footer class="footer text-muted"><div class="d-flex flex-wrap justify-content-between gap-2"><span>&copy; 2026 — АИ ООС</span><span><a asp-area="" asp-page="/Privacy">О системе</a></span></div></footer>
+                <footer class="footer text-muted"><div class="app-footer-content"><span>&copy; 2026 — АИ ООС</span><a asp-area="" asp-page="/Privacy">О системе</a><span aria-hidden="true"></span></div></footer>
             </div>
         </div>
     </div>

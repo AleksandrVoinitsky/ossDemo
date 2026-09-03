@@ -104,9 +104,14 @@ internal sealed class RagService(
         bool stream,
         CancellationToken cancellationToken)
     {
-        var context = string.Join("\n\n", matches.Take(3).Select((match, index) =>
+        var contextMatches = matches
+            .GroupBy(match => match.DocumentTitle, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .Take(3)
+            .ToArray();
+        var context = string.Join("\n\n", contextMatches.Select((match, index) =>
             $"[S{index + 1}] {match.DocumentTitle}\n{match.Text}"));
-        var hasSources = matches.Count > 0;
+        var hasSources = contextMatches.Length > 0;
         var messages = new List<InferenceMessage>
         {
             new("system", ChatPrompt.BuildSystemMessage(context, hasSources, Array.Empty<string>(), null))
@@ -130,7 +135,6 @@ internal sealed class RagService(
                 model = configuration["AI:Model"] ?? "qwen3_30b",
                 messages,
                 temperature = 0.2,
-                max_tokens = 500,
                 stream
             })
         };

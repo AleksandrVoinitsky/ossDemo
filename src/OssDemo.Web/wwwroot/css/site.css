@@ -596,6 +596,35 @@ a {
   border-top: 1px solid var(--border);
 }
 
+.app-footer-content {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 1rem;
+}
+
+.app-footer-content a {
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.app-footer-content a:hover,
+.app-footer-content a:focus {
+  text-decoration: underline;
+}
+
+@media (max-width: 575.98px) {
+  .app-footer-content {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .app-footer-content > span[aria-hidden="true"] {
+    display: none;
+  }
+}
+
 .hero-panel,
 .soft-panel,
 .feature-card {
