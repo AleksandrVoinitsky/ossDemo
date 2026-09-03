@@ -34,6 +34,10 @@ AssertTrue(debugResponse.Contains("## RAG: найденные чанки", Strin
 AssertTrue(debugResponse.Contains("Текст: текст", StringComparison.Ordinal));
 AssertTrue(RagDebugResponse.Build("тест", RagSearchResult.Empty).Contains("чанки не найдены", StringComparison.Ordinal));
 
+AssertTrue(RagService.TryExtractArticleHeading("Статья 15. Районирование лесов о чем говорит?", out var articleHeading));
+AssertTrue(articleHeading == "Статья 15. Районирование лесов");
+AssertTrue(!RagService.TryExtractArticleHeading("Расскажите о районировании лесов", out _));
+
 var clarificationPrompt = ChatPrompt.BuildSystemMessage(string.Empty, false, Array.Empty<string>(), null);
 AssertTrue(clarificationPrompt.Contains("получить уточнение", StringComparison.Ordinal));
 AssertTrue(clarificationPrompt.Contains("максимум два коротких предложения", StringComparison.Ordinal));

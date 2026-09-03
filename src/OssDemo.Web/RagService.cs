@@ -306,6 +306,7 @@ internal sealed class RagService(
 
     private async Task<IReadOnlyList<RagMatch>> SearchLexicallyAsync(string question, CancellationToken cancellationToken)
     {
+        var articleHeading = TryExtractArticleHeading(question, out var heading) ? heading : null;
         await using var connection = new NpgsqlConnection(GetConnectionString());
         await connection.OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand($"""
@@ -314,20 +315,28 @@ internal sealed class RagService(
             )
             SELECT metadata,
                    ts_rank_cd(
-                       to_tsvector('russian',
+                        to_tsvector('russian',
                            COALESCE(metadata ->> 'Text', '') || ' ' ||
                            COALESCE(metadata ->> 'fileName', '') || ' ' ||
                            COALESCE(metadata ->> 'heading', '')),
-                       terms) AS lexical_rank
+                        terms) + CASE
+                            WHEN @articleHeading <> ''
+                                AND COALESCE(metadata ->> 'Text', '') ILIKE '%' || @articleHeading || '%'
+                            THEN 10
+                            ELSE 0
+                        END AS lexical_rank
             FROM {VectorTableName}, query
             WHERE to_tsvector('russian',
                     COALESCE(metadata ->> 'Text', '') || ' ' ||
                     COALESCE(metadata ->> 'fileName', '') || ' ' ||
                     COALESCE(metadata ->> 'heading', '')) @@ terms
+                OR (@articleHeading <> ''
+                    AND COALESCE(metadata ->> 'Text', '') ILIKE '%' || @articleHeading || '%')
             ORDER BY lexical_rank DESC
             LIMIT {CandidateCount}
             """, connection);
         command.Parameters.AddWithValue("question", question);
+        command.Parameters.AddWithValue("articleHeading", articleHeading ?? string.Empty);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         var matches = new List<RagMatch>();
@@ -436,6 +445,24 @@ internal sealed class RagService(
     private static IEnumerable<string> ExtractSearchTokens(string text) => text
         .Split([' ', '\t', '\r', '\n', ',', '.', ';', ':', '(', ')', '[', ']', '"', '«', '»'], StringSplitOptions.RemoveEmptyEntries)
         .Select(token => token.Trim().ToLowerInvariant());
+
+    internal static bool TryExtractArticleHeading(string question, out string heading)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(
+            question,
+            @"(?:^|\s)статья\s+(?<number>\d+(?:\.\d+)?)\s*\.?\s*(?<title>.+?)(?=\s+о\s+ч[её]м\b|[?!.]|$)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        var title = match.Success ? match.Groups["title"].Value.Trim(' ', '.', ':', ';') : string.Empty;
+        if (!match.Success || title.Length < 2 || !title.Any(char.IsLetter))
+        {
+            heading = string.Empty;
+            return false;
+        }
+
+        heading = $"Статья {match.Groups["number"].Value}. {title}";
+        return true;
+    }
 
     private sealed record RankedMatch(RagMatch Match, double Score);
 
