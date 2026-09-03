@@ -2,34 +2,25 @@
 @model PrivacyModel
 @{
     ViewData["Title"] = "О системе";
-    ViewData["Breadcrumb"] = "О системе \\ Назначение";
+    ViewData["Breadcrumb"] = "О системе / Назначение и команды";
 }
 <section class="soft-panel p-4 p-lg-5">
-    <p class="lead muted-note">
-        АИ ООС помогает инспектору подготовить индивидуальный чек-лист к плановой проверке, но не проводит саму проверку
-        и не принимает юридически значимые решения. Финальное утверждение остается за инспектором.
-    </p>
+    <h1 class="h3 section-title mb-3">О системе</h1>
+    <p class="lead muted-note">АИ ООС помогает инспектору готовить чек-листы и работать с требованиями, но не проводит проверку и не принимает юридически значимые решения. Финальное утверждение остаётся за инспектором.</p>
     <div class="row g-4 mt-2">
-        <div class="col-md-6">
-            <div class="feature-card card h-100"><div class="card-body">
-                <h2 class="h5">Основные возможности</h2>
-                <ul class="mb-0">
-                    <li>выбор объекта из графика;</li>
-                    <li>профиль объекта и классификатор;</li>
-                    <li>подбор требований из БЗ, ОРД и истории;</li>
-                    <li>статусы пунктов, источники, экспорт результата.</li>
-                </ul>
-            </div></div>
-        </div>
-        <div class="col-md-6">
-            <div class="feature-card card h-100"><div class="card-body">
-                <h2 class="h5">Принципы работы</h2>
-                <ul class="mb-0">
-                    <li>генерация чек-листа опирается на профиль объекта и источники требований;</li>
-                    <li>ИИ-консультант должен показывать источники ответа;</li>
-                    <li>выгрузка результата фиксируется в журнале действий.</li>
-                </ul>
-            </div></div>
-        </div>
+        <div class="col-md-6"><div class="feature-card card h-100"><div class="card-body"><h2 class="h5">Основные возможности</h2><ul class="mb-0"><li>профили объектов и классификатор;</li><li>подбор требований из базы знаний и истории;</li><li>реестры объектов и нарушений;</li><li>статусы, источники и экспорт результатов.</li></ul></div></div></div>
+        <div class="col-md-6"><div class="feature-card card h-100"><div class="card-body"><h2 class="h5">Принципы работы</h2><ul class="mb-0"><li>чек-лист формируется с учётом профиля объекта и источников требований;</li><li>ответ ИИ-консультанта сопровождается источниками из базы знаний;</li><li>действия с рабочими реестрами фиксируются в журнале.</li></ul></div></div></div>
     </div>
+    <section class="mt-5" aria-labelledby="commandsTitle">
+        <h2 id="commandsTitle" class="h4 section-title mb-2">Команды ИИ-консультанта</h2>
+        <p class="muted-note">Команды вводятся в поле сообщения ИИ-консультанта. Операции добавления требуют настроенной переменной <code>ConnectionStrings__OssDatabase</code>.</p>
+        <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Команда</th><th>Назначение</th><th>Формат</th></tr></thead><tbody>
+            <tr><td><code>!status</code></td><td>Краткий статус RAG-индекса.</td><td>Без параметров.</td></tr>
+            <tr><td><code>!statusrag</code></td><td>Расширенная диагностика RAG, модели и кэша.</td><td>Без параметров.</td></tr>
+            <tr><td><code>!reindex</code></td><td>Повторная индексация документов в <code>ragify_vectors</code>.</td><td>Без параметров.</td></tr>
+            <tr><td><code>!запрос</code></td><td>Диагностический поиск по базе знаний без генерации ответа.</td><td><code>!производственный экологический контроль</code></td></tr>
+            <tr><td><code>!add-facility</code></td><td>Создание объекта контроля и запись события в журнал.</td><td><code>!add-facility | Наименование | Адрес | Категория НВОС | Широта | Долгота</code></td></tr>
+            <tr><td><code>!add-violation</code></td><td>Регистрация нарушения и запись события в журнал.</td><td><code>!add-violation | Объект | Раздел | Формулировка | Ответственный | ГГГГ-ММ-ДД | critical|review|closed</code></td></tr>
+        </tbody></table></div>
+    </section>
 </section>

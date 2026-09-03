@@ -192,18 +192,6 @@ a {
   overflow: hidden;
 }
 
-.app-topbar {
-  top: 0;
-  z-index: 1030;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  min-height: 4.25rem;
-  padding: .75rem 1.35rem;
-  border-bottom: 1px solid var(--border-soft);
-  background: var(--surface);
-}
-
 .app-brand,
 .auth-brand {
   display: inline-flex;
@@ -248,20 +236,6 @@ a {
   background: #123954;
   font-size: .78rem;
   letter-spacing: .04em;
-}
-
-.topbar-data-status {
-  display: inline-flex;
-  align-items: center;
-  gap: .45rem;
-  padding: .45rem .65rem;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-sm);
-  color: var(--ink-muted);
-  background: var(--surface-muted);
-  font-size: .82rem;
-  font-weight: 650;
-  white-space: nowrap;
 }
 
 .app-nav {
@@ -355,10 +329,6 @@ a {
   flex: 1 1 auto;
   flex-direction: column;
   min-width: 0;
-}
-
-.mobile-brand {
-  display: none;
 }
 
 .notification-button {
@@ -506,20 +476,6 @@ a {
     white-space: nowrap;
   }
 
-  .app-topbar {
-    justify-content: space-between;
-    min-height: 3.75rem;
-    padding: .55rem 1rem;
-  }
-
-  .mobile-brand {
-    display: inline-flex;
-  }
-
-  .topbar-data-status {
-    padding: .35rem .45rem;
-    font-size: .72rem;
-  }
 }
 
 @media (max-width: 575.98px) {
@@ -533,9 +489,6 @@ a {
     padding-inline: .4rem;
   }
 
-  .topbar-data-status .text-muted {
-    display: none;
-  }
 }
 
 .app-breadcrumb-bar {
@@ -619,8 +572,6 @@ a {
 .priority-item { gap: .85rem; padding: .9rem 1.1rem; color: inherit; text-decoration: none; transition: background .16s ease; }.priority-item + .priority-item, .inspection-row + .inspection-row { border-top: 1px solid var(--border-soft); }.priority-item:hover, .inspection-row:hover { background: var(--surface-muted); color: inherit; }.priority-item div, .inspection-row div, .activity-row div { min-width: 0; }.priority-item strong, .inspection-row strong, .activity-row strong { display: block; font-size: .9rem; }.priority-item p, .inspection-row span, .activity-row p { margin: .2rem 0 0; color: var(--ink-muted); font-size: .8rem; }.priority-state { flex: 0 0 4.35rem; padding: .27rem .35rem; border-radius: .25rem; color: var(--danger); background: var(--danger-soft); font-size: .66rem; font-weight: 800; text-align: center; text-transform: uppercase; }.priority-state-info { color: var(--primary); background: var(--primary-soft); }.priority-state-neutral { color: var(--ink-muted); background: var(--surface-strong); }.priority-arrow { margin-left: auto; color: var(--primary); font-size: 1.15rem; }
 .inspection-row { gap: .7rem; padding: .9rem 1.1rem; color: inherit; text-decoration: none; }.inspection-row > :last-child { margin-left: auto; color: var(--primary); }.inspection-row .status-dot { flex: 0 0 .5rem; }
 .activity-timeline { padding: .35rem 1.1rem .7rem; }.activity-row { position: relative; align-items: flex-start; gap: .8rem; padding: .65rem 0 .65rem .2rem; }.activity-row time { flex: 0 0 5.3rem; color: var(--ink-muted); font-size: .75rem; font-variant-numeric: tabular-nums; }.activity-marker { width: .55rem; height: .55rem; margin-top: .25rem; border: 2px solid var(--primary-soft); border-radius: 50%; background: var(--primary); }.activity-row p { line-height: 1.35; }
-.command-panel { height: 100%; padding: 1.1rem; }.command-panel code { display: block; margin-top: .55rem; padding: .55rem; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); color: #23445d; background: var(--surface-muted); font-size: .72rem; overflow-wrap: anywhere; }.command-example { margin-top: .35rem; padding: .3rem .45rem; border: 1px solid #9fb0bf; border-radius: .25rem; color: var(--primary); background: var(--primary-soft); font-family: ui-monospace, monospace; font-size: .8rem; font-weight: 700; }
-
 @media (max-width: 1199.98px) { .operation-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 575.98px) { .operations-header { align-items: flex-start; flex-direction: column; }.operation-metrics { grid-template-columns: 1fr; }.priority-item { align-items: flex-start; }.priority-state { flex-basis: 3.3rem; }.activity-row time { flex-basis: 4.7rem; } }
 

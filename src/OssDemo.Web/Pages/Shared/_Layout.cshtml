@@ -35,10 +35,6 @@
             </div>
         </aside>
         <div class="app-workspace">
-            <header class="app-topbar">
-                <a class="app-brand mobile-brand" asp-area="" asp-page="/Index"><span class="brand-mark">ООС</span><span>АИ ООС</span></a>
-                <div class="topbar-data-status" aria-label="Статус актуальности данных"><span class="status-dot status-ready"></span><span>Данные актуальны</span><span class="text-muted">21.08.2026 21:15</span></div>
-            </header>
             <div class="app-breadcrumb-bar" aria-label="Текущее расположение"><div class="app-breadcrumb-container">@breadcrumb</div></div>
             <div class="app-content">
                 <main role="main" class="app-shell">@RenderBody()</main>
@@ -58,7 +54,6 @@
                 <div class="modal-header">
                     <div>
                         <h2 class="modal-title h5 section-title mb-1" id="aiConsultantModalTitle">ИИ-консультант</h2>
-                        <div class="small muted-note">RAG-поиск по базе знаний · потоковый ответ · команды реестра: <code>!help</code></div>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                 </div>
@@ -68,7 +63,7 @@
 
                         <form data-ai-question data-ai-endpoint="/api/ai/chat" class="chat-input" autocomplete="off">
                             <label class="visually-hidden" for="ai-question-input">Вопрос ИИ-консультанту</label>
-                            <textarea id="ai-question-input" class="form-control chat-textarea" data-chat-input rows="1" placeholder="Задайте вопрос или введите !help для команд..." aria-label="Вопрос ИИ-консультанту"></textarea>
+                            <textarea id="ai-question-input" class="form-control chat-textarea" data-chat-input rows="1" placeholder="Введите вопрос…" aria-label="Вопрос ИИ-консультанту"></textarea>
                             <div class="chat-composer-actions">
                                 <button class="btn btn-primary" data-chat-send type="submit">Отправить</button>
                             </div>

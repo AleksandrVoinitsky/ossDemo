@@ -753,14 +753,4 @@
     });
   });
 
-  document.querySelectorAll('[data-chat-command]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const modal = document.querySelector('#aiConsultantModal');
-      const input = modal?.querySelector('[data-chat-input]');
-      if (!input) return;
-      input.value = button.dataset.chatCommand || '';
-      window.bootstrap?.Modal.getOrCreateInstance(modal).show();
-      window.setTimeout(() => input.focus(), 180);
-    });
-  });
 })();
