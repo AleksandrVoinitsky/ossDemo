@@ -44,9 +44,18 @@ internal sealed class RagDatabaseInitializer(
                 )
                 """, cancellationToken);
             await ExecuteAsync(connection, $"""
-                CREATE INDEX IF NOT EXISTS {TableName}_embedding_idx
+                CREATE INDEX IF NOT EXISTS {TableName}_embedding_hnsw_idx
                 ON {TableName}
-                USING ivfflat (embedding vector_cosine_ops)
+                USING hnsw (embedding vector_cosine_ops)
+                WITH (m = 16, ef_construction = 64)
+                """, cancellationToken);
+            await ExecuteAsync(connection, $"""
+                CREATE INDEX IF NOT EXISTS {TableName}_text_search_idx
+                ON {TableName}
+                USING gin (to_tsvector('russian',
+                    COALESCE(metadata ->> 'Text', '') || ' ' ||
+                    COALESCE(metadata ->> 'fileName', '') || ' ' ||
+                    COALESCE(metadata ->> 'heading', '')))
                 """, cancellationToken);
 
             _initialized = true;

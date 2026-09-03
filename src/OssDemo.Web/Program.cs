@@ -36,8 +36,8 @@ builder.Services.AddSingleton<IRagify>(serviceProvider =>
     var ragifyConfiguration = new RagifyConfig()
         .WithChunking(ChunkingStrategyType.Markdown, new ChunkingOptions
         {
-            ChunkSize = 1_800,
-            OverlapSize = 200,
+            ChunkSize = 1_200,
+            OverlapSize = 250,
             RespectSentenceBoundaries = true
         })
         .WithEmbeddings(serviceProvider.GetRequiredService<IEmbeddingProvider>())

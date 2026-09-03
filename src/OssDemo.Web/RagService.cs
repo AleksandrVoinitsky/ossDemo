@@ -10,13 +10,14 @@ using RAGify.Ingestion;
 internal sealed class RagService(
     IRagify ragify,
     IVectorStore vectorStore,
-    IEmbeddingProvider embeddingProvider,
     IHttpClientFactory httpClientFactory,
     IConfiguration configuration,
     ILogger<RagService> logger)
 {
     internal const string Model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/model_O1.onnx";
     private const string VectorTableName = "ragify_vectors";
+    private const int CandidateCount = 24;
+    private const int ResultCount = 8;
 
     public async Task<RagStatus> GetStatusAsync(CancellationToken cancellationToken)
     {
@@ -41,23 +42,35 @@ internal sealed class RagService(
     }
 
     public async Task<RagSearchResult> SearchAsync(string question, CancellationToken cancellationToken)
+        => await SearchAsync(question, question, cancellationToken);
+
+    private async Task<RagSearchResult> SearchAsync(string question, string searchQuery, CancellationToken cancellationToken)
     {
-        var queryEmbedding = await embeddingProvider.EmbedAsync(question, cancellationToken);
-        var results = await vectorStore.SearchAsync(queryEmbedding, topK: 24, threshold: 0.30, cancellationToken: cancellationToken);
-        var matches = results
-            .Where(result => TryGetMetadataString(result.Metadata, "Text", out var text) && !string.IsNullOrWhiteSpace(text))
-            .Select(result => new RagMatch(
-                GetMetadataString(result.Metadata, "fileName", "Документ"),
-                GetMetadataString(result.Metadata, "heading", "Документ"),
-                GetMetadataString(result.Metadata, "Text", string.Empty),
-                result.Similarity,
+        var semanticTask = ragify.QueryAsync(searchQuery, new QueryOptions
+        {
+            Retrieval = new RetrievalOptions
+            {
+                TopK = CandidateCount,
+                SimilarityThreshold = 0.20,
+                EnableDynamicTopK = true,
+                EnableDeduplication = true
+            }
+        }, cancellationToken);
+        var lexicalTask = SearchLexicallyAsync(searchQuery, cancellationToken);
+        await Task.WhenAll(semanticTask, lexicalTask);
+
+        var semanticMatches = semanticTask.Result.Context
+            .Where(context => !string.IsNullOrWhiteSpace(context.Chunk.Text))
+            .Select(context => new RagMatch(
+                GetMetadataString(context.Chunk.Metadata, "fileName", context.Source ?? "Документ"),
+                GetMetadataString(context.Chunk.Metadata, "heading", "Документ"),
+                context.Chunk.Text,
+                context.Similarity,
                 false,
                 false,
-                result.Similarity))
-            .GroupBy(match => match.Text, StringComparer.Ordinal)
-            .Select(group => group.First())
-            .Take(8)
+                0))
             .ToArray();
+        var matches = MergeAndRank(semanticMatches, lexicalTask.Result, ResultCount);
         return new(matches, false, Array.Empty<string>());
     }
 
@@ -66,7 +79,8 @@ internal sealed class RagService(
         IReadOnlyList<ChatHistoryMessage> conversation,
         CancellationToken cancellationToken)
     {
-        var searchResult = await SearchAsync(question, cancellationToken);
+        var searchQuery = ChatSearchQuery.Build(conversation, question, maxLength: 6_000);
+        var searchResult = await SearchAsync(question, searchQuery, cancellationToken);
         using var response = await SendAnswerRequestAsync(question, searchResult.Matches, conversation, stream: false, cancellationToken);
         var payload = await response.Content.ReadAsStringAsync(cancellationToken);
         EnsureSuccessfulQwenResponse(response, payload);
@@ -86,7 +100,8 @@ internal sealed class RagService(
         IReadOnlyList<ChatHistoryMessage> conversation,
         CancellationToken cancellationToken)
     {
-        var searchResult = await SearchAsync(question, cancellationToken);
+        var searchQuery = ChatSearchQuery.Build(conversation, question, maxLength: 6_000);
+        var searchResult = await SearchAsync(question, searchQuery, cancellationToken);
         var response = await SendAnswerRequestAsync(question, searchResult.Matches, conversation, stream: true, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
@@ -104,14 +119,10 @@ internal sealed class RagService(
         bool stream,
         CancellationToken cancellationToken)
     {
-        var contextMatches = matches
-            .GroupBy(match => match.DocumentTitle, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
-            .Take(3)
-            .ToArray();
+        var contextMatches = SelectContextMatches(matches, maxMatches: 6, maxMatchesPerDocument: 3);
         var context = string.Join("\n\n", contextMatches.Select((match, index) =>
-            $"[S{index + 1}] {match.DocumentTitle}\n{match.Text}"));
-        var hasSources = contextMatches.Length > 0;
+            $"[S{index + 1}] Документ: {match.DocumentTitle}\nРаздел: {match.SourceLabel}\n{match.Text}"));
+        var hasSources = contextMatches.Count > 0;
         var messages = new List<InferenceMessage>
         {
             new("system", ChatPrompt.BuildSystemMessage(context, hasSources, Array.Empty<string>(), null))
@@ -290,6 +301,141 @@ internal sealed class RagService(
 
         return documents;
     }
+
+    private async Task<IReadOnlyList<RagMatch>> SearchLexicallyAsync(string question, CancellationToken cancellationToken)
+    {
+        await using var connection = new NpgsqlConnection(GetConnectionString());
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand($"""
+            WITH query AS (
+                SELECT websearch_to_tsquery('russian', @question) AS terms
+            )
+            SELECT metadata,
+                   ts_rank_cd(
+                       to_tsvector('russian',
+                           COALESCE(metadata ->> 'Text', '') || ' ' ||
+                           COALESCE(metadata ->> 'fileName', '') || ' ' ||
+                           COALESCE(metadata ->> 'heading', '')),
+                       terms) AS lexical_rank
+            FROM {VectorTableName}, query
+            WHERE to_tsvector('russian',
+                    COALESCE(metadata ->> 'Text', '') || ' ' ||
+                    COALESCE(metadata ->> 'fileName', '') || ' ' ||
+                    COALESCE(metadata ->> 'heading', '')) @@ terms
+            ORDER BY lexical_rank DESC
+            LIMIT {CandidateCount}
+            """, connection);
+        command.Parameters.AddWithValue("question", question);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var matches = new List<RagMatch>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var metadata = JsonSerializer.Deserialize<Dictionary<string, object>>(reader.GetString(0))
+                ?? new Dictionary<string, object>();
+            if (!TryGetMetadataString(metadata, "Text", out var text))
+            {
+                continue;
+            }
+
+            var lexicalRank = reader.GetFloat(1);
+            matches.Add(new(
+                GetMetadataString(metadata, "fileName", "Документ"),
+                GetMetadataString(metadata, "heading", "Документ"),
+                text,
+                0,
+                true,
+                IsExactDocumentMatch(question, GetMetadataString(metadata, "fileName", string.Empty)),
+                lexicalRank));
+        }
+
+        return matches;
+    }
+
+    internal static IReadOnlyList<RagMatch> MergeAndRank(
+        IReadOnlyList<RagMatch> semanticMatches,
+        IReadOnlyList<RagMatch> lexicalMatches,
+        int maxMatches)
+    {
+        const double reciprocalRankOffset = 20;
+        var candidates = new Dictionary<string, RankedMatch>(StringComparer.Ordinal);
+
+        AddCandidates(semanticMatches, isLexical: false);
+        AddCandidates(lexicalMatches, isLexical: true);
+
+        return candidates.Values
+            .OrderByDescending(candidate => candidate.Score + (candidate.Match.IsExactDocumentMatch ? 0.1 : 0))
+            .ThenByDescending(candidate => candidate.Match.Similarity)
+            .Select(candidate => candidate.Match with { RankingScore = candidate.Score })
+            .Take(maxMatches)
+            .ToArray();
+
+        void AddCandidates(IReadOnlyList<RagMatch> source, bool isLexical)
+        {
+            for (var index = 0; index < source.Count; index++)
+            {
+                var match = source[index];
+                var key = CreateMatchKey(match);
+                var score = 1d / (reciprocalRankOffset + index + 1);
+                if (!candidates.TryGetValue(key, out var existing))
+                {
+                    candidates[key] = new(match, score);
+                    continue;
+                }
+
+                var merged = existing.Match with
+                {
+                    Similarity = Math.Max(existing.Match.Similarity, match.Similarity),
+                    HasLexicalMatch = existing.Match.HasLexicalMatch || isLexical,
+                    IsExactDocumentMatch = existing.Match.IsExactDocumentMatch || match.IsExactDocumentMatch
+                };
+                candidates[key] = new(merged, existing.Score + score);
+            }
+        }
+    }
+
+    internal static IReadOnlyList<RagMatch> SelectContextMatches(
+        IReadOnlyList<RagMatch> matches,
+        int maxMatches,
+        int maxMatchesPerDocument)
+    {
+        var matchesPerDocument = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var selected = new List<RagMatch>(maxMatches);
+        foreach (var match in matches)
+        {
+            var selectedForDocument = matchesPerDocument.GetValueOrDefault(match.DocumentTitle);
+            if (selectedForDocument >= maxMatchesPerDocument)
+            {
+                continue;
+            }
+
+            selected.Add(match);
+            matchesPerDocument[match.DocumentTitle] = selectedForDocument + 1;
+            if (selected.Count == maxMatches)
+            {
+                break;
+            }
+        }
+
+        return selected;
+    }
+
+    private static bool IsExactDocumentMatch(string question, string documentTitle)
+    {
+        var normalizedTitle = documentTitle.ToLowerInvariant();
+        return ExtractSearchTokens(question)
+            .Where(token => token.Length >= 4 || token.Any(char.IsDigit))
+            .Any(token => normalizedTitle.Contains(token, StringComparison.Ordinal));
+    }
+
+    private static string CreateMatchKey(RagMatch match) =>
+        $"{match.DocumentTitle}\u001f{match.Text}";
+
+    private static IEnumerable<string> ExtractSearchTokens(string text) => text
+        .Split([' ', '\t', '\r', '\n', ',', '.', ';', ':', '(', ')', '[', ']', '"', '«', '»'], StringSplitOptions.RemoveEmptyEntries)
+        .Select(token => token.Trim().ToLowerInvariant());
+
+    private sealed record RankedMatch(RagMatch Match, double Score);
 
     private string GetConnectionString() => configuration.GetConnectionString("OssDatabase")
         ?? throw new InvalidOperationException("Не задана строка подключения ConnectionStrings__OssDatabase.");
