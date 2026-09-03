@@ -672,7 +672,7 @@ internal static class RagStatusFormatter
             | Cross-encoder reranker | {(rerankerCache.ModelCached ? $"есть, {FormatBytes(rerankerCache.ModelSizeBytes)}" : "нет, используется RRF")} |
             | Папка кэша | `{modelCache.Directory}` |
             | Нарезка | Markdown, 1200 символов, overlap 250 |
-            | Реранжирование | RRF semantic + lexical, затем local cross-encoder при доступности |
+            | Реранжирование | RRF semantic + lexical, ±1 соседний чанк для top-12, затем local cross-encoder при доступности |
 
             ### Проиндексированные документы
             {documents}

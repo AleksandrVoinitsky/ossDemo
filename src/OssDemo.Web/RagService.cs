@@ -18,6 +18,8 @@ internal sealed class RagService(
     internal const string Model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/model_O1.onnx";
     private const string VectorTableName = "ragify_vectors";
     private const int CandidateCount = 24;
+    private const int NeighborExpansionSeedCount = 12;
+    private const int ExpandedCandidateCount = 36;
     private const int ResultCount = 8;
 
     public async Task<RagStatus> GetStatusAsync(CancellationToken cancellationToken)
@@ -69,15 +71,20 @@ internal sealed class RagService(
                 context.Similarity,
                 false,
                 false,
-                0))
+                0)
+            {
+                DocumentId = GetMetadataString(context.Chunk.Metadata, "DocumentId", string.Empty),
+                ChunkOrdinal = GetMetadataInt(context.Chunk.Metadata, "chunkOrdinal")
+            })
             .ToArray();
         var candidates = MergeAndRank(semanticMatches, lexicalTask.Result, CandidateCount);
+        var expandedCandidates = await ExpandWithNeighborsAsync(candidates, cancellationToken);
         var matches = candidates.Take(ResultCount).ToArray();
         if (reranker is not null)
         {
             try
             {
-                matches = reranker.Rerank(question, candidates, ResultCount).ToArray();
+                matches = reranker.Rerank(question, expandedCandidates, ResultCount).ToArray();
             }
             catch (Exception exception)
             {
@@ -221,6 +228,7 @@ internal sealed class RagService(
             logger.LogInformation("Документ {FileName} обработан. Начинается векторизация...", Path.GetFileName(sourceFileName));
             await ragify.IngestAsync(document, cancellationToken);
             var chunks = await ragify.GetChunksAsync(ragifyDocumentId, cancellationToken);
+            await SaveChunkOrdinalsAsync(chunks, cancellationToken);
             logger.LogInformation("RAGify проиндексировал документ {DocumentId}: {ChunkCount} фрагментов.", ragifyDocumentId, chunks.Count);
             return new(documentId, Path.GetFileNameWithoutExtension(sourceFileName), "ragify", "indexed", sourceFileName,
                 DateTimeOffset.UtcNow, file.Length, chunks.Count);
@@ -370,10 +378,96 @@ internal sealed class RagService(
                 0,
                 true,
                 IsExactDocumentMatch(question, GetMetadataString(metadata, "fileName", string.Empty)),
-                lexicalRank));
+                lexicalRank)
+            {
+                DocumentId = GetMetadataString(metadata, "DocumentId", string.Empty),
+                ChunkOrdinal = GetMetadataInt(metadata, "chunkOrdinal")
+            });
         }
 
         return matches;
+    }
+
+    private async Task<IReadOnlyList<RagMatch>> ExpandWithNeighborsAsync(IReadOnlyList<RagMatch> candidates, CancellationToken cancellationToken)
+    {
+        var seeds = candidates
+            .Where(match => !string.IsNullOrWhiteSpace(match.DocumentId) && match.ChunkOrdinal is not null)
+            .Take(NeighborExpansionSeedCount)
+            .ToArray();
+        if (seeds.Length == 0)
+        {
+            return candidates;
+        }
+
+        await using var connection = new NpgsqlConnection(GetConnectionString());
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand($"""
+            WITH requested(document_id, chunk_ordinal) AS (
+                SELECT * FROM unnest(@documentIds::text[], @chunkOrdinals::integer[])
+            )
+            SELECT vectors.metadata
+            FROM {VectorTableName} AS vectors
+            INNER JOIN requested ON vectors.metadata ->> 'DocumentId' = requested.document_id
+            WHERE vectors.metadata ? 'chunkOrdinal'
+                AND ABS((vectors.metadata ->> 'chunkOrdinal')::integer - requested.chunk_ordinal) <= 1
+            """, connection);
+        command.Parameters.AddWithValue("documentIds", seeds.Select(match => match.DocumentId!).ToArray());
+        command.Parameters.AddWithValue("chunkOrdinals", seeds.Select(match => match.ChunkOrdinal!.Value).ToArray());
+
+        var expanded = candidates.ToDictionary(CreateMatchKey, StringComparer.Ordinal);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken) && expanded.Count < ExpandedCandidateCount)
+        {
+            var metadata = JsonSerializer.Deserialize<Dictionary<string, object>>(reader.GetString(0))
+                ?? new Dictionary<string, object>();
+            if (!TryGetMetadataString(metadata, "Text", out var text))
+            {
+                continue;
+            }
+
+            var neighbor = new RagMatch(
+                GetMetadataString(metadata, "fileName", "Документ"),
+                GetMetadataString(metadata, "heading", "Документ"),
+                text,
+                0,
+                false,
+                false,
+                0)
+            {
+                DocumentId = GetMetadataString(metadata, "DocumentId", string.Empty),
+                ChunkOrdinal = GetMetadataInt(metadata, "chunkOrdinal")
+            };
+            expanded.TryAdd(CreateMatchKey(neighbor), neighbor);
+        }
+
+        return expanded.Values.ToArray();
+    }
+
+    private async Task SaveChunkOrdinalsAsync(IReadOnlyList<IChunk> chunks, CancellationToken cancellationToken)
+    {
+        if (chunks.Count == 0)
+        {
+            return;
+        }
+
+        await using var connection = new NpgsqlConnection(GetConnectionString());
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand($"""
+            UPDATE {VectorTableName}
+            SET metadata = jsonb_set(metadata, ARRAY['chunkOrdinal'], to_jsonb(@chunkOrdinal::integer), true)
+            WHERE vector_id = @chunkId
+            """, connection);
+        var chunkId = command.Parameters.Add("chunkId", NpgsqlTypes.NpgsqlDbType.Text);
+        var chunkOrdinal = command.Parameters.Add("chunkOrdinal", NpgsqlTypes.NpgsqlDbType.Integer);
+        foreach (var chunk in chunks)
+        {
+            chunkId.Value = chunk.ChunkId;
+            chunkOrdinal.Value = chunk.Index;
+            if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+            {
+                throw new InvalidOperationException($"Не найден вектор для сохранения порядка чанка {chunk.ChunkId}.");
+            }
+        }
     }
 
     internal static IReadOnlyList<RagMatch> MergeAndRank(
@@ -522,6 +616,21 @@ internal sealed class RagService(
         return !string.IsNullOrWhiteSpace(value);
     }
 
+    private static int? GetMetadataInt(IReadOnlyDictionary<string, object> metadata, string key)
+    {
+        if (!metadata.TryGetValue(key, out var rawValue))
+        {
+            return null;
+        }
+
+        if (rawValue is JsonElement { ValueKind: JsonValueKind.Number } element && element.TryGetInt32(out var jsonValue))
+        {
+            return jsonValue;
+        }
+
+        return int.TryParse(rawValue?.ToString(), out var value) ? value : null;
+    }
+
     private static string Truncate(string value, int maxLength) =>
         value.Length <= maxLength ? value : value[..maxLength];
 }
@@ -529,6 +638,8 @@ internal sealed class RagService(
 internal sealed record RagMatch(string DocumentTitle, string SourceLabel, string Text, double Similarity, bool HasLexicalMatch, bool IsExactDocumentMatch, double RankingScore)
 {
     public bool IsRelevant => Similarity >= 0.30;
+    public string? DocumentId { get; init; }
+    public int? ChunkOrdinal { get; init; }
 }
 
 internal sealed record RagSearchResult(IReadOnlyList<RagMatch> Matches, bool IsAmbiguous, IReadOnlyList<string> AmbiguousDocuments)
