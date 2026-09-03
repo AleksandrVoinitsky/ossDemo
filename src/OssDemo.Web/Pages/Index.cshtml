@@ -1,196 +1,97 @@
 @page
 @model IndexModel
-@{ 
-    ViewData["Title"] = "Нормативные новости";
+@{
+    ViewData["Title"] = "Оперативная панель";
     ViewData["Nav"] = "Home";
-    ViewData["Breadcrumb"] = "Главная \\ Нормативные новости";
+    ViewData["Breadcrumb"] = "Главная / Оперативная панель";
+    var dashboard = Model.Dashboard;
 }
 
-<section class="page-header mb-4">
+<section class="operations-header">
     <div>
-        <h1 class="section-title h2 mb-1">Нормативные новости ООС</h1>
-        <p class="muted-note mb-0">Постановления, приказы, методические письма и внутренние объявления, влияющие на подготовку проверок и чек-листов.</p>
+        <p class="eyebrow mb-2">Контур инспекционного контроля</p>
+        <h1 class="section-title h3 mb-2">Оперативная панель</h1>
+        <p class="muted-note mb-0">Состояние реестров, приоритеты проверки и события рабочего контура.</p>
     </div>
-    <div class="header-status">
-        <span>Обновлено 21.08.2026 21:15</span>
+    <div class="operations-header-actions">
+        <a class="btn btn-outline-primary" asp-page="/KnowledgeBase">Открыть базу знаний</a>
+        <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#aiConsultantModal">Новая команда</button>
     </div>
 </section>
 
-<section class="row g-4 news-workspace">
-    <div class="col-xl-8">
-        <section class="soft-panel" aria-labelledby="newsFeedTitle">
-            <div class="strict-panel-header">
-                <div>
-                    <h2 id="newsFeedTitle" class="section-title h4 mb-1">Лента обновлений</h2>
-                    <p class="muted-note mb-0">Документы и объявления, влияющие на состав требований и порядок контроля.</p>
-                </div>
-                <nav class="strict-filter" aria-label="Фильтр новостей">
-                    <a href="#">Все</a>
-                    <a href="#">Постановления</a>
-                    <a href="#">Приказы</a>
-                    <a href="#">Методика</a>
-                </nav>
-            </div>
+@if (dashboard == OperationalDashboard.Unavailable)
+{
+    <div class="alert alert-info mb-4" role="status">Рабочая PostgreSQL ещё не настроена. Панель доступна в режиме просмотра; для реестров и команд добавьте <code>ConnectionStrings__OssDatabase</code> в переменные окружения.</div>
+}
 
-            <div class="social-news-feed" aria-label="Лента постов">
-                <article class="news-post-card">
-                    <div class="news-post-head">
-                        <div class="news-post-source-icon">ПК</div>
-                        <div>
-                            <h3 class="h5 mb-0"><a asp-page="/KnowledgeBase">Обновлён порядок учёта требований ПЭК</a></h3>
-                            <div class="news-post-meta"><time datetime="2026-08-21">21.08.2026</time> · Постановление · высокое влияние</div>
-                        </div>
-                        <span class="badge text-bg-success">Проиндексировано</span>
-                    </div>
-                    <div class="news-post-image news-post-image-primary" role="img" aria-label="Имитация изображения с производственной площадкой и графиком контроля">
-                        <span>ПЭК</span>
-                        <div class="news-post-image-lines" aria-hidden="true"><i></i><i></i><i></i></div>
-                    </div>
-                    <p>Затрагивает программу производственного экологического контроля, сроки контроля и подтверждающие материалы для объектов I и II категории НВОС.</p>
-                    <div class="news-post-footer">
-                        <span>12 источников обновлены</span>
-                        <span>Классификатор: 1.4, 2.3, 3.2</span>
-                    </div>
-                </article>
+<section class="operation-metrics" aria-label="Ключевые показатели">
+    <article class="operation-metric-card">
+        <span class="operation-metric-icon metric-icon-blue">ОБ</span>
+        <div><span class="operation-metric-label">Объекты контроля</span><strong>@(dashboard?.FacilityCount ?? 0)</strong><a asp-page="/Facilities">Открыть реестр</a></div>
+    </article>
+    <article class="operation-metric-card">
+        <span class="operation-metric-icon metric-icon-red">НШ</span>
+        <div><span class="operation-metric-label">Открытые нарушения</span><strong>@(dashboard?.ViolationCount ?? 0)</strong><a asp-page="/Violations">Открыть реестр</a></div>
+    </article>
+    <article class="operation-metric-card">
+        <span class="operation-metric-icon metric-icon-amber">!</span>
+        <div><span class="operation-metric-label">Требуют решения</span><strong>@(dashboard?.AttentionCount ?? 0)</strong><a asp-page="/Checklists/New">Сформировать чек-лист</a></div>
+    </article>
+    <article class="operation-metric-card">
+        <span class="operation-metric-icon metric-icon-green">RAG</span>
+        <div><span class="operation-metric-label">База знаний</span><strong data-rag-document-count>—</strong><a asp-page="/KnowledgeBase">Источники и документы</a></div>
+    </article>
+</section>
 
-                <article class="news-post-card">
-                    <div class="news-post-head">
-                        <div class="news-post-source-icon">ДК</div>
-                        <div>
-                            <h3 class="h5 mb-0"><a asp-page="/Checklists/New">Уточнён перечень документов перед плановой проверкой</a></h3>
-                            <div class="news-post-meta"><time datetime="2026-08-21">21.08.2026</time> · Приказ · среднее влияние</div>
-                        </div>
-                        <span class="badge text-bg-warning">В обработке</span>
-                    </div>
-                    <div class="news-post-image news-post-image-docs" role="img" aria-label="Имитация изображения с пакетом документов">
-                        <span>Документы</span>
-                        <div class="news-post-doc-stack" aria-hidden="true"><i></i><i></i><i></i></div>
-                    </div>
-                    <p>Рекомендуется прикладывать приказ о назначении ответственных, распоряжение об инвентаризации и актуальную программу ПЭК.</p>
-                    <div class="news-post-footer">
-                        <span>3 файла ожидают проверки</span>
-                        <span>Добавлено в мастер чек-листа</span>
-                    </div>
-                </article>
-
-                <article class="news-post-card">
-                    <div class="news-post-head">
-                        <div class="news-post-source-icon">НВ</div>
-                        <div>
-                            <h3 class="h5 mb-0"><a asp-page="/Violations">Изменён подход к контролю повторяющихся нарушений</a></h3>
-                            <div class="news-post-meta"><time datetime="2026-08-20">20.08.2026</time> · Постановление · высокое влияние</div>
-                        </div>
-                        <span class="badge text-bg-danger">Требует сверки</span>
-                    </div>
-                    <div class="news-post-image news-post-image-warning" role="img" aria-label="Имитация изображения с диаграммой нарушений">
-                        <span>Нарушения</span>
-                        <div class="news-post-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-                    </div>
-                    <p>Повторяемость нарушений за пятилетний период выделяется отдельно; неустранённые нарушения сохраняют критический статус в чек-листе.</p>
-                    <div class="news-post-footer">
-                        <span>1 критический пункт</span>
-                        <span>Контрольный период: 5 лет</span>
-                    </div>
-                </article>
-
-                <article class="news-post-card">
-                    <div class="news-post-head">
-                        <div class="news-post-source-icon">КЛ</div>
-                        <div>
-                            <h3 class="h5 mb-0"><a asp-page="/Classifier">Уточнена классификация требований по воде и отходам</a></h3>
-                            <div class="news-post-meta"><time datetime="2026-08-19">19.08.2026</time> · Методическое письмо · информационное</div>
-                        </div>
-                        <span class="badge text-bg-info">На классификации</span>
-                    </div>
-                    <div class="news-post-image news-post-image-classifier" role="img" aria-label="Имитация изображения с деревом классификатора">
-                        <span>Классификатор</span>
-                        <div class="news-post-tree" aria-hidden="true"><i></i><i></i><i></i></div>
-                    </div>
-                    <p>Описаны правила привязки требований к классификатору без дублирования норм в нескольких разделах.</p>
-                    <div class="news-post-footer">
-                        <span>Разделы: 3.1, 4.2</span>
-                        <span>Дубликаты исключены</span>
-                    </div>
-                </article>
-
-                <article class="news-post-card">
-                    <div class="news-post-head">
-                        <div class="news-post-source-icon">ШБ</div>
-                        <div>
-                            <h3 class="h5 mb-0"><a asp-page="/Templates">Актуализированы шаблоны чек-листов филиального уровня</a></h3>
-                            <div class="news-post-meta"><time datetime="2026-08-18">18.08.2026</time> · Внутреннее распоряжение · среднее влияние</div>
-                        </div>
-                        <span class="badge text-bg-primary">Доступно</span>
-                    </div>
-                    <div class="news-post-image news-post-image-template" role="img" aria-label="Имитация изображения с шаблоном чек-листа">
-                        <span>Шаблон</span>
-                        <div class="news-post-checks" aria-hidden="true"><i></i><i></i><i></i></div>
-                    </div>
-                    <p>Добавлены поля для источника требования, причины включения пункта и отметки о ручном решении инспектора.</p>
-                    <div class="news-post-footer">
-                        <span>2 шаблона обновлены</span>
-                        <span>Экспорт: DOCX, PDF, XLSX</span>
-                    </div>
-                </article>
+<section class="row g-4">
+    <div class="col-xl-7">
+        <section class="soft-panel operational-panel h-100" aria-labelledby="priorityTitle">
+            <div class="operational-panel-header"><div><p class="eyebrow mb-1">В фокусе</p><h2 id="priorityTitle" class="h5 section-title mb-0">Очередь инспектора</h2></div><a asp-page="/Violations" class="small">Все нарушения</a></div>
+            <div class="priority-list">
+                <a class="priority-item priority-critical" asp-page="/Violations"><span class="priority-state">Критично</span><div><strong>Проверить протокол инструментального контроля</strong><p>Березниковское ЛПУМГ · раздел 2.3 «Атмосфера»</p></div><span class="priority-arrow">→</span></a>
+                <a class="priority-item" asp-page="/KnowledgeBase"><span class="priority-state priority-state-info">RAG</span><div><strong>Сверить новые документы перед подготовкой проверки</strong><p>Используйте базу знаний для поиска подтверждающих фрагментов.</p></div><span class="priority-arrow">→</span></a>
+                <a class="priority-item" asp-page="/Checklists/New"><span class="priority-state priority-state-neutral">План</span><div><strong>Сформировать индивидуальный чек-лист</strong><p>Подбор требований и истории нарушений по выбранному объекту.</p></div><span class="priority-arrow">→</span></a>
             </div>
         </section>
     </div>
-
+    <div class="col-xl-5">
+        <section class="soft-panel operational-panel h-100" aria-labelledby="inspectionTitle">
+            <div class="operational-panel-header"><div><p class="eyebrow mb-1">Рабочий контур</p><h2 id="inspectionTitle" class="h5 section-title mb-0">Объекты в реестре</h2></div><a asp-page="/Facilities" class="small">К объектам</a></div>
+            <div class="inspection-list">
+            @foreach (var inspection in dashboard?.Inspections ?? [])
+            {
+                <a class="inspection-row" asp-page="/Facilities"><span class="status-dot status-ready"></span><div><strong>@inspection.Name</strong><span>НВОС @inspection.NvocCategory · цифровой профиль</span></div><span>→</span></a>
+            }
+            </div>
+        </section>
+    </div>
+    <div class="col-xl-8">
+        <section class="soft-panel operational-panel" aria-labelledby="activityTitle">
+            <div class="operational-panel-header"><div><p class="eyebrow mb-1">Прозрачность</p><h2 id="activityTitle" class="h5 section-title mb-0">Последние события</h2></div><a asp-page="/AuditLog" class="small">Журнал действий</a></div>
+            <div class="activity-timeline">
+            @foreach (var activity in dashboard?.Activity ?? [])
+            {
+                <div class="activity-row"><time>@activity.OccurredAt.LocalDateTime.ToString("dd.MM · HH:mm")</time><span class="activity-marker"></span><div><strong>@activity.Action</strong><p>@activity.Details</p></div></div>
+            }
+            </div>
+        </section>
+    </div>
     <div class="col-xl-4">
-        <aside class="dashboard-stack" aria-label="Оперативная сводка">
-            <section class="soft-panel">
-                <div class="strict-panel-header compact">
-                    <h2 class="section-title h4 mb-0">Сводные показатели</h2>
-                </div>
-                <table class="table strict-summary-table mb-0">
-                    <tbody>
-                        <tr><th>Новых документов за 7 дней</th><td>12</td></tr>
-                        <tr><th>Индексация базы знаний</th><td>94%</td></tr>
-                        <tr><th>Требуют сверки</th><td>3</td></tr>
-                        <tr><th>Проверки в ближайшие 30 дней</th><td>5</td></tr>
-                    </tbody>
-                </table>
-            </section>
-
-            <section class="soft-panel">
-                <div class="strict-panel-header compact">
-                    <h2 class="section-title h4 mb-0">Контроль актуальности</h2>
-                </div>
-                <table class="table strict-summary-table mb-0">
-                    <tbody>
-                        <tr><th><a asp-page="/KnowledgeBase">База знаний</a></th><td>5 источников обновлены</td></tr>
-                        <tr><th><a asp-page="/Classifier">Классификатор</a></th><td>v2026.01 активна</td></tr>
-                        <tr><th><a asp-page="/Templates">Шаблоны</a></th><td>2 требуют сверки</td></tr>
-                        <tr><th><a asp-page="/Checklists/New">Документы проверки</a></th><td>3 документа в обработке</td></tr>
-                    </tbody>
-                </table>
-            </section>
-
-            <section class="soft-panel">
-                <div class="strict-panel-header compact">
-                    <h2 class="section-title h4 mb-0">Ближайшие проверки</h2>
-                </div>
-                <table class="table strict-summary-table mb-0">
-                    <tbody>
-                        <tr><th>02.09</th><td>Березниковское ЛПУМГ</td></tr>
-                        <tr><th>12.09</th><td>Площадка подготовки газа</td></tr>
-                        <tr><th>24.09</th><td>Узел водоотведения</td></tr>
-                    </tbody>
-                </table>
-            </section>
-
-            <section class="soft-panel">
-                <div class="strict-panel-header compact">
-                    <h2 class="section-title h4 mb-0">Очередь обработки</h2>
-                </div>
-                <table class="table strict-summary-table mb-0">
-                    <tbody>
-                        <tr><th>Критическое влияние</th><td>1 запись</td></tr>
-                        <tr><th>Ожидают классификации</th><td>2 документа</td></tr>
-                        <tr><th>Обработаны без замечаний</th><td>7 обновлений</td></tr>
-                    </tbody>
-                </table>
-            </section>
+        <aside class="soft-panel command-panel" aria-labelledby="commandsTitle">
+            <p class="eyebrow mb-1">Быстрый ввод</p><h2 id="commandsTitle" class="h5 section-title">Команды реестра</h2>
+            <p class="muted-note small">Добавляйте объекты и нарушения прямо через ИИ-консультанта. Записи сохраняются в PostgreSQL и отображаются на панели.</p>
+            <button class="command-example" type="button" data-chat-command="!help">!help</button>
+            <code>!add-facility | Наименование | Адрес | I | 59.4072 | 56.8040</code>
+            <code>!add-violation | Объект | Раздел | Текст | Ответственный | 2026-10-10 | review</code>
         </aside>
     </div>
 </section>
+
+@section Scripts {
+    <script>
+        fetch('/api/rag/status').then(response => response.ok ? response.json() : null).then(status => {
+            const target = document.querySelector('[data-rag-document-count]');
+            if (target && status) target.textContent = status.documentCount ?? '0';
+        }).catch(() => {});
+    </script>
+}

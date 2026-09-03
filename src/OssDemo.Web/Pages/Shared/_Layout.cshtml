@@ -16,21 +16,22 @@
 <body>
     <div class="app-frame">
         <aside class="app-sidebar" aria-label="Основное меню">
-            <a class="app-brand" asp-area="" asp-page="/Index"><span class="brand-mark">ООС</span><span>АИ ООС</span></a>
-            <div class="sidebar-caption">Рабочая область инспектора</div>
+            <a class="app-brand" asp-area="" asp-page="/Index"><span class="brand-mark">ООС</span><span><b>АИ ООС</b><small>Инспекционный контур</small></span></a>
+            <div class="sidebar-caption">Рабочие модули</div>
             <nav class="app-nav">
-                <a class="nav-link @(ViewData["Nav"] as string == "Schedule" ? "active" : "")" asp-page="/Schedule">📅 <span>График</span></a>
-                <a class="nav-link @(ViewData["Nav"] as string == "Checklist" ? "active" : "")" asp-page="/Checklists/New">📋 <span>Чек-лист</span></a>
-                <a class="nav-link @(ViewData["Nav"] as string == "Knowledge" ? "active" : "")" asp-page="/KnowledgeBase">📚 <span>База знаний</span></a>
-                <a class="nav-link @(ViewData["Nav"] as string == "Templates" ? "active" : "")" asp-page="/Templates">▦ <span>Шаблоны чек-листа</span></a>
-                <a class="nav-link @(ViewData["Nav"] as string == "Classifier" ? "active" : "")" asp-page="/Classifier">⌘ <span>Классификатор</span></a>
-                <a class="nav-link @(ViewData["Nav"] as string == "Facilities" ? "active" : "")" asp-page="/Facilities">🏭 <span>Объекты</span></a>
-                <a class="nav-link @(ViewData["Nav"] as string == "Violations" ? "active" : "")" asp-page="/Violations">⚠️ <span>Нарушения</span></a>
+                <a class="nav-link @(ViewData["Nav"] as string == "Home" ? "active" : "")" asp-page="/Index"><i>01</i><span>Оперативная панель</span></a>
+                <a class="nav-link @(ViewData["Nav"] as string == "Schedule" ? "active" : "")" asp-page="/Schedule"><i>02</i><span>График проверок</span></a>
+                <a class="nav-link @(ViewData["Nav"] as string == "Checklist" ? "active" : "")" asp-page="/Checklists/New"><i>03</i><span>Чек-листы</span></a>
+                <a class="nav-link @(ViewData["Nav"] as string == "Knowledge" ? "active" : "")" asp-page="/KnowledgeBase"><i>04</i><span>База знаний</span></a>
+                <a class="nav-link @(ViewData["Nav"] as string == "Templates" ? "active" : "")" asp-page="/Templates"><i>05</i><span>Шаблоны</span></a>
+                <a class="nav-link @(ViewData["Nav"] as string == "Classifier" ? "active" : "")" asp-page="/Classifier"><i>06</i><span>Классификатор</span></a>
+                <a class="nav-link @(ViewData["Nav"] as string == "Facilities" ? "active" : "")" asp-page="/Facilities"><i>07</i><span>Объекты</span></a>
+                <a class="nav-link @(ViewData["Nav"] as string == "Violations" ? "active" : "")" asp-page="/Violations"><i>08</i><span>Нарушения</span></a>
             </nav>
             <div class="sidebar-footer">
-                <a class="nav-link @(ViewData["Nav"] as string == "Audit" ? "active" : "")" asp-page="/AuditLog">Журнал действий</a>
-                <a class="nav-link @(ViewData["Nav"] as string == "Profile" ? "active" : "")" asp-page="/Profile">Профиль инспектора</a>
-                <form method="post" asp-page="/Login" asp-page-handler="Logout"><button class="nav-link sidebar-logout" type="submit">Выйти</button></form>
+                <a class="nav-link @(ViewData["Nav"] as string == "Audit" ? "active" : "")" asp-page="/AuditLog"><i>Ж</i><span>Журнал действий</span></a>
+                <a class="nav-link @(ViewData["Nav"] as string == "Profile" ? "active" : "")" asp-page="/Profile"><i>П</i><span>Профиль инспектора</span></a>
+                <form method="post" asp-page="/Login" asp-page-handler="Logout"><button class="nav-link sidebar-logout" type="submit"><i>×</i><span>Выйти</span></button></form>
             </div>
         </aside>
         <div class="app-workspace">
@@ -57,7 +58,7 @@
                 <div class="modal-header">
                     <div>
                         <h2 class="modal-title h5 section-title mb-1" id="aiConsultantModalTitle">ИИ-консультант</h2>
-                        <div class="small muted-note">Контекст: Березниковское ЛПУМГ, НВОС I, подготовка проверки</div>
+                        <div class="small muted-note">RAG-поиск по базе знаний · потоковый ответ · команды реестра: <code>!help</code></div>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
                 </div>
@@ -67,7 +68,7 @@
 
                         <form data-ai-question data-ai-endpoint="/api/ai/chat" class="chat-input" autocomplete="off">
                             <label class="visually-hidden" for="ai-question-input">Вопрос ИИ-консультанту</label>
-                            <textarea id="ai-question-input" class="form-control chat-textarea" data-chat-input rows="1" placeholder="Введите вопрос..." aria-label="Вопрос ИИ-консультанту"></textarea>
+                            <textarea id="ai-question-input" class="form-control chat-textarea" data-chat-input rows="1" placeholder="Задайте вопрос или введите !help для команд..." aria-label="Вопрос ИИ-консультанту"></textarea>
                             <div class="chat-composer-actions">
                                 <button class="btn btn-primary" data-chat-send type="submit">Отправить</button>
                             </div>

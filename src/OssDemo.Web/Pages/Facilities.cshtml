@@ -5,12 +5,9 @@
     ViewData["Breadcrumb"] = "Объекты \\ Карта и цифровые профили";
 }
 
-<div class="page-actions mb-3">
-    <button class="btn btn-primary" data-show-target="#newFacilityPanel">Добавить объект</button>
-</div>
-
-<div id="newFacilityPanel" class="alert alert-info state-hidden" hidden>
-    Для создания объекта обязательны наименование, тип, координаты площадки и категория НВОС. Изменения попадут в журнал действий.
+<div class="page-actions mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <div><h1 class="h3 section-title mb-1">Объекты контроля</h1><p class="muted-note mb-0">Реестр ведётся в рабочей базе данных.</p></div>
+    <button class="btn btn-primary" type="button" data-chat-command="!help">Добавить командой</button>
 </div>
 
 <section class="facility-workspace">
@@ -20,85 +17,29 @@
                     <h2 class="section-title h4 mb-1">Объекты проверки</h2>
                     <p class="muted-note mb-0">Выберите объект, чтобы показать его на карте и открыть цифровой профиль.</p>
                 </div>
-                <div class="d-flex align-items-center gap-2"><span class="badge text-bg-primary">4</span><a class="btn btn-outline-primary btn-sm" asp-page="/FacilityCard" asp-route-id="berezniki" data-facility-card-link-target>Открыть карточку</a></div>
+                <div class="d-flex align-items-center gap-2"><span class="badge text-bg-primary" data-facility-count>—</span><a class="btn btn-outline-primary btn-sm" asp-page="/FacilityCard" data-facility-card-link-target>Открыть карточку</a></div>
             </div>
 
-            <div class="facility-list" role="tablist" aria-label="Объекты">
-                <button class="facility-list-item btn btn-light text-start active"
-                        data-panel-group="facilities"
-                        data-panel-target="facility-ber"
-                        data-facility-name="Березниковское ЛПУМГ"
-                        data-facility-address="Пермский край, район г. Березники"
-                        data-facility-coordinates="59.4072, 56.8040"
-                        data-facility-map-url="https://yandex.ru/map-widget/v1/?ll=56.8040%2C59.4072&z=10&pt=56.8040%2C59.4072%2Cpm2rdm"
-                        data-facility-map-link="https://yandex.ru/maps/?ll=56.8040%2C59.4072&z=10&pt=56.8040%2C59.4072%2Cpm2rdm"
-                        data-facility-card-url="/FacilityCard?id=berezniki"
-                        aria-selected="true">
-                    <span class="facility-list-item-title">Березниковское ЛПУМГ</span>
-                    <span class="small text-muted">НВОС I · профиль готов</span>
-                    <span class="facility-list-item-meta"><span class="status-dot status-ready"></span>основной demo-объект</span>
-                </button>
-
-                <button class="facility-list-item btn btn-light text-start"
-                        data-panel-group="facilities"
-                        data-panel-target="facility-vot"
-                        data-facility-name="Воткинское ЛПУМГ"
-                        data-facility-address="Удмуртская Республика, район г. Воткинск"
-                        data-facility-coordinates="57.0518, 53.9872"
-                        data-facility-map-url="https://yandex.ru/map-widget/v1/?ll=53.9872%2C57.0518&z=10&pt=53.9872%2C57.0518%2Cpm2orgm"
-                        data-facility-map-link="https://yandex.ru/maps/?ll=53.9872%2C57.0518&z=10&pt=53.9872%2C57.0518%2Cpm2orgm"
-                        data-facility-card-url="/FacilityCard?id=votkinsk"
-                        aria-selected="false">
-                    <span class="facility-list-item-title">Воткинское ЛПУМГ</span>
-                    <span class="small text-muted">НВОС II · требует доработки</span>
-                    <span class="facility-list-item-meta"><span class="status-dot status-warn"></span>не выбран водный блок</span>
-                </button>
-
-                <button class="facility-list-item btn btn-light text-start"
-                        data-panel-group="facilities"
-                        data-panel-target="facility-itc"
-                        data-facility-name="ИТЦ"
-                        data-facility-address="г. Пермь, административная площадка"
-                        data-facility-coordinates="58.0105, 56.2502"
-                        data-facility-map-url="https://yandex.ru/map-widget/v1/?ll=56.2502%2C58.0105&z=12&pt=56.2502%2C58.0105%2Cpm2blm"
-                        data-facility-map-link="https://yandex.ru/maps/?ll=56.2502%2C58.0105&z=12&pt=56.2502%2C58.0105%2Cpm2blm"
-                        data-facility-card-url="/FacilityCard?id=itc"
-                        aria-selected="false">
-                    <span class="facility-list-item-title">ИТЦ</span>
-                    <span class="small text-muted">офисный объект · профиль готов</span>
-                    <span class="facility-list-item-meta"><span class="status-dot status-ready"></span>минимальные аспекты ООС</span>
-                </button>
-
-                <button class="facility-list-item btn btn-light text-start"
-                        data-panel-group="facilities"
-                        data-panel-target="facility-uavr"
-                        data-facility-name="УАВР №1"
-                        data-facility-address="Пермский край, линейный производственный участок"
-                        data-facility-coordinates="58.1385, 56.3269"
-                        data-facility-map-url="https://yandex.ru/map-widget/v1/?ll=56.3269%2C58.1385&z=10&pt=56.3269%2C58.1385%2Cpm2rdm"
-                        data-facility-map-link="https://yandex.ru/maps/?ll=56.3269%2C58.1385&z=10&pt=56.3269%2C58.1385%2Cpm2rdm"
-                        data-facility-card-url="/FacilityCard?id=uavr"
-                        aria-selected="false">
-                    <span class="facility-list-item-title">УАВР №1</span>
-                    <span class="small text-muted">требует создания из графика</span>
-                    <span class="facility-list-item-meta"><span class="status-dot status-danger"></span>нет цифрового паспорта</span>
-                </button>
-            </div>
+            <div class="facility-list" role="tablist" aria-label="Объекты" data-facility-list></div>
     </div>
 
     <div class="soft-panel p-3 p-lg-4 facility-map-panel">
             <div class="facility-map-shell">
                 <iframe class="facility-yandex-map"
-                        src="https://yandex.ru/map-widget/v1/?ll=56.8040%2C59.4072&z=10&pt=56.8040%2C59.4072%2Cpm2rdm"
+                        src="about:blank"
                         title="Березниковское ЛПУМГ на карте"
                         loading="lazy"
                         data-facility-map-frame></iframe>
             </div>
 
             <div class="facility-map-caption mt-3" aria-live="polite">
-                <strong data-facility-map-name>Березниковское ЛПУМГ</strong>
-                <span data-facility-map-address>Пермский край, район г. Березники</span>
-                <span class="text-muted">Координаты: <span data-facility-map-coordinates>59.4072, 56.8040</span></span>
+                <strong data-facility-map-name>Загрузка объектов…</strong>
+                <span data-facility-map-address></span>
+                <span class="text-muted">Координаты: <span data-facility-map-coordinates>—</span></span>
             </div>
     </div>
 </section>
+
+@section Scripts {
+    <script src="~/js/operations.js" asp-append-version="true"></script>
+}

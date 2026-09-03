@@ -57,6 +57,7 @@ builder.Services.AddSingleton<RagService>();
 builder.Services.AddSingleton<RagDatabaseInitializer>();
 builder.Services.AddSingleton<RagDiagnostics>();
 builder.Services.AddSingleton<KnowledgeImportService>();
+builder.Services.AddSingleton<OperationalDataService>();
 builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<KnowledgeImportService>());
 
 var app = builder.Build();
@@ -117,6 +118,12 @@ app.MapGet("/api/rag/status", async (RagService ragService, CancellationToken ca
         status.Problem
     });
 });
+app.MapGet("/api/operations/dashboard", async (OperationalDataService operationalData, CancellationToken cancellationToken) =>
+    Results.Ok(await operationalData.GetDashboardAsync(cancellationToken)));
+app.MapGet("/api/operations/facilities", async (OperationalDataService operationalData, CancellationToken cancellationToken) =>
+    Results.Ok(await operationalData.GetFacilitiesAsync(cancellationToken)));
+app.MapGet("/api/operations/violations", async (OperationalDataService operationalData, CancellationToken cancellationToken) =>
+    Results.Ok(await operationalData.GetViolationsAsync(cancellationToken)));
 app.MapGet("/api/knowledge/documents", async (
     RagService ragService,
     ILogger<Program> logger,
@@ -197,6 +204,7 @@ app.MapPost("/api/rag/embedding-check", async (
 app.MapPost("/api/ai/chat", async (
     ChatRequest request,
     RagService ragService,
+    OperationalDataService operationalData,
     ILogger<Program> logger,
     HttpContext context,
     CancellationToken cancellationToken) =>
@@ -282,6 +290,31 @@ app.MapPost("/api/ai/chat", async (
     }
 
     var rawQuestion = request.Message.Trim();
+    if (rawQuestion.StartsWith("!add-", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(rawQuestion, "!help", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(rawQuestion, "!commands", StringComparison.OrdinalIgnoreCase))
+    {
+        try
+        {
+            var commandResult = await operationalData.ExecuteCommandAsync(rawQuestion, cancellationToken);
+            if (commandResult.IsHandled)
+            {
+                return Results.Ok(new
+                {
+                    answer = commandResult.Answer,
+                    grounded = false,
+                    sources = Array.Empty<ChatSource>(),
+                    mode = "operations-command"
+                });
+            }
+        }
+        catch (Exception exception) when (exception is Npgsql.NpgsqlException or InvalidOperationException)
+        {
+            logger.LogError(exception, "Не удалось выполнить команду рабочего реестра.");
+            return Results.Problem(title: "Рабочий реестр временно недоступен", detail: "Не удалось сохранить запись в базе данных.", statusCode: StatusCodes.Status502BadGateway);
+        }
+    }
+
     if (rawQuestion.StartsWith('!'))
     {
         var debugQuery = rawQuestion[1..].Trim();
