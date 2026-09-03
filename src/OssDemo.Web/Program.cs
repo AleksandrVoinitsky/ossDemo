@@ -12,6 +12,16 @@ var builder = WebApplication.CreateBuilder(args);
 var modelCacheLogger = LoggerFactory.Create(logging => logging.AddConsole())
     .CreateLogger("RagifyModelCache");
 var modelPath = await RagifyModelCache.EnsureAsync(builder.Configuration, modelCacheLogger, CancellationToken.None);
+MultilingualCrossEncoderReranker? reranker = null;
+try
+{
+    var rerankerPaths = await RerankerModelCache.EnsureAsync(builder.Configuration, modelCacheLogger, CancellationToken.None);
+    reranker = new MultilingualCrossEncoderReranker(rerankerPaths.ModelPath, rerankerPaths.TokenizerPath);
+}
+catch (Exception exception)
+{
+    modelCacheLogger.LogWarning(exception, "Локальный cross-encoder reranker недоступен. Будет использовано RRF-ранжирование без дополнительной оценки кандидатов.");
+}
 
 // Add services to the container.
 builder.Services.AddRazorPages();
@@ -29,6 +39,10 @@ builder.Services.AddSingleton<IVectorStore>(serviceProvider =>
 builder.Services.AddSingleton<IEmbeddingProvider>(_ => new MultilingualMiniLmEmbeddingProvider(
     modelPath,
     RagifyModelCache.GetTokenizerPath(modelPath)));
+if (reranker is not null)
+{
+    builder.Services.AddSingleton(reranker);
+}
 builder.Services.AddSingleton<IRagify>(serviceProvider =>
 {
     var configuration = serviceProvider.GetRequiredService<IConfiguration>();
@@ -238,6 +252,7 @@ app.MapPost("/api/ai/chat", async (
         var status = await ragService.GetStatusAsync(cancellationToken);
         var modelCache = RagifyModelCache.GetStatus(builder.Configuration);
         var diagnostics = app.Services.GetRequiredService<RagDiagnostics>().GetStatus();
+        var rerankerCache = RerankerModelCache.GetStatus(builder.Configuration);
         logger.LogInformation(
             "Диагностика RAG: Ready={Ready}, Documents={DocumentCount}, Chunks={ChunkCount}, ModelCached={ModelCached}, TokenizerCached={TokenizerCached}.",
             status.Ready,
@@ -247,7 +262,7 @@ app.MapPost("/api/ai/chat", async (
             modelCache.TokenizerCached);
         return Results.Ok(new
         {
-            answer = RagStatusFormatter.BuildDetailedAnswer(status, modelCache, diagnostics),
+            answer = RagStatusFormatter.BuildDetailedAnswer(status, modelCache, rerankerCache, diagnostics),
             grounded = false,
             sources = Array.Empty<ChatSource>(),
             mode = "rag-status"
@@ -630,7 +645,7 @@ internal static class RagStatusFormatter
             """;
     }
 
-    public static string BuildDetailedAnswer(RagStatus status, RagifyModelCacheStatus modelCache, RagDiagnosticsStatus diagnostics)
+    public static string BuildDetailedAnswer(RagStatus status, RagifyModelCacheStatus modelCache, RerankerModelCacheStatus rerankerCache, RagDiagnosticsStatus diagnostics)
     {
         var documents = status.Documents.Count == 0
             ? "Пока нет проиндексированных документов."
@@ -654,9 +669,10 @@ internal static class RagStatusFormatter
             | ONNX-модель | `{status.Model}` |
             | Кэш ONNX в volume | {modelCacheState}, {FormatBytes(modelCache.ModelSizeBytes)} |
             | Кэш токенизатора в volume | {tokenizerCacheState}, {FormatBytes(modelCache.TokenizerSizeBytes)} |
+            | Cross-encoder reranker | {(rerankerCache.ModelCached ? $"есть, {FormatBytes(rerankerCache.ModelSizeBytes)}" : "нет, используется RRF")} |
             | Папка кэша | `{modelCache.Directory}` |
-            | Нарезка | Markdown, 1800 символов, overlap 200 |
-            | Реранжирование | встроенный lexical/BM25 RAGify |
+            | Нарезка | Markdown, 1200 символов, overlap 250 |
+            | Реранжирование | RRF semantic + lexical, затем local cross-encoder при доступности |
 
             ### Проиндексированные документы
             {documents}

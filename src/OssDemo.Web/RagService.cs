@@ -12,7 +12,8 @@ internal sealed class RagService(
     IVectorStore vectorStore,
     IHttpClientFactory httpClientFactory,
     IConfiguration configuration,
-    ILogger<RagService> logger)
+    ILogger<RagService> logger,
+    MultilingualCrossEncoderReranker? reranker = null)
 {
     internal const string Model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/model_O1.onnx";
     private const string VectorTableName = "ragify_vectors";
@@ -70,7 +71,19 @@ internal sealed class RagService(
                 false,
                 0))
             .ToArray();
-        var matches = MergeAndRank(semanticMatches, lexicalTask.Result, ResultCount);
+        var candidates = MergeAndRank(semanticMatches, lexicalTask.Result, CandidateCount);
+        var matches = candidates.Take(ResultCount).ToArray();
+        if (reranker is not null)
+        {
+            try
+            {
+                matches = reranker.Rerank(question, candidates, ResultCount).ToArray();
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception, "Cross-encoder reranker не выполнил оценку кандидатов. Использовано RRF-ранжирование.");
+            }
+        }
         return new(matches, false, Array.Empty<string>());
     }
 

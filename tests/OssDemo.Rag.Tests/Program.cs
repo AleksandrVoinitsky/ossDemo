@@ -50,6 +50,19 @@ var embedding = await embeddingProvider.EmbedAsync("Требования эко�
 AssertTrue(embedding.Length == 384);
 AssertTrue(embedding.All(float.IsFinite));
 
+var rerankerDirectory = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../../mmarco-mMiniLMv2-L12-H384-v1"));
+using var reranker = new MultilingualCrossEncoderReranker(
+    Path.Combine(rerankerDirectory, "onnx", "model_O1.onnx"),
+    Path.Combine(rerankerDirectory, "tokenizer.json"));
+var rerankedMatches = reranker.Rerank("Что говорит статья 15 о районировании лесов?", new[]
+{
+    new RagMatch("Лесной кодекс", "Статья 15", "Статья 15. Районирование лесов. Лесорастительные зоны определяются в зависимости от природно-климатических условий.", 0.4, false, false, 0),
+    new RagMatch("Приказ", "Таксация", "Таксация лесов проводится методом классов возраста.", 0.7, false, false, 0)
+}, maxMatches: 2);
+AssertTrue(rerankedMatches.Count == 2);
+AssertTrue(rerankedMatches.All(match => double.IsFinite(match.RankingScore)));
+AssertTrue(rerankedMatches[0].DocumentTitle == "Лесной кодекс");
+
 Console.WriteLine("RAGify adapter checks passed.");
 
 static void AssertTrue(bool value)
