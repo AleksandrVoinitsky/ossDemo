@@ -80,23 +80,30 @@ internal sealed class KnowledgeImportService(
                 {
                     var importResult = await ImportFileAsync(path, sourceFileName, cancellationToken, force);
                     result.Add(importResult);
+                    if (importResult.Indexed)
+                    {
+                        logger.LogInformation("✓ Проиндексирован: {FileName} ({ChunkCount} фрагментов)", sourceFileName, importResult.ChunkCount);
+                    }
                 }
                 catch (RagIngestionException exception)
                 {
                     logger.LogWarning("Файл {FileName} не импортирован: {Message}", Path.GetFileName(path), exception.Message);
                     result.FailedFileCount++;
+                    result.FailedFiles.Add(sourceFileName);
                     diagnostics.Record("warning", $"Не импортирован {sourceFileName}: {exception.Message}");
                 }
                 catch (OperationCanceledException exception)
                 {
                     logger.LogWarning(exception, "Импорт файла {FileName} отменён (возможно, превышено время обработки).", Path.GetFileName(path));
                     result.FailedFileCount++;
+                    result.FailedFiles.Add($"{sourceFileName} (таймаут)");
                     diagnostics.Record("warning", $"Отменён импорт {sourceFileName}: таймаут или отмена операции");
                 }
                 catch (Exception exception)
                 {
                     logger.LogError(exception, "Не удалось импортировать файл {FileName} из папки базы знаний.", Path.GetFileName(path));
                     result.FailedFileCount++;
+                    result.FailedFiles.Add($"{sourceFileName} ({exception.GetType().Name})");
                     diagnostics.Record("error", $"Ошибка импорта {Path.GetFileName(path)}: {exception.GetType().Name}: {exception.Message}");
                 }
             }
@@ -104,6 +111,12 @@ internal sealed class KnowledgeImportService(
         if (result.FoundFileCount == 0)
         {
             diagnostics.Record("warning", "Для индексации не найдено файлов. Проверьте наличие knowledge-inbox в опубликованном образе и /data/inbox в volume.");
+        }
+        else if (result.FailedFileCount > 0)
+        {
+            logger.LogWarning("Индексация завершена с ошибками. Не проиндексировано файлов: {FailedCount}. Список: {FailedFiles}",
+                result.FailedFileCount,
+                string.Join(", ", result.FailedFiles.Take(10)) + (result.FailedFiles.Count > 10 ? $" и ещё {result.FailedFiles.Count - 10}" : ""));
         }
         return result;
         }
@@ -173,6 +186,7 @@ internal sealed class RagReindexResult
     public int IndexedChunkCount { get; private set; }
     public int SkippedFileCount { get; private set; }
     public int FailedFileCount { get; set; }
+    public List<string> FailedFiles { get; } = new();
 
     public void Add(RagImportResult result)
     {
