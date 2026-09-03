@@ -260,6 +260,13 @@ app.MapPost("/api/ai/chat", async (
         {
             var importService = app.Services.GetRequiredService<KnowledgeImportService>();
             var result = await importService.ReindexAsync(cancellationToken);
+
+            var failedFilesSection = result.FailedFiles.Count > 0
+                ? $"\n\n### ❌ Неудачные файлы ({result.FailedFiles.Count}):\n" +
+                  string.Join("\n", result.FailedFiles.Take(20).Select(f => $"- {f}")) +
+                  (result.FailedFiles.Count > 20 ? $"\n\n*...и ещё {result.FailedFiles.Count - 20}*" : "")
+                : "";
+
             return Results.Ok(new
             {
                 answer = $"""
@@ -270,7 +277,7 @@ app.MapPost("/api/ai/chat", async (
                     Проиндексировано файлов: {result.IndexedFileCount}.
                     Создано фрагментов: {result.IndexedChunkCount}.
                     Пропущено файлов: {result.SkippedFileCount}.
-                    Ошибок импорта: {result.FailedFileCount}.
+                    Ошибок импорта: {result.FailedFileCount}.{failedFilesSection}
 
                     Команда очистила только таблицу `ragify_vectors`. Исторические таблицы предыдущего конвейера не изменялись.
                     """,
