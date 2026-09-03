@@ -32,10 +32,17 @@ internal sealed class MultilingualMiniLmEmbeddingProvider : IEmbeddingProvider, 
         CancellationToken cancellationToken = default)
     {
         var embeddings = new float[texts.Count][];
+        var progressReportInterval = Math.Max(100, texts.Count / 10);
+        
         for (var index = 0; index < texts.Count; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             embeddings[index] = await EmbedAsync(texts[index], cancellationToken);
+            
+            if ((index + 1) % progressReportInterval == 0 || index == texts.Count - 1)
+            {
+                Console.WriteLine($"[EmbedBatchAsync] Прогресс: {index + 1}/{texts.Count} ({(100.0 * (index + 1) / texts.Count):F1}%)");
+            }
         }
 
         return embeddings;

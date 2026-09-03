@@ -195,6 +195,7 @@ internal sealed class RagService(
 
         try
         {
+            logger.LogInformation("Начало индексации документа {FileName} (размер: {SizeKb} КБ).", Path.GetFileName(sourceFileName), file.Length / 1024);
             await vectorStore.DeleteByDocumentIdAsync(ragifyDocumentId, cancellationToken);
             await using var stream = file.OpenReadStream();
             var document = await DocumentIngestionService.CreateDefault().IngestFromStreamAsync(
@@ -204,6 +205,7 @@ internal sealed class RagService(
                 file.ContentType,
                 metadata,
                 cancellationToken);
+            logger.LogInformation("Документ {FileName} обработан. Начинается векторизация...", Path.GetFileName(sourceFileName));
             await ragify.IngestAsync(document, cancellationToken);
             var chunks = await ragify.GetChunksAsync(ragifyDocumentId, cancellationToken);
             logger.LogInformation("RAGify проиндексировал документ {DocumentId}: {ChunkCount} фрагментов.", ragifyDocumentId, chunks.Count);

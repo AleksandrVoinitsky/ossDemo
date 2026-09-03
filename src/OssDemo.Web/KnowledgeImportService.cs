@@ -87,6 +87,12 @@ internal sealed class KnowledgeImportService(
                     result.FailedFileCount++;
                     diagnostics.Record("warning", $"Не импортирован {sourceFileName}: {exception.Message}");
                 }
+                catch (OperationCanceledException exception)
+                {
+                    logger.LogWarning(exception, "Импорт файла {FileName} отменён (возможно, превышено время обработки).", Path.GetFileName(path));
+                    result.FailedFileCount++;
+                    diagnostics.Record("warning", $"Отменён импорт {sourceFileName}: таймаут или отмена операции");
+                }
                 catch (Exception exception)
                 {
                     logger.LogError(exception, "Не удалось импортировать файл {FileName} из папки базы знаний.", Path.GetFileName(path));
