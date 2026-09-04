@@ -211,7 +211,7 @@ app.MapPost("/api/rag/embedding-check", async (
 {
     var result = await ragify.QueryAsync("Проверка встроенной ONNX-модели.", new QueryOptions
     {
-        Retrieval = new RetrievalOptions { TopK = 1, SimilarityThreshold = 0 }
+        Retrieval = new RetrievalOptions { TopK = 1, SimilarityThreshold = 0.0001 }
     }, cancellationToken);
     return Results.Ok(new { ready = true, model = RagService.Model, dimensions = 384, matchedChunks = result.Context.Count });
 });
@@ -454,7 +454,7 @@ internal static class RagDebugResponse
     {
         var stage = afterRerank
             ? "после cross-encoder rerank"
-            : "после нативного гибридного поиска RAGify, до cross-encoder rerank";
+            : "после нативного поиска RAGify, до cross-encoder rerank";
         if (result.IsAmbiguous)
         {
             return $"""

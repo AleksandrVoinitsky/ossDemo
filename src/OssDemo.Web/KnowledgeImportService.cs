@@ -150,8 +150,10 @@ internal sealed class KnowledgeImportService(
         var ragService = scope.ServiceProvider.GetRequiredService<RagService>();
         if (!force && await ragService.IsSourceImportedAsync(sourceFileName, sourceHash, cancellationToken))
         {
-            logger.LogInformation("Файл {FileName} не изменился, повторный импорт не нужен.", fileInfo.Name);
-            return RagImportResult.Skipped;
+            // RAGify хранит объекты чанков в кэше процесса. После перезапуска
+            // повторный импорт восстанавливает его из постоянного индекса pgvector;
+            // без этого QueryAsync отбрасывает все совпадения из БД.
+            logger.LogInformation("Файл {FileName} не изменился. Восстанавливается кэш поиска RAGify.", fileInfo.Name);
         }
 
         var formFile = new FormFile(stream, 0, fileInfo.Length, "file", sourceFileName)

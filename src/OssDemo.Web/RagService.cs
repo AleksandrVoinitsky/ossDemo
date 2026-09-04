@@ -19,6 +19,7 @@ internal sealed class RagService(
     private const string VectorTableName = "ragify_vectors";
     private const int CandidateCount = 24;
     private const int ResultCount = 8;
+    private const double SimilarityThreshold = 0.0001;
 
     public async Task<RagStatus> GetStatusAsync(CancellationToken cancellationToken)
     {
@@ -76,7 +77,7 @@ internal sealed class RagService(
             Retrieval = new RetrievalOptions
             {
                 TopK = CandidateCount,
-                SimilarityThreshold = 0,
+                SimilarityThreshold = SimilarityThreshold,
                 EnableDynamicTopK = false,
                 EnableDeduplication = true
             }

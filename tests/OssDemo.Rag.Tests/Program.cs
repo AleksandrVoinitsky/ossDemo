@@ -11,7 +11,7 @@ AssertTrue(contextMatches.Count(match => match.DocumentTitle == "СТО") == 2);
 
 var nativeMatch = new RagMatch("Документ", "Раздел", "текст", 0.35, 0.35);
 var debugResponse = RagDebugResponse.Build("тест", new RagSearchResult(new[] { nativeMatch }, false, Array.Empty<string>()));
-AssertTrue(debugResponse.Contains("нативного гибридного поиска RAGify", StringComparison.Ordinal));
+AssertTrue(debugResponse.Contains("нативного поиска RAGify", StringComparison.Ordinal));
 AssertTrue(debugResponse.Contains("Текст: текст", StringComparison.Ordinal));
 AssertTrue(RagDebugResponse.Build("тест", RagSearchResult.Empty).Contains("чанки не найдены", StringComparison.Ordinal));
 AssertTrue(RagDebugResponse.Build("тест", new RagSearchResult(new[] { nativeMatch }, false, Array.Empty<string>()), afterRerank: true)
