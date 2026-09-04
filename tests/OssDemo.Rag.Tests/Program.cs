@@ -46,6 +46,8 @@ AssertTrue(RagService.NormalizeRetrievalQuery("Что там происходи�
 var clarificationPrompt = ChatPrompt.BuildSystemMessage(string.Empty, false, Array.Empty<string>(), null);
 AssertTrue(clarificationPrompt.Contains("получить уточнение", StringComparison.Ordinal));
 AssertTrue(clarificationPrompt.Contains("максимум два коротких предложения", StringComparison.Ordinal));
+var documentOverviewPrompt = ChatPrompt.BuildSystemMessage("[S1] Документ: Изменение", true, Array.Empty<string>(), null);
+AssertTrue(documentOverviewPrompt.Contains("максимально полезный ответ", StringComparison.Ordinal));
 
 var modelDirectory = Path.Combine(AppContext.BaseDirectory, "Models", "paraphrase-multilingual-MiniLM-L12-v2");
 using var embeddingProvider = new MultilingualMiniLmEmbeddingProvider(
