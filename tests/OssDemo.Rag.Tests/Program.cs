@@ -39,6 +39,9 @@ AssertTrue(RagDebugResponse.Build("тест", new RagSearchResult(new[] { releva
 AssertTrue(RagService.TryExtractArticleHeading("Статья 15. Районирование лесов о чем говорит?", out var articleHeading));
 AssertTrue(articleHeading == "Статья 15. Районирование лесов");
 AssertTrue(!RagService.TryExtractArticleHeading("Расскажите о районировании лесов", out _));
+AssertTrue(RagService.NormalizeRetrievalQuery("ИЗМЕНЕНИЕ № 1 СТО Газпром 12-1.1-026-2020 расскажи что там")
+    == "ИЗМЕНЕНИЕ № 1 СТО Газпром 12-1.1-026-2020");
+AssertTrue(RagService.NormalizeRetrievalQuery("Что там происходит?") == "Что там происходит?");
 
 var clarificationPrompt = ChatPrompt.BuildSystemMessage(string.Empty, false, Array.Empty<string>(), null);
 AssertTrue(clarificationPrompt.Contains("получить уточнение", StringComparison.Ordinal));

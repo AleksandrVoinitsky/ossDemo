@@ -73,7 +73,8 @@ internal sealed class RagService(
 
     private async Task<RagCandidateRetrieval> RetrieveCandidatesAsync(string searchQuery, CancellationToken cancellationToken)
     {
-        var semanticTask = ragify.QueryAsync(searchQuery, new QueryOptions
+        var retrievalQuery = NormalizeRetrievalQuery(searchQuery);
+        var semanticTask = ragify.QueryAsync(retrievalQuery, new QueryOptions
         {
             Retrieval = new RetrievalOptions
             {
@@ -83,7 +84,7 @@ internal sealed class RagService(
                 EnableDeduplication = true
             }
         }, cancellationToken);
-        var lexicalTask = SearchLexicallyAsync(searchQuery, cancellationToken);
+        var lexicalTask = SearchLexicallyAsync(retrievalQuery, cancellationToken);
         await Task.WhenAll(semanticTask, lexicalTask);
 
         var semanticMatches = semanticTask.Result.Context
@@ -579,6 +580,16 @@ internal sealed class RagService(
 
         heading = $"Статья {match.Groups["number"].Value}. {title}";
         return true;
+    }
+
+    internal static string NormalizeRetrievalQuery(string query)
+    {
+        var normalized = System.Text.RegularExpressions.Regex.Replace(
+            query.Trim(),
+            @"\s+(?:расскажи(?:\s+что\s+там)?|расскажите(?:\s+что\s+там)?|покажи(?:\s+что\s+там)?|покажите(?:\s+что\s+там)?|объясни(?:\s+что\s+там)?|объясните(?:\s+что\s+там)?|что\s+там|о\s+ч[её]м\s+там)[?.!]*\s*$",
+            string.Empty,
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        return string.IsNullOrWhiteSpace(normalized) ? query.Trim() : normalized;
     }
 
     private sealed record RankedMatch(RagMatch Match, double Score);
