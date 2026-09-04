@@ -20,7 +20,7 @@ try
 }
 catch (Exception exception)
 {
-    modelCacheLogger.LogWarning(exception, "Локальный cross-encoder reranker недоступен. Будет использовано RRF-ранжирование без дополнительной оценки кандидатов.");
+    modelCacheLogger.LogWarning(exception, "Локальный cross-encoder reranker недоступен. Будет использовано нативное ранжирование RAGify.");
 }
 
 // Add services to the container.
@@ -453,8 +453,8 @@ internal static class RagDebugResponse
     public static string Build(string query, RagSearchResult result, bool afterRerank = false)
     {
         var stage = afterRerank
-            ? "после расширения соседними чанками и cross-encoder rerank"
-            : "после гибридного поиска и RRF, до cross-encoder rerank";
+            ? "после cross-encoder rerank"
+            : "после нативного гибридного поиска RAGify, до cross-encoder rerank";
         if (result.IsAmbiguous)
         {
             return $"""
@@ -673,10 +673,10 @@ internal static class RagStatusFormatter
             | ONNX-модель | `{status.Model}` |
             | Кэш ONNX в volume | {modelCacheState}, {FormatBytes(modelCache.ModelSizeBytes)} |
             | Кэш токенизатора в volume | {tokenizerCacheState}, {FormatBytes(modelCache.TokenizerSizeBytes)} |
-            | Cross-encoder reranker | {(rerankerCache.ModelCached ? $"есть, {FormatBytes(rerankerCache.ModelSizeBytes)}" : "нет, используется RRF")} |
+            | Cross-encoder reranker | {(rerankerCache.ModelCached ? $"есть, {FormatBytes(rerankerCache.ModelSizeBytes)}" : "нет, используется RAGify")} |
             | Папка кэша | `{modelCache.Directory}` |
             | Нарезка | Markdown, 1200 символов, overlap 250 |
-            | Реранжирование | RRF semantic + lexical, ±1 соседний чанк для top-12, затем local cross-encoder при доступности |
+            | Реранжирование | Нативный гибридный поиск RAGify, затем local cross-encoder при доступности |
 
             ### Проиндексированные документы
             {documents}

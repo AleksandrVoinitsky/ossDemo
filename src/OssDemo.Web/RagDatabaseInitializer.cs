@@ -57,12 +57,6 @@ internal sealed class RagDatabaseInitializer(
                     COALESCE(metadata ->> 'fileName', '') || ' ' ||
                     COALESCE(metadata ->> 'heading', '')))
                 """, cancellationToken);
-            await ExecuteAsync(connection, $"""
-                CREATE INDEX IF NOT EXISTS {TableName}_document_chunk_ordinal_idx
-                ON {TableName} ((metadata ->> 'DocumentId'), ((metadata ->> 'chunkOrdinal')::integer))
-                WHERE metadata ? 'chunkOrdinal'
-                """, cancellationToken);
-
             _initialized = true;
             logger.LogInformation("RAG: PostgreSQL, расширение pgvector, таблица {TableName} и индекс готовы.", TableName);
         }
