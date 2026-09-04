@@ -30,9 +30,11 @@ AssertTrue(contextMatches.Count == 4);
 AssertTrue(contextMatches.Count(match => match.DocumentTitle == "СТО") == 2);
 
 var debugResponse = RagDebugResponse.Build("тест", new RagSearchResult(new[] { relevantSemantic }, false, Array.Empty<string>()));
-AssertTrue(debugResponse.Contains("## RAG: найденные чанки", StringComparison.Ordinal));
+AssertTrue(debugResponse.Contains("до cross-encoder rerank", StringComparison.Ordinal));
 AssertTrue(debugResponse.Contains("Текст: текст", StringComparison.Ordinal));
 AssertTrue(RagDebugResponse.Build("тест", RagSearchResult.Empty).Contains("чанки не найдены", StringComparison.Ordinal));
+AssertTrue(RagDebugResponse.Build("тест", new RagSearchResult(new[] { relevantSemantic }, false, Array.Empty<string>()), afterRerank: true)
+    .Contains("после расширения соседними чанками и cross-encoder rerank", StringComparison.Ordinal));
 
 AssertTrue(RagService.TryExtractArticleHeading("Статья 15. Районирование лесов о чем говорит?", out var articleHeading));
 AssertTrue(articleHeading == "Статья 15. Районирование лесов");

@@ -49,6 +49,30 @@ internal sealed class RagService(
 
     private async Task<RagSearchResult> SearchAsync(string question, string searchQuery, CancellationToken cancellationToken)
     {
+        var retrieval = await RetrieveCandidatesAsync(searchQuery, cancellationToken);
+        var matches = retrieval.Candidates.Take(ResultCount).ToArray();
+        if (reranker is not null)
+        {
+            try
+            {
+                matches = reranker.Rerank(question, retrieval.ExpandedCandidates, ResultCount).ToArray();
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception, "Cross-encoder reranker не выполнил оценку кандидатов. Использовано RRF-ранжирование.");
+            }
+        }
+        return new(matches, false, Array.Empty<string>());
+    }
+
+    public async Task<RagSearchResult> SearchBeforeRerankAsync(string query, CancellationToken cancellationToken)
+    {
+        var retrieval = await RetrieveCandidatesAsync(query, cancellationToken);
+        return new(retrieval.Candidates, false, Array.Empty<string>());
+    }
+
+    private async Task<RagCandidateRetrieval> RetrieveCandidatesAsync(string searchQuery, CancellationToken cancellationToken)
+    {
         var semanticTask = ragify.QueryAsync(searchQuery, new QueryOptions
         {
             Retrieval = new RetrievalOptions
@@ -79,19 +103,7 @@ internal sealed class RagService(
             .ToArray();
         var candidates = MergeAndRank(semanticMatches, lexicalTask.Result, CandidateCount);
         var expandedCandidates = await ExpandWithNeighborsAsync(candidates, cancellationToken);
-        var matches = candidates.Take(ResultCount).ToArray();
-        if (reranker is not null)
-        {
-            try
-            {
-                matches = reranker.Rerank(question, expandedCandidates, ResultCount).ToArray();
-            }
-            catch (Exception exception)
-            {
-                logger.LogWarning(exception, "Cross-encoder reranker не выполнил оценку кандидатов. Использовано RRF-ранжирование.");
-            }
-        }
-        return new(matches, false, Array.Empty<string>());
+        return new(candidates, expandedCandidates);
     }
 
     public async Task<RagAnswerResult> AnswerAsync(
@@ -570,6 +582,9 @@ internal sealed class RagService(
     }
 
     private sealed record RankedMatch(RagMatch Match, double Score);
+    private sealed record RagCandidateRetrieval(
+        IReadOnlyList<RagMatch> Candidates,
+        IReadOnlyList<RagMatch> ExpandedCandidates);
 
     private string GetConnectionString() => configuration.GetConnectionString("OssDatabase")
         ?? throw new InvalidOperationException("Не задана строка подключения ConnectionStrings__OssDatabase.");

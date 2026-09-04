@@ -339,18 +339,28 @@ app.MapPost("/api/ai/chat", async (
 
     if (rawQuestion.StartsWith('!'))
     {
-        var debugQuery = rawQuestion[1..].Trim();
+        var showRerankedMatches = rawQuestion.StartsWith("!!", StringComparison.Ordinal);
+        var debugQuery = rawQuestion[(showRerankedMatches ? 2 : 1)..].Trim();
         if (string.IsNullOrWhiteSpace(debugQuery))
         {
-            return Results.BadRequest(new { error = "После ! укажите текст для поиска по базе знаний." });
+            return Results.BadRequest(new { error = "После ! или !! укажите текст для поиска по базе знаний." });
         }
 
         try
         {
-            var debugResult = await ragService.SearchAsync(debugQuery, cancellationToken);
-            var answer = RagDebugResponse.Build(debugQuery, debugResult);
-            logger.LogInformation("Диагностика RAG: Query={Query}, Chunks={ChunkCount}, Ambiguous={Ambiguous}.", debugQuery, debugResult.Matches.Count, debugResult.IsAmbiguous);
-            return Results.Ok(new { answer, grounded = debugResult.Matches.Count > 0 || debugResult.IsAmbiguous, sources = Array.Empty<ChatSource>(), mode = "rag-debug" });
+            var debugResult = showRerankedMatches
+                ? await ragService.SearchAsync(debugQuery, cancellationToken)
+                : await ragService.SearchBeforeRerankAsync(debugQuery, cancellationToken);
+            var answer = RagDebugResponse.Build(debugQuery, debugResult, showRerankedMatches);
+            logger.LogInformation("Диагностика RAG: Query={Query}, Stage={Stage}, Chunks={ChunkCount}, Ambiguous={Ambiguous}.",
+                debugQuery, showRerankedMatches ? "after-rerank" : "before-rerank", debugResult.Matches.Count, debugResult.IsAmbiguous);
+            return Results.Ok(new
+            {
+                answer,
+                grounded = debugResult.Matches.Count > 0 || debugResult.IsAmbiguous,
+                sources = Array.Empty<ChatSource>(),
+                mode = showRerankedMatches ? "rag-debug-reranked" : "rag-debug-candidates"
+            });
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -440,8 +450,11 @@ internal sealed record ChatSource(string title, string quote, double similarity,
 
 internal static class RagDebugResponse
 {
-    public static string Build(string query, RagSearchResult result)
+    public static string Build(string query, RagSearchResult result, bool afterRerank = false)
     {
+        var stage = afterRerank
+            ? "после расширения соседними чанками и cross-encoder rerank"
+            : "после гибридного поиска и RRF, до cross-encoder rerank";
         if (result.IsAmbiguous)
         {
             return $"""
@@ -455,11 +468,11 @@ internal static class RagDebugResponse
 
         if (result.Matches.Count == 0)
         {
-            return $"## RAG: чанки не найдены\n\n**Запрос:** {query}";
+            return $"## RAG: чанки не найдены ({stage})\n\n**Запрос:** {query}";
         }
 
-        return $"## RAG: найденные чанки\n\n**Запрос:** {query}\n\n" + string.Join("\n\n---\n\n", result.Matches.Select((match, index) =>
-            $"[S{index + 1}] Документ: {match.DocumentTitle}\nРаздел: {match.SourceLabel}\nТекст: {match.Text}"));
+        return $"## RAG: чанки {stage}\n\n**Запрос:** {query}\n\n" + string.Join("\n\n---\n\n", result.Matches.Select((match, index) =>
+            $"[S{index + 1}] Документ: {match.DocumentTitle}\nРаздел: {match.SourceLabel}\nСходство: {match.Similarity:F3}; итоговый балл: {match.RankingScore:F3}\nТекст: {match.Text}"));
     }
 }
 
