@@ -76,7 +76,7 @@ internal sealed class RagService(
             Retrieval = new RetrievalOptions
             {
                 TopK = CandidateCount,
-                SimilarityThreshold = -1,
+                SimilarityThreshold = 0,
                 EnableDynamicTopK = false,
                 EnableDeduplication = true
             }

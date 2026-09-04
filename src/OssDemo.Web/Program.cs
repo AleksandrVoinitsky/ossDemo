@@ -211,7 +211,7 @@ app.MapPost("/api/rag/embedding-check", async (
 {
     var result = await ragify.QueryAsync("Проверка встроенной ONNX-модели.", new QueryOptions
     {
-        Retrieval = new RetrievalOptions { TopK = 1, SimilarityThreshold = -1 }
+        Retrieval = new RetrievalOptions { TopK = 1, SimilarityThreshold = 0 }
     }, cancellationToken);
     return Results.Ok(new { ready = true, model = RagService.Model, dimensions = 384, matchedChunks = result.Context.Count });
 });
