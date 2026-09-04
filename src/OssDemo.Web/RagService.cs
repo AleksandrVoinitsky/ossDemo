@@ -453,20 +453,18 @@ internal sealed class RagService(
         await using var connection = new NpgsqlConnection(GetConnectionString());
         await connection.OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand($"""
-            UPDATE {VectorTableName}
-            SET metadata = jsonb_set(metadata, ARRAY['chunkOrdinal'], to_jsonb(@chunkOrdinal::integer), true)
-            WHERE vector_id = @chunkId
+            UPDATE {VectorTableName} AS vectors
+            SET metadata = jsonb_set(vectors.metadata, ARRAY['chunkOrdinal'], to_jsonb(chunks.chunk_ordinal), true)
+            FROM unnest(@chunkIds::text[], @chunkOrdinals::integer[]) AS chunks(chunk_id, chunk_ordinal)
+            WHERE vectors.vector_id = chunks.chunk_id
             """, connection);
-        var chunkId = command.Parameters.Add("chunkId", NpgsqlTypes.NpgsqlDbType.Text);
-        var chunkOrdinal = command.Parameters.Add("chunkOrdinal", NpgsqlTypes.NpgsqlDbType.Integer);
-        foreach (var chunk in chunks)
+        command.Parameters.AddWithValue("chunkIds", NpgsqlTypes.NpgsqlDbType.Array | NpgsqlTypes.NpgsqlDbType.Text,
+            chunks.Select(chunk => chunk.ChunkId).ToArray());
+        command.Parameters.AddWithValue("chunkOrdinals", NpgsqlTypes.NpgsqlDbType.Array | NpgsqlTypes.NpgsqlDbType.Integer,
+            chunks.Select(chunk => chunk.Index).ToArray());
+        if (await command.ExecuteNonQueryAsync(cancellationToken) != chunks.Count)
         {
-            chunkId.Value = chunk.ChunkId;
-            chunkOrdinal.Value = chunk.Index;
-            if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
-            {
-                throw new InvalidOperationException($"Не найден вектор для сохранения порядка чанка {chunk.ChunkId}.");
-            }
+            throw new InvalidOperationException("Не удалось сохранить порядок для всех чанков документа.");
         }
     }
 
