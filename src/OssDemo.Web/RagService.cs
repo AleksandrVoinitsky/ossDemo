@@ -158,7 +158,7 @@ internal sealed class RagService(
         var hasSources = contextMatches.Count > 0;
         var messages = new List<InferenceMessage>
         {
-            new("system", ChatPrompt.BuildSystemMessage(context, hasSources, Array.Empty<string>(), null))
+            new("system", ChatPrompt.BuildSystemMessage(context, hasSources, Array.Empty<string>()))
         };
         if (!hasSources)
         {

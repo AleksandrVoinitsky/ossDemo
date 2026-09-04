@@ -43,10 +43,11 @@ AssertTrue(RagService.NormalizeRetrievalQuery("ИЗМЕНЕНИЕ № 1 СТО �
     == "ИЗМЕНЕНИЕ № 1 СТО Газпром 12-1.1-026-2020");
 AssertTrue(RagService.NormalizeRetrievalQuery("Что там происходит?") == "Что там происходит?");
 
-var clarificationPrompt = ChatPrompt.BuildSystemMessage(string.Empty, false, Array.Empty<string>(), null);
-AssertTrue(clarificationPrompt.Contains("получить уточнение", StringComparison.Ordinal));
-AssertTrue(clarificationPrompt.Contains("максимум два коротких предложения", StringComparison.Ordinal));
-var documentOverviewPrompt = ChatPrompt.BuildSystemMessage("[S1] Документ: Изменение", true, Array.Empty<string>(), null);
+var generalChatPrompt = ChatPrompt.BuildSystemMessage(string.Empty, false, Array.Empty<string>());
+AssertTrue(generalChatPrompt.Contains("Поддерживай обычный диалог", StringComparison.Ordinal));
+AssertTrue(generalChatPrompt.Contains("Не начинай ответ с просьбы уточнить вопрос", StringComparison.Ordinal));
+AssertTrue(!generalChatPrompt.Contains("получить уточнение", StringComparison.Ordinal));
+var documentOverviewPrompt = ChatPrompt.BuildSystemMessage("[S1] Документ: Изменение", true, Array.Empty<string>());
 AssertTrue(documentOverviewPrompt.Contains("максимально полезный ответ", StringComparison.Ordinal));
 
 var modelDirectory = Path.Combine(AppContext.BaseDirectory, "Models", "paraphrase-multilingual-MiniLM-L12-v2");
