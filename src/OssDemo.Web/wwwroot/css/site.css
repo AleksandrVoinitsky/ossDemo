@@ -3306,6 +3306,86 @@ a { color: var(--primary); }
   backdrop-filter: blur(12px);
 }
 
+.auth-body {
+  min-height: 100vh;
+  background:
+    linear-gradient(105deg, rgba(4, 22, 48, .62), rgba(7, 39, 76, .24) 48%, rgba(6, 25, 50, .38)),
+    url('/images/login-background.jpg') center / cover no-repeat fixed;
+}
+
+.auth-page {
+  min-height: 100vh;
+  padding: clamp(1rem, 4vw, 4rem);
+  place-items: center;
+}
+
+.auth-card {
+  width: min(100%, 31rem);
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+  border: 1px solid rgba(255, 255, 255, .46);
+  color: #f7fbff;
+  background: rgba(9, 35, 70, .5);
+  box-shadow: 0 1.4rem 4rem rgba(0, 14, 35, .38);
+  -webkit-backdrop-filter: blur(22px) saturate(130%);
+  backdrop-filter: blur(22px) saturate(130%);
+}
+
+.auth-card .section-title,
+.auth-card .auth-brand {
+  color: #fff;
+}
+
+.auth-card .muted-note,
+.auth-card .form-label {
+  color: rgba(244, 249, 255, .9);
+}
+
+.auth-card .form-control {
+  border-color: rgba(255, 255, 255, .42);
+  color: #fff;
+  background: rgba(255, 255, 255, .16);
+  box-shadow: none;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.auth-card .form-control::placeholder {
+  color: rgba(244, 249, 255, .72);
+}
+
+.auth-card .form-control:focus {
+  border-color: #fff;
+  color: #fff;
+  background: rgba(255, 255, 255, .24);
+  box-shadow: 0 0 0 .22rem rgba(102, 185, 255, .42);
+}
+
+.auth-card .btn-primary {
+  border-color: rgba(255, 255, 255, .36);
+  background: linear-gradient(135deg, #2d8cff, #1359cf);
+  box-shadow: 0 .65rem 1.4rem rgba(1, 36, 96, .38);
+}
+
+.auth-hint {
+  border-color: rgba(255, 255, 255, .3);
+  color: rgba(244, 249, 255, .92);
+  background: rgba(2, 18, 42, .24);
+}
+
+.auth-hint code {
+  color: #fff;
+}
+
+@media (max-width: 575.98px) {
+  .auth-body {
+    background-position: 58% center;
+  }
+
+  .auth-card {
+    border-radius: .85rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;

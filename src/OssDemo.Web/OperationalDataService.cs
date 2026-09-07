@@ -244,7 +244,7 @@ public sealed record OperationalCommandResult(bool IsHandled, bool IsSuccess, st
         - `!add-facility | Наименование | Адрес | Категория НВОС | Широта | Долгота`
         - `!add-violation | Объект | Раздел | Формулировка | Ответственный | ГГГГ-ММ-ДД | critical|review|closed`
 
-        Для диагностики RAG по-прежнему доступны `!status`, `!statusrag`, `!reindex` и `!текст запроса`.
+        Для диагностики RAG доступны `!status`, `!statusrag`, `!check`, `!reindex` и `!текст запроса`.
         """);
     public static OperationalCommandResult Invalid(string answer) => new(true, false, $"**Запись не создана.** {answer}");
     public static OperationalCommandResult Success(string answer) => new(true, true, answer);

@@ -5,35 +5,16 @@ internal sealed class KnowledgeImportService(
     IServiceProvider serviceProvider,
     IConfiguration configuration,
     ILogger<KnowledgeImportService> logger,
-    RagDiagnostics diagnostics) : BackgroundService
+    RagDiagnostics diagnostics)
 {
     private const long MaxFileSize = 20 * 1024 * 1024;
     private readonly SemaphoreSlim _reindexLock = new(1, 1);
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken);
-        logger.LogInformation("Запускается фоновая проверка и индексация базы знаний RAGify.");
-        diagnostics.Record("info", "Запускается фоновая проверка и индексация базы знаний RAGify.");
-        try
-        {
-            var result = await ReindexAsync(stoppingToken, force: false);
-            logger.LogInformation(
-                "Фоновая индексация RAGify завершена: проиндексировано файлов {IndexedFiles}, создано фрагментов {IndexedChunks}, пропущено файлов {SkippedFiles}.",
-                result.IndexedFileCount,
-                result.IndexedChunkCount,
-                result.SkippedFileCount);
-            diagnostics.Record("info", $"Фоновая индексация завершена: найдено {result.FoundFileCount}, проиндексировано {result.IndexedFileCount}, фрагментов {result.IndexedChunkCount}, пропущено {result.SkippedFileCount}, ошибок {result.FailedFileCount}.");
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            logger.LogError(exception, "Фоновая индексация RAGify не запущена: PostgreSQL не подготовлен.");
-            diagnostics.Record("error", $"Фоновая индексация не запущена: {exception.GetType().Name}: {exception.Message}");
-        }
-    }
-
     public async Task<RagReindexResult> ReindexAsync(CancellationToken cancellationToken) =>
         await ReindexAsync(cancellationToken, force: true);
+
+    public async Task<RagReindexResult> CheckAsync(CancellationToken cancellationToken) =>
+        await ReindexAsync(cancellationToken, force: false);
 
     private async Task<RagReindexResult> ReindexAsync(CancellationToken cancellationToken, bool force)
     {

@@ -72,7 +72,6 @@ builder.Services.AddSingleton<RagDatabaseInitializer>();
 builder.Services.AddSingleton<RagDiagnostics>();
 builder.Services.AddSingleton<KnowledgeImportService>();
 builder.Services.AddSingleton<OperationalDataService>();
-builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<KnowledgeImportService>());
 
 var app = builder.Build();
 
@@ -307,6 +306,41 @@ app.MapPost("/api/ai/chat", async (
             logger.LogError(exception, "Не удалось переиндексировать базу знаний RAGify.");
             return Results.Problem(
                 title: "Переиндексация базы знаний не выполнена",
+                detail: RagService.DescribeFailure(exception),
+                statusCode: StatusCodes.Status502BadGateway);
+        }
+    }
+
+    if (string.Equals(request.Message.Trim(), "!check", StringComparison.OrdinalIgnoreCase))
+    {
+        try
+        {
+            var importService = app.Services.GetRequiredService<KnowledgeImportService>();
+            var result = await importService.CheckAsync(cancellationToken);
+
+            return Results.Ok(new
+            {
+                answer = $"""
+                    ## Проверка базы знаний завершена
+
+                    Найдено файлов в источниках: {result.FoundFileCount}.
+                    Обработано файлов: {result.IndexedFileCount}.
+                    Создано фрагментов: {result.IndexedChunkCount}.
+                    Пропущено файлов: {result.SkippedFileCount}.
+                    Ошибок импорта: {result.FailedFileCount}.
+
+                    Проверка выполняется только по команде `!check`; при запуске приложения индексация не выполняется.
+                    """,
+                grounded = false,
+                sources = Array.Empty<ChatSource>(),
+                mode = "rag-check"
+            });
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogError(exception, "Не удалось проверить базу знаний RAGify.");
+            return Results.Problem(
+                title: "Проверка базы знаний не выполнена",
                 detail: RagService.DescribeFailure(exception),
                 statusCode: StatusCodes.Status502BadGateway);
         }
