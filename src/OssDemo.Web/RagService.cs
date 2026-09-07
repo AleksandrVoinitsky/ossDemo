@@ -226,7 +226,7 @@ internal sealed class RagService(
         IReadOnlyList<ChatHistoryMessage> conversation,
         CancellationToken cancellationToken)
     {
-        var searchResult = await FindSourcesAsync(question, conversation, cancellationToken);
+        var searchResult = await FindSourcesAsync(question, cancellationToken);
         if (searchResult.Matches.Count == 0)
         {
             return new(NoSourcesAnswer, Array.Empty<RagMatch>());
@@ -251,7 +251,7 @@ internal sealed class RagService(
         IReadOnlyList<ChatHistoryMessage> conversation,
         CancellationToken cancellationToken)
     {
-        var searchResult = await FindSourcesAsync(question, conversation, cancellationToken);
+        var searchResult = await FindSourcesAsync(question, cancellationToken);
         if (searchResult.Matches.Count == 0)
         {
             return new(null, Array.Empty<RagMatch>(), NoSourcesAnswer);
@@ -271,35 +271,21 @@ internal sealed class RagService(
 
     private async Task<RagSearchResult> FindSourcesAsync(
         string question,
-        IReadOnlyList<ChatHistoryMessage> conversation,
         CancellationToken cancellationToken)
     {
-        var searchQuery = ChatSearchQuery.Build(conversation, question, maxLength: 6_000);
-        var searchResult = await SearchAsync(question, searchQuery, cancellationToken);
-        if (searchResult.Matches.Count > 0)
-        {
-            return searchResult;
-        }
-
-        logger.LogInformation("По исходному вопросу не найдены источники. Запускается перефразирование для поиска.");
-        var attemptedQueries = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { searchQuery };
+        logger.LogInformation("Для вопроса запускается перефразирование перед поиском по базе знаний.");
         var rephrasedQuestions = await RephraseForSearchAsync(question, cancellationToken);
-        foreach (var rephrasedQuestion in rephrasedQuestions)
+        for (var index = 0; index < rephrasedQuestions.Count; index++)
         {
-            if (string.IsNullOrWhiteSpace(rephrasedQuestion) || !attemptedQueries.Add(rephrasedQuestion))
-            {
-                continue;
-            }
-
-            searchResult = await SearchAsync(question, rephrasedQuestion, cancellationToken);
+            var searchResult = await SearchAsync(question, rephrasedQuestions[index], cancellationToken);
             if (searchResult.Matches.Count > 0)
             {
-                logger.LogInformation("Источники найдены после перефразирования вопроса: вариант {Attempt}.", attemptedQueries.Count - 1);
+                logger.LogInformation("Источники найдены по перефразированному вопросу: вариант {Attempt}.", index + 1);
                 return searchResult;
             }
         }
 
-        logger.LogInformation("Источники не найдены после {AttemptCount} перефразирований.", MaximumRephraseAttempts);
+        logger.LogInformation("Источники не найдены ни по одному из {AttemptCount} перефразированных вариантов.", rephrasedQuestions.Count);
         return RagSearchResult.Empty;
     }
 

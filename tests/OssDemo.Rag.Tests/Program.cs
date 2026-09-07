@@ -37,6 +37,8 @@ AssertTrue(searchRewritePrompt.Contains("Не отвечай на вопрос",
 var searchRewrites = RagService.ParseSearchRewrites("[\"срок актуализации чек-листа\", \"периодичность пересмотра чек-листа\"]");
 AssertTrue(searchRewrites.Count == 2);
 AssertTrue(searchRewrites[1] == "периодичность пересмотра чек-листа");
+var uniqueSearchRewrites = RagService.ParseSearchRewrites("[\"запрос\", \"Запрос\", \"другой запрос\"]");
+AssertTrue(uniqueSearchRewrites.SequenceEqual(new[] { "запрос", "другой запрос" }));
 
 var modelDirectory = Path.Combine(AppContext.BaseDirectory, "Models", "paraphrase-multilingual-MiniLM-L12-v2");
 using var embeddingProvider = new MultilingualMiniLmEmbeddingProvider(
