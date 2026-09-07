@@ -78,15 +78,6 @@
     setWizardStep(0, false);
   }
 
-  const liveChecklistItems = [
-    { number: '1', title: 'Наличие утвержденной программы производственного экологического контроля', status: 'Включён', badge: 'text-bg-success', source: 'База знаний + ОРД', note: 'ФЗ-7 ст. 67; программа ПЭК' },
-    { number: '8', title: 'Представлены протоколы инструментального контроля выбросов', status: 'Критический', badge: 'text-bg-danger', source: 'Реестр нарушений', note: 'Не устранено в срок по акту 22.09.2024' },
-    { number: '17', title: 'Проверить устранение замечания по маркировке места накопления отходов', status: 'Контрольный', badge: 'text-bg-info', source: 'Нарушения + история', note: 'Повторяемость 2+ раза за 5 лет' },
-    { number: '19', title: 'Сверить выполнение предыдущего чек-листа по плану корректирующих действий', status: 'Контрольный', badge: 'text-bg-info', source: 'Агент истории', note: 'Перенесено из архива 2025' },
-    { number: '23', title: 'Проверить применимость лицензии на пользование недрами для скважины №3', status: 'Требует решения', badge: 'text-bg-warning', source: 'ОРД', note: 'Низкое качество распознавания приложения' },
-    { number: '31', title: 'Наличие утвержденного ПНООЛР и соответствие фактических объемов лимитам', status: 'Включён', badge: 'text-bg-success', source: 'База знаний', note: 'ФЗ-89 ст. 11; Приказ №792' }
-  ];
-
   const agentScripts = {
     kb: [
       [18, 'Ищет требования в 7-ФЗ, 89-ФЗ и СТО'],
@@ -134,7 +125,7 @@
   };
 
   document.querySelectorAll('[data-run-generation]').forEach((button) => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
       const templateSelect = document.querySelector('[data-template-select]');
       const templateWarning = document.querySelector('[data-template-warning]');
       if (templateSelect && !templateSelect.value) {
@@ -144,6 +135,23 @@
       }
 
       if (templateWarning) templateWarning.hidden = true;
+
+      let checklist;
+      try {
+        const response = await fetch('/api/checklists', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ templateId: templateSelect.value })
+        });
+        if (!response.ok) throw new Error();
+        checklist = await response.json();
+      } catch (error) {
+        if (templateWarning) {
+          templateWarning.textContent = 'Не удалось создать рабочий чек-лист. Проверьте доступ к хранилищу и повторите попытку.';
+          templateWarning.hidden = false;
+        }
+        return;
+      }
 
       const progress = document.querySelector('[data-generation-progress]');
       const status = document.querySelector('[data-generation-status]');
@@ -190,13 +198,14 @@
         });
       });
 
-      liveChecklistItems.forEach((item, index) => {
+      const demoItems = checklist.items.filter((_, index) => index % Math.max(1, Math.floor(checklist.items.length / 6)) === 0).slice(0, 6);
+      demoItems.forEach((item, index) => {
         window.setTimeout(() => {
           if (!liveChecklist) return;
           if (liveEmpty) liveEmpty.hidden = true;
-          appendLiveChecklistItem(liveChecklist, item);
-          if (liveCount) liveCount.textContent = `${index + 1} из 42 пунктов`;
-          status.textContent = `Добавлен пункт №${item.number}: ${item.source}`;
+          appendLiveChecklistItem(liveChecklist, { ...item, source: 'Выбранный шаблон', badge: 'text-bg-success', status: 'Добавлен' });
+          if (liveCount) liveCount.textContent = `${index + 1} из ${checklist.items.length} пунктов`;
+          status.textContent = `Добавлен пункт №${item.number}: выбранный шаблон`;
         }, 900 + index * 520);
       });
 
@@ -206,7 +215,15 @@
         status.textContent = 'Проект чек-листа сформирован: источники объединены и статусы рассчитаны.';
         result.hidden = false;
         button.disabled = false;
-        if (liveCount) liveCount.textContent = '42 пункта';
+        if (liveCount) liveCount.textContent = `${checklist.items.length} пунктов`;
+        document.querySelector('[data-created-checklist-count]')?.replaceChildren(document.createTextNode(checklist.items.length));
+        const templateName = templateSelect.options[templateSelect.selectedIndex]?.textContent || '';
+        document.querySelector('[data-created-checklist-template]')?.replaceChildren(document.createTextNode(templateName));
+        const checklistLink = document.querySelector('[data-working-checklist-link]');
+        if (checklistLink) {
+          checklistLink.href = `/Checklists/Result?id=${checklist.id}`;
+          checklistLink.classList.remove('disabled');
+        }
         if (nextButton) nextButton.disabled = false;
       }, 4600);
     });

@@ -1,0 +1,24 @@
+@page
+@{
+    ViewData["Title"] = "Архив и шаблоны чек-листов";
+    ViewData["Nav"] = "Checklist";
+    ViewData["Breadcrumb"] = "Чек-лист \\ Архив и шаблоны";
+}
+
+<div class="page-actions mb-3">
+    <div><h1 class="h3 section-title mb-1">Архив и шаблоны чек-листов</h1><p class="muted-note mb-0">Исторические данные читаются из CSV-файлов и не участвуют в поиске базы знаний.</p></div>
+    <a class="btn btn-primary" asp-page="/Checklists/New">Сформировать чек-лист</a>
+</div>
+
+<section class="soft-panel p-3 p-lg-4">
+    <div class="table-responsive">
+        <table class="table align-middle mb-0"><thead><tr><th>Объект</th><th>Период</th><th>Роль файла</th><th>Пунктов</th><th></th></tr></thead>
+        <tbody data-checklist-catalog><tr><td colspan="5" class="muted-note">Загрузка архива…</td></tr></tbody></table>
+    </div>
+</section>
+
+<div class="modal fade" id="checklistSourceModal" tabindex="-1" aria-labelledby="checklistSourceTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><div><h2 class="modal-title h5" id="checklistSourceTitle" data-source-title>Чек-лист</h2><p class="muted-note small mb-0" data-source-meta></p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button></div><div class="modal-body"><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>№</th><th>Раздел</th><th>Контролируемая позиция</th><th>Основание</th><th>Результат</th></tr></thead><tbody data-source-items></tbody></table></div></div></div></div>
+</div>
+
+@section Scripts { <script src="~/js/checklists.js" asp-append-version="true"></script> }

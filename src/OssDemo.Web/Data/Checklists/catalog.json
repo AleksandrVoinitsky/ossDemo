@@ -1,0 +1,56 @@
+[
+  {
+    "id": "bardym-2024",
+    "fileName": "bardymskoe-lpu-cek-list-ik-oos-2024g.csv",
+    "facility": "Бардымское ЛПУМГ",
+    "year": 2024,
+    "period": "27–30 августа 2024",
+    "kind": "history",
+    "title": "Инспекционный чек-лист ООС"
+  },
+  {
+    "id": "votkinsk-2024",
+    "fileName": "vot-lpu-cek-list-ik-oos-2024.csv",
+    "facility": "Воткинское ЛПУМГ",
+    "year": 2024,
+    "period": "20–22 мая 2024",
+    "kind": "history",
+    "title": "Инспекционный чек-лист ООС"
+  },
+  {
+    "id": "perm-2024",
+    "fileName": "perm-lpu-cek-list-ik-oos-2024.csv",
+    "facility": "Пермское ЛПУМГ",
+    "year": 2024,
+    "period": "28–30 октября 2024",
+    "kind": "history",
+    "title": "Инспекционный чек-лист ООС"
+  },
+  {
+    "id": "votkinsk-2026-template",
+    "fileName": "vot-lpu-cek-list-ik-oos-2026.csv",
+    "facility": "Воткинское ЛПУМГ",
+    "year": 2026,
+    "period": "14–17 апреля 2026",
+    "kind": "template",
+    "title": "Шаблон инспекционного чек-листа ООС"
+  },
+  {
+    "id": "gornozavodsk-2026-template",
+    "fileName": "gorn-lpu-cek-list-ik-oos-2026.csv",
+    "facility": "Горнозаводское ЛПУМГ",
+    "year": 2026,
+    "period": "8–11 июня 2026",
+    "kind": "template",
+    "title": "Шаблон инспекционного чек-листа ООС"
+  },
+  {
+    "id": "perm-2026-template",
+    "fileName": "perm-lpu-cek-list-ik-oos-2026.csv",
+    "facility": "Пермское ЛПУМГ",
+    "year": 2026,
+    "period": "18–22 мая 2026",
+    "kind": "template",
+    "title": "Шаблон инспекционного чек-листа ООС"
+  }
+]

@@ -6,7 +6,7 @@
 }
 
 <div class="page-actions mb-3">
-    <a class="btn btn-outline-primary" asp-page="/Checklists/Result">Открыть готовый результат</a>
+    <a class="btn btn-outline-primary" asp-page="/Checklists/Archive">Архив и шаблоны</a>
 </div>
 
 <section class="soft-panel checklist-wizard" data-checklist-wizard>
@@ -97,7 +97,7 @@
         <div class="wizard-panel-header">
             <div>
                 <h2 class="h4 section-title mb-1">Шаг 3. Выбор шаблона</h2>
-                <p class="muted-note mb-0">Для сценария выбран шаблон уровня филиала, как в демонстрационном маршруте.</p>
+                <p class="muted-note mb-0">Шаблоны загружаются из файлов данных. Выбор создаёт новый рабочий чек-лист, который сохраняется в подключённом хранилище.</p>
             </div>
             <a class="btn btn-outline-primary" asp-page="/KnowledgeBase" asp-route-space="templates">Открыть шаблоны</a>
         </div>
@@ -106,10 +106,8 @@
             <div class="col-lg-7">
                 <div class="wizard-card h-100">
                     <label class="form-label">Шаблон результата</label>
-                    <select class="form-select form-select-lg" data-template-select>
-                        <option value="">Не выбран — генерация будет заблокирована</option>
-                        <option value="company">Уровень Общества v2026</option>
-                        <option value="branch" selected>Уровень филиала Пермь v2026 · выбран</option>
+                    <select class="form-select form-select-lg" data-template-select data-checklist-templates>
+                        <option value="">Загрузка шаблонов…</option>
                     </select>
                     <div class="alert alert-warning mt-3 mb-0 state-hidden" data-template-warning hidden>Нельзя запускать генерацию без выбранного шаблона.</div>
                 </div>
@@ -118,9 +116,9 @@
                 <div class="wizard-card h-100">
                     <h3 class="h5 section-title">Что будет в результате</h3>
                     <ul class="muted-note mb-0">
-                        <li>структура по классификатору;</li>
-                        <li>статусы обычных, контрольных и критических пунктов;</li>
-                        <li>ссылки на источник и причину включения.</li>
+                        <li>исходные пункты из выбранного шаблона;</li>
+                        <li>демонстрационное поэтапное появление пунктов;</li>
+                        <li>сохранение созданного чек-листа для дальнейшей ручной работы.</li>
                     </ul>
                 </div>
             </div>
@@ -207,35 +205,25 @@
                 <h2 class="h4 section-title mb-1">Шаг 5. Просмотр и верификация проекта</h2>
                 <p class="muted-note mb-0">Проект готов к интерактивной проверке: статусы и источники уже проставлены.</p>
             </div>
-            <a class="btn btn-success btn-lg" asp-page="/Checklists/Result">Открыть интерактивный чек-лист</a>
+            <a class="btn btn-success btn-lg disabled" data-working-checklist-link>Открыть интерактивный чек-лист</a>
         </div>
 
         <section class="wizard-card mb-4">
             <h3 class="h5 section-title mb-3">Сводка проекта</h3>
             <table class="table compact-detail-table mb-0">
                 <tbody>
-                    <tr><th>Всего пунктов</th><td>42</td></tr>
-                    <tr><th>Особые статусы</th><td>1 критический, 2 контрольных, 1 требует решения инспектора</td></tr>
-                    <tr><th>Шаблон</th><td>уровень филиала Пермь v2026</td></tr>
+                    <tr><th>Всего пунктов</th><td data-created-checklist-count>—</td></tr>
+                    <tr><th>Статус</th><td>Черновик сохранён в рабочем хранилище.</td></tr>
+                    <tr><th>Шаблон</th><td data-created-checklist-template>—</td></tr>
                 </tbody>
             </table>
         </section>
 
-        <div class="table-responsive">
-            <table class="table align-middle wizard-table mb-0">
-                <thead><tr><th>№</th><th>Наименование</th><th>Основание</th><th>Статус</th><th>Источник</th></tr></thead>
-                <tbody>
-                    <tr><td>1</td><td>Наличие утвержденной программы производственного экологического контроля</td><td>ФЗ-7 ст. 67; программа ПЭК</td><td><span class="badge text-bg-success">Включён</span></td><td>База знаний + ОРД</td></tr>
-                    <tr class="checklist-row-critical"><td>8</td><td>Представлены протоколы инструментального контроля выбросов</td><td>СТО 16-005-2025; акт 22.09.2024</td><td><span class="badge text-bg-danger">Критический</span></td><td>Реестр нарушений</td></tr>
-                    <tr class="checklist-row-control"><td>17</td><td>Проверить устранение замечания по маркировке места накопления отходов</td><td>Акт проверки 2025; предписание</td><td><span class="badge text-bg-info">Контрольный</span></td><td>Нарушения + история</td></tr>
-                    <tr class="checklist-row-decision"><td>23</td><td>Проверить применимость лицензии на пользование недрами для скважины №3</td><td>Скан приложения к лицензии</td><td><span class="badge text-bg-warning">Требует решения</span></td><td>ОРД</td></tr>
-                </tbody>
-            </table>
-        </div>
-
         <div class="wizard-actions">
             <button class="btn btn-outline-primary btn-lg" data-wizard-prev type="button">Назад</button>
-            <a class="btn btn-success btn-lg" asp-page="/Checklists/Result">Продолжить верификацию</a>
+            <a class="btn btn-success btn-lg disabled" data-working-checklist-link>Продолжить верификацию</a>
         </div>
     </div>
 </section>
+
+@section Scripts { <script src="~/js/checklists.js" asp-append-version="true"></script> }

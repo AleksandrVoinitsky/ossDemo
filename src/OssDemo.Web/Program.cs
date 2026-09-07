@@ -72,6 +72,7 @@ builder.Services.AddSingleton<RagDatabaseInitializer>();
 builder.Services.AddSingleton<RagDiagnostics>();
 builder.Services.AddSingleton<KnowledgeImportService>();
 builder.Services.AddSingleton<OperationalDataService>();
+builder.Services.AddSingleton<ChecklistService>();
 
 var app = builder.Build();
 
@@ -138,6 +139,32 @@ app.MapGet("/api/operations/facilities", async (OperationalDataService operation
     Results.Ok(await operationalData.GetFacilitiesAsync(cancellationToken)));
 app.MapGet("/api/operations/violations", async (OperationalDataService operationalData, CancellationToken cancellationToken) =>
     Results.Ok(await operationalData.GetViolationsAsync(cancellationToken)));
+app.MapGet("/api/checklists/catalog", async (ChecklistService checklistService, CancellationToken cancellationToken) =>
+    Results.Ok(await checklistService.GetCatalogAsync(cancellationToken)));
+app.MapGet("/api/checklists/sources/{id}", async (string id, ChecklistService checklistService, CancellationToken cancellationToken) =>
+{
+    var source = await checklistService.GetSourceAsync(id, cancellationToken);
+    return source is null ? Results.NotFound() : Results.Ok(source);
+});
+app.MapPost("/api/checklists", async (CreateChecklistRequest request, ChecklistService checklistService, CancellationToken cancellationToken) =>
+{
+    var checklist = await checklistService.CreateAsync(request, cancellationToken);
+    return checklist is null
+        ? Results.BadRequest(new { error = "Выберите доступный шаблон чек-листа." })
+        : Results.Created($"/api/checklists/{checklist.Id}", checklist);
+});
+app.MapGet("/api/checklists/{id:guid}", async (Guid id, ChecklistService checklistService, CancellationToken cancellationToken) =>
+{
+    var checklist = await checklistService.GetAsync(id, cancellationToken);
+    return checklist is null ? Results.NotFound() : Results.Ok(checklist);
+});
+app.MapPost("/api/checklists/{id:guid}/items", async (Guid id, AddChecklistItemRequest request, ChecklistService checklistService, CancellationToken cancellationToken) =>
+{
+    var checklist = await checklistService.AddItemAsync(id, request, cancellationToken);
+    return checklist is null
+        ? Results.BadRequest(new { error = "Не удалось сохранить пункт чек-листа." })
+        : Results.Ok(checklist);
+});
 app.MapGet("/api/knowledge/documents", async (
     RagService ragService,
     ILogger<Program> logger,
