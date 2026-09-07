@@ -43,6 +43,33 @@ AssertTrue(searchRewrites[1] == "периодичность пересмотра
 var uniqueSearchRewrites = RagService.ParseSearchRewrites("[\"запрос\", \"Запрос\", \"другой запрос\"]");
 AssertTrue(uniqueSearchRewrites.SequenceEqual(new[] { "запрос", "другой запрос" }));
 
+await using (var metadataStream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("""
+    ---
+    title: "Лесной кодекс Российской Федерации"
+    source_path: "Законодательные/Лесной кодекс.md"
+    category: "Законодательные документы"
+    document_type: "federal_law"
+    processed_by: "Docling 2.123.1"
+    ---
+    # Лесной кодекс
+    """)))
+{
+    var metadata = KnowledgeDocumentMetadata.FromMarkdown(metadataStream, "repository/Лесной кодекс.md");
+    AssertTrue(metadata.Title == "Лесной кодекс Российской Федерации");
+    AssertTrue(metadata.Category == "Законодательные документы");
+    AssertTrue(metadata.DocumentType == "federal_law");
+}
+
+var reciprocalRankMatches = RagService.MergeCandidates(
+    new[] { new RagMatch("Общий", "Статья 1", "Текст", 0.8, 0.8, IsVectorMatch: true) },
+    new[]
+    {
+        new RagMatch("Лексический", "Раздел", "Другой текст", 0.9, 0.9, IsLexicalMatch: true),
+        new RagMatch("Общий", "Статья 1", "Текст", 0.7, 0.7, IsLexicalMatch: true)
+    });
+AssertTrue(reciprocalRankMatches[0].DocumentTitle == "Общий");
+AssertTrue(reciprocalRankMatches[0].IsVectorMatch && reciprocalRankMatches[0].IsLexicalMatch);
+
 var luceneDirectory = Path.Combine(Path.GetTempPath(), $"ossdemo-lucene-{Guid.NewGuid():N}");
 try
 {
@@ -50,11 +77,12 @@ try
     using var luceneIndex = new LuceneSearchIndex(luceneConfiguration);
     await luceneIndex.IndexDocumentAsync("service", "Справочник по сервису АИ ООС.md", new[]
     {
-        new LuceneIndexedChunk("Производственный экологический контроль", "ПЭК применяется для контроля соблюдения природоохранных требований."),
+        new LuceneIndexedChunk("Производственный экологический контроль", "ПЭК применяется для контроля соблюдения природоохранных требований.", "Справочник по сервису", "Корпоративные документы", "guide"),
         new LuceneIndexedChunk("Рекультивация земель", "Рекультивация нарушенных земель проводится с учетом местных условий.")
     }, CancellationToken.None);
     AssertTrue((await luceneIndex.SearchAsync("ПЭК", 5, CancellationToken.None)).Any(match => match.Text.Contains("ПЭК", StringComparison.Ordinal)));
     AssertTrue((await luceneIndex.SearchAsync("рекултивация", 5, CancellationToken.None)).Any(match => match.SourceLabel.Contains("Рекультивация", StringComparison.Ordinal)));
+    AssertTrue((await luceneIndex.SearchAsync("корпоративные", 5, CancellationToken.None)).Any(match => match.Category == "Корпоративные документы"));
 }
 finally
 {

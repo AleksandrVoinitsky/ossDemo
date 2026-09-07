@@ -33,7 +33,7 @@ internal sealed class MultilingualCrossEncoderReranker : IDisposable
             .Select(match => _tokenizer.Encode(
                 Truncate(question),
                 addSpecialTokens: true,
-                input2: Truncate(match.Text),
+                input2: Truncate($"{match.DocumentTitle}\n{match.SourceLabel}\n{match.Text}"),
                 includeTypeIds: _session.InputMetadata.ContainsKey("token_type_ids"),
                 includeAttentionMask: true)
                 .First())

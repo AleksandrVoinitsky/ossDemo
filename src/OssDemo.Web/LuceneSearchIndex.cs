@@ -17,6 +17,8 @@ internal sealed class LuceneSearchIndex : IDisposable
     private const string TitleField = "title";
     private const string HeadingField = "heading";
     private const string AliasesField = "aliases";
+    private const string CategoryField = "category";
+    private const string DocumentTypeField = "documentType";
     private const string TextField = "text";
 
     private static readonly IReadOnlyDictionary<string, string[]> Synonyms =
@@ -108,7 +110,9 @@ internal sealed class LuceneSearchIndex : IDisposable
                     document.Get(TitleField) ?? "Документ",
                     document.Get(HeadingField) ?? "Документ",
                     document.Get(TextField) ?? string.Empty,
-                    hit.Score);
+                    hit.Score,
+                    document.Get(CategoryField) ?? string.Empty,
+                    document.Get(DocumentTypeField) ?? string.Empty);
             }).Where(match => !string.IsNullOrWhiteSpace(match.Text)).ToArray();
         }
         finally
@@ -138,8 +142,8 @@ internal sealed class LuceneSearchIndex : IDisposable
 
     private static Document CreateDocument(string documentId, string sourceFileName, LuceneIndexedChunk chunk)
     {
-        var title = Path.GetFileNameWithoutExtension(sourceFileName);
-        var aliases = $"{title} {sourceFileName} {NormalizeReference(sourceFileName)} {NormalizeReference(chunk.Heading)}";
+        var title = string.IsNullOrWhiteSpace(chunk.Title) ? Path.GetFileNameWithoutExtension(sourceFileName) : chunk.Title;
+        var aliases = $"{title} {sourceFileName} {chunk.Category} {chunk.DocumentType} {NormalizeReference(sourceFileName)} {NormalizeReference(title)} {NormalizeReference(chunk.Heading)}";
         var id = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes($"{documentId}\u001f{chunk.Heading}\u001f{chunk.Text}")));
         return new Document
@@ -149,6 +153,8 @@ internal sealed class LuceneSearchIndex : IDisposable
             new TextField(TitleField, title, Field.Store.YES),
             new TextField(HeadingField, chunk.Heading, Field.Store.YES),
             new TextField(AliasesField, aliases, Field.Store.NO),
+            new TextField(CategoryField, chunk.Category, Field.Store.YES),
+            new TextField(DocumentTypeField, chunk.DocumentType, Field.Store.YES),
             new TextField(TextField, chunk.Text, Field.Store.YES)
         };
     }
@@ -162,9 +168,12 @@ internal sealed class LuceneSearchIndex : IDisposable
             {
                 var termQuery = new BooleanQuery
                 {
+                    { Boost(new TermQuery(new Term(AliasesField, term)), 12f), Occur.SHOULD },
                     { Boost(new FuzzyQuery(new Term(TitleField, term), GetMaxEdits(term)), 8f), Occur.SHOULD },
-                    { Boost(new FuzzyQuery(new Term(AliasesField, term), GetMaxEdits(term)), 7f), Occur.SHOULD },
+                    { Boost(new FuzzyQuery(new Term(AliasesField, term), GetMaxEdits(term)), 6f), Occur.SHOULD },
                     { Boost(new FuzzyQuery(new Term(HeadingField, term), GetMaxEdits(term)), 4f), Occur.SHOULD },
+                    { Boost(new FuzzyQuery(new Term(CategoryField, term), GetMaxEdits(term)), 3f), Occur.SHOULD },
+                    { Boost(new FuzzyQuery(new Term(DocumentTypeField, term), GetMaxEdits(term)), 3f), Occur.SHOULD },
                     { Boost(new FuzzyQuery(new Term(TextField, term), GetMaxEdits(term)), 1f), Occur.SHOULD }
                 };
                 result.Add(termQuery, Occur.SHOULD);
@@ -202,5 +211,5 @@ internal sealed class LuceneSearchIndex : IDisposable
     }
 }
 
-internal sealed record LuceneIndexedChunk(string Heading, string Text);
-internal sealed record LuceneSearchMatch(string DocumentTitle, string SourceLabel, string Text, float Score);
+internal sealed record LuceneIndexedChunk(string Heading, string Text, string Title = "", string Category = "", string DocumentType = "");
+internal sealed record LuceneSearchMatch(string DocumentTitle, string SourceLabel, string Text, float Score, string Category, string DocumentType);

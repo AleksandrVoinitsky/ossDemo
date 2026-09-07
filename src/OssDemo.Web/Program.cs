@@ -143,10 +143,10 @@ app.MapGet("/api/knowledge/documents", async (
     ILogger<Program> logger,
     CancellationToken cancellationToken) =>
 {
-    var inboxDirectory = Path.Combine(AppContext.BaseDirectory, "knowledge-inbox");
-    if (!Directory.Exists(inboxDirectory))
+    var knowledgeBaseDirectory = Path.Combine(AppContext.BaseDirectory, "knowledge-base");
+    if (!Directory.Exists(knowledgeBaseDirectory))
     {
-        logger.LogWarning("Каталог базы знаний не найден: {InboxDirectory}", inboxDirectory);
+        logger.LogWarning("Каталог базы знаний не найден: {KnowledgeBaseDirectory}", knowledgeBaseDirectory);
         return Results.Ok(Array.Empty<KnowledgeFileSummary>());
     }
 
@@ -170,12 +170,13 @@ app.MapGet("/api/knowledge/documents", async (
         .Where(group => group.Count() == 1)
         .ToDictionary(group => group.Key, group => group.Single(), StringComparer.OrdinalIgnoreCase);
 
-    var files = Directory.EnumerateFiles(inboxDirectory, "*.md", SearchOption.AllDirectories)
+    var files = Directory.EnumerateFiles(knowledgeBaseDirectory, "*.md", SearchOption.AllDirectories)
         .Select(filePath =>
         {
-            var relativePath = Path.GetRelativePath(inboxDirectory, filePath).Replace(Path.DirectorySeparatorChar, '/');
+            var relativePath = Path.GetRelativePath(knowledgeBaseDirectory, filePath).Replace(Path.DirectorySeparatorChar, '/');
+            var sourceFileName = $"repository/{relativePath}";
             var title = Path.GetFileNameWithoutExtension(filePath);
-            documentsByPath.TryGetValue(relativePath, out var document);
+            documentsByPath.TryGetValue(sourceFileName, out var document);
             document ??= documentsByTitle.GetValueOrDefault(title);
 
             return new KnowledgeFileSummary(

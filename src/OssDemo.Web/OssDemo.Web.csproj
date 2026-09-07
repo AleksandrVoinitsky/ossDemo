@@ -17,8 +17,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\..\knowledge-inbox\**\*">
-      <Link>knowledge-inbox\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    <Content Include="..\..\03_📚 База знаний\**\*.md">
+      <Link>knowledge-base\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>

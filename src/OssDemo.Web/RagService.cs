@@ -102,13 +102,15 @@ internal sealed class RagService(
         return result.Context
             .Where(context => !string.IsNullOrWhiteSpace(context.Chunk.Text))
             .Select(context => new RagMatch(
-                GetMetadataString(context.Chunk.Metadata, "fileName", context.Source ?? "Документ"),
+                GetMetadataString(context.Chunk.Metadata, "title", GetMetadataString(context.Chunk.Metadata, "fileName", context.Source ?? "Документ")),
                 GetMetadataString(context.Chunk.Metadata, "heading", "Документ"),
                 context.Chunk.Text,
                 context.Similarity,
                 context.Similarity,
                 IsVectorMatch: true,
-                IsLexicalMatch: false))
+                IsLexicalMatch: false,
+                Category: GetMetadataString(context.Chunk.Metadata, "category", ""),
+                DocumentType: GetMetadataString(context.Chunk.Metadata, "documentType", "")))
             .ToArray();
     }
 
@@ -122,7 +124,9 @@ internal sealed class RagService(
             match.Score,
             match.Score,
             IsVectorMatch: false,
-            IsLexicalMatch: true)).ToArray();
+            IsLexicalMatch: true,
+            Category: match.Category,
+            DocumentType: match.DocumentType)).ToArray();
     }
 
     internal static IReadOnlyList<RagMatch> MergeCandidates(
@@ -130,29 +134,37 @@ internal sealed class RagService(
         IReadOnlyList<RagMatch> lexicalMatches)
     {
         var merged = new Dictionary<string, RagMatch>(StringComparer.Ordinal);
-        foreach (var match in vectorMatches.Concat(lexicalMatches))
-        {
-            var key = $"{match.DocumentTitle}\u001f{match.SourceLabel}\u001f{match.Text}";
-            if (merged.TryGetValue(key, out var existing))
-            {
-                merged[key] = existing with
-                {
-                    Similarity = Math.Max(existing.Similarity, match.Similarity),
-                    RankingScore = Math.Max(existing.RankingScore, match.RankingScore),
-                    IsVectorMatch = existing.IsVectorMatch || match.IsVectorMatch,
-                    IsLexicalMatch = existing.IsLexicalMatch || match.IsLexicalMatch
-                };
-            }
-            else
-            {
-                merged.Add(key, match);
-            }
-        }
-
+        AddRanked(vectorMatches, isVector: true);
+        AddRanked(lexicalMatches, isVector: false);
         return merged.Values
             .OrderByDescending(match => match.RankingScore)
             .ThenByDescending(match => match.Similarity)
             .ToArray();
+
+        void AddRanked(IReadOnlyList<RagMatch> matches, bool isVector)
+        {
+            foreach (var (match, index) in matches.Select((match, index) => (match, index)))
+            {
+                var key = $"{match.DocumentTitle}\u001f{match.SourceLabel}\u001f{match.Text}";
+                var reciprocalRank = 1d / (60 + index + 1);
+                if (merged.TryGetValue(key, out var existing))
+                {
+                    merged[key] = existing with
+                    {
+                        Similarity = Math.Max(existing.Similarity, match.Similarity),
+                        RankingScore = existing.RankingScore + reciprocalRank,
+                        IsVectorMatch = existing.IsVectorMatch || match.IsVectorMatch,
+                        IsLexicalMatch = existing.IsLexicalMatch || match.IsLexicalMatch,
+                        Category = string.IsNullOrWhiteSpace(existing.Category) ? match.Category : existing.Category,
+                        DocumentType = string.IsNullOrWhiteSpace(existing.DocumentType) ? match.DocumentType : existing.DocumentType
+                    };
+                }
+                else
+                {
+                    merged.Add(key, match with { RankingScore = reciprocalRank, IsVectorMatch = isVector, IsLexicalMatch = !isVector });
+                }
+            }
+        }
     }
 
     internal static IReadOnlyList<RagMatch> SelectFinalMatches(
@@ -329,7 +341,7 @@ internal sealed class RagService(
     {
         var contextMatches = SelectContextMatches(matches, maxMatches: ResultCount, maxMatchesPerDocument: 3);
         var context = string.Join("\n\n", contextMatches.Select((match, index) =>
-            $"[S{index + 1}] Документ: {match.DocumentTitle}\nРаздел: {match.SourceLabel}\n{match.Text}"));
+            $"[S{index + 1}] Документ: {match.DocumentTitle}\nКатегория: {match.Category}\nТип: {match.DocumentType}\nРаздел: {match.SourceLabel}\n{match.Text}"));
         if (contextMatches.Count == 0)
         {
             throw new InvalidOperationException("Генерация ответа без найденных источников запрещена.");
@@ -362,6 +374,10 @@ internal sealed class RagService(
         var chunkCount = await vectorStore.GetCountAsync(cancellationToken);
         await ragify.ClearAsync(cancellationToken);
         await luceneSearchIndex.ClearAsync(cancellationToken);
+        await using var connection = new NpgsqlConnection(GetConnectionString());
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand("DELETE FROM knowledge_documents", connection);
+        await command.ExecuteNonQueryAsync(cancellationToken);
         logger.LogInformation("Очищено векторов RAGify: {ChunkCount}.", chunkCount);
         return chunkCount;
     }
@@ -391,18 +407,26 @@ internal sealed class RagService(
         var sourceFileName = file.FileName.Replace('\\', '/');
         var documentId = CreateDocumentId(sourceFileName);
         var ragifyDocumentId = documentId.ToString("N");
+        await using var stream = file.OpenReadStream();
+        var documentMetadata = string.Equals(file.ContentType, "text/markdown", StringComparison.OrdinalIgnoreCase)
+            ? KnowledgeDocumentMetadata.FromMarkdown(stream, sourceFileName)
+            : new KnowledgeDocumentMetadata(Path.GetFileNameWithoutExtension(sourceFileName), sourceFileName, "Без категории", "other", "Не указан");
         var metadata = new Dictionary<string, object>
         {
             ["sourceHash"] = sourceHash ?? string.Empty,
             ["fileName"] = sourceFileName,
-            ["heading"] = Path.GetFileNameWithoutExtension(sourceFileName)
+            ["heading"] = documentMetadata.Title,
+            ["title"] = documentMetadata.Title,
+            ["sourcePath"] = documentMetadata.SourcePath,
+            ["category"] = documentMetadata.Category,
+            ["documentType"] = documentMetadata.DocumentType,
+            ["processedBy"] = documentMetadata.ProcessedBy
         };
 
         try
         {
             logger.LogInformation("Начало индексации документа {FileName} (размер: {SizeKb} КБ).", Path.GetFileName(sourceFileName), file.Length / 1024);
             await vectorStore.DeleteByDocumentIdAsync(ragifyDocumentId, cancellationToken);
-            await using var stream = file.OpenReadStream();
             var document = await DocumentIngestionService.CreateDefault().IngestFromStreamAsync(
                 stream,
                 sourceFileName,
@@ -418,10 +442,14 @@ internal sealed class RagService(
                 sourceFileName,
                 chunks.Select(chunk => new LuceneIndexedChunk(
                     GetMetadataString(chunk.Metadata, "heading", Path.GetFileNameWithoutExtension(sourceFileName)),
-                    chunk.Text)).ToArray(),
+                    chunk.Text,
+                    documentMetadata.Title,
+                    documentMetadata.Category,
+                    documentMetadata.DocumentType)).ToArray(),
                 cancellationToken);
+            await UpsertKnowledgeDocumentAsync(documentId, sourceFileName, sourceHash, documentMetadata, file.Length, chunks.Count, cancellationToken);
             logger.LogInformation("RAGify проиндексировал документ {DocumentId}: {ChunkCount} фрагментов.", ragifyDocumentId, chunks.Count);
-            return new(documentId, Path.GetFileNameWithoutExtension(sourceFileName), "ragify", "indexed", sourceFileName,
+            return new(documentId, documentMetadata.Title, documentMetadata.DocumentType, "indexed", sourceFileName,
                 DateTimeOffset.UtcNow, file.Length, chunks.Count);
         }
         catch (RagIngestionException)
@@ -440,20 +468,16 @@ internal sealed class RagService(
         await using var connection = new NpgsqlConnection(GetConnectionString());
         await connection.OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand($"""
-            SELECT metadata ->> 'DocumentId', MIN(metadata ->> 'fileName'), COUNT(*)::integer
-            FROM {VectorTableName}
-            WHERE metadata ? 'DocumentId' AND metadata ? 'fileName'
-            GROUP BY metadata ->> 'DocumentId'
-            ORDER BY MIN(metadata ->> 'fileName')
+            SELECT id, title, document_type, source_file_name, indexed_at, size_bytes, chunk_count
+            FROM knowledge_documents
+            ORDER BY source_file_name
             """, connection);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var documents = new List<KnowledgeDocumentSummary>();
         while (await reader.ReadAsync(cancellationToken))
         {
-            var documentId = Guid.ParseExact(reader.GetString(0), "N");
-            var fileName = reader.GetString(1);
-            documents.Add(new(documentId, Path.GetFileNameWithoutExtension(fileName), "ragify", "indexed", fileName,
-                DateTimeOffset.MinValue, null, reader.GetInt32(2)));
+            documents.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), "indexed", reader.GetString(3),
+                reader.GetFieldValue<DateTimeOffset>(4), reader.GetInt64(5), reader.GetInt32(6)));
         }
 
         return documents;
@@ -499,18 +523,16 @@ internal sealed class RagService(
         await using var connection = new NpgsqlConnection(GetConnectionString());
         await connection.OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand($"""
-            SELECT metadata ->> 'DocumentId', COUNT(*)::integer
-            FROM {VectorTableName}
-            WHERE metadata ? 'DocumentId'
-            GROUP BY metadata ->> 'DocumentId'
-            ORDER BY metadata ->> 'DocumentId'
+            SELECT title, document_type, chunk_count
+            FROM knowledge_documents
+            ORDER BY title
             """, connection);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         var documents = new List<RagDocumentStatus>();
         while (await reader.ReadAsync(cancellationToken))
         {
-            documents.Add(new(reader.GetString(0), "ragify", "indexed", reader.GetInt32(1)));
+            documents.Add(new(reader.GetString(0), reader.GetString(1), "indexed", reader.GetInt32(2)));
         }
 
         return documents;
@@ -558,14 +580,41 @@ internal sealed class RagService(
 
     private string? GetKnowledgeFilePath(string sourceFileName)
     {
-        var directories = new[]
-        {
-            configuration["KnowledgeImport:Directory"] ?? "/data/inbox",
-            Path.Combine(AppContext.BaseDirectory, "knowledge-inbox")
-        };
+        var normalizedName = sourceFileName.Replace('\\', '/');
+        var isRepositoryDocument = normalizedName.StartsWith("repository/", StringComparison.OrdinalIgnoreCase);
+        var relativePath = isRepositoryDocument ? normalizedName["repository/".Length..] : normalizedName["volume/".Length..];
+        var directories = new[] { isRepositoryDocument
+            ? Path.Combine(AppContext.BaseDirectory, "knowledge-base")
+            : configuration["KnowledgeImport:Directory"] ?? "/data/inbox" };
         return directories
-            .Select(directory => Path.GetFullPath(Path.Combine(directory, sourceFileName)))
+            .Select(directory => Path.GetFullPath(Path.Combine(directory, relativePath)))
+            .Where(path => path.StartsWith(Path.GetFullPath(directories[0]), StringComparison.OrdinalIgnoreCase))
             .FirstOrDefault(File.Exists);
+    }
+
+    private async Task UpsertKnowledgeDocumentAsync(Guid id, string sourceFileName, string? sourceHash, KnowledgeDocumentMetadata metadata, long sizeBytes, int chunkCount, CancellationToken cancellationToken)
+    {
+        await using var connection = new NpgsqlConnection(GetConnectionString());
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            INSERT INTO knowledge_documents (id, source_file_name, source_hash, title, source_path, category, document_type, processed_by, size_bytes, chunk_count, indexed_at)
+            VALUES (@id, @sourceFileName, @sourceHash, @title, @sourcePath, @category, @documentType, @processedBy, @sizeBytes, @chunkCount, NOW())
+            ON CONFLICT (source_file_name) DO UPDATE SET
+                id = EXCLUDED.id, source_hash = EXCLUDED.source_hash, title = EXCLUDED.title, source_path = EXCLUDED.source_path,
+                category = EXCLUDED.category, document_type = EXCLUDED.document_type, processed_by = EXCLUDED.processed_by,
+                size_bytes = EXCLUDED.size_bytes, chunk_count = EXCLUDED.chunk_count, indexed_at = EXCLUDED.indexed_at
+            """, connection);
+        command.Parameters.AddWithValue("id", id);
+        command.Parameters.AddWithValue("sourceFileName", sourceFileName);
+        command.Parameters.AddWithValue("sourceHash", sourceHash ?? string.Empty);
+        command.Parameters.AddWithValue("title", metadata.Title);
+        command.Parameters.AddWithValue("sourcePath", metadata.SourcePath);
+        command.Parameters.AddWithValue("category", metadata.Category);
+        command.Parameters.AddWithValue("documentType", metadata.DocumentType);
+        command.Parameters.AddWithValue("processedBy", metadata.ProcessedBy);
+        command.Parameters.AddWithValue("sizeBytes", sizeBytes);
+        command.Parameters.AddWithValue("chunkCount", chunkCount);
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private static string GetMetadataString(IReadOnlyDictionary<string, object> metadata, string key, string fallback) =>
@@ -611,7 +660,9 @@ internal sealed record RagMatch(
     double Similarity,
     double RankingScore,
     bool IsVectorMatch = false,
-    bool IsLexicalMatch = false);
+    bool IsLexicalMatch = false,
+    string Category = "",
+    string DocumentType = "");
 
 internal sealed record RagSearchResult(IReadOnlyList<RagMatch> Matches, bool IsAmbiguous, IReadOnlyList<string> AmbiguousDocuments)
 {

@@ -54,13 +54,13 @@ internal sealed class KnowledgeImportService(
 
         var directories = new[]
         {
-            volumeDirectory,
-            Path.Combine(AppContext.BaseDirectory, "knowledge-inbox")
-        }.Distinct(StringComparer.OrdinalIgnoreCase);
+            new KnowledgeImportSource(volumeDirectory, "volume"),
+            new KnowledgeImportSource(Path.Combine(AppContext.BaseDirectory, "knowledge-base"), "repository")
+        }.GroupBy(source => source.Directory, StringComparer.OrdinalIgnoreCase).Select(group => group.First()).ToArray();
 
         var result = new RagReindexResult();
-        var existingDirectories = directories.Where(Directory.Exists).ToArray();
-        diagnostics.Record("info", $"Источники базы знаний: {string.Join(", ", directories.Select(directory => $"{directory} ({(Directory.Exists(directory) ? "доступна" : "отсутствует")})")).Replace("/app/knowledge-inbox", "knowledge-inbox")}");
+        var existingDirectories = directories.Where(source => Directory.Exists(source.Directory)).ToArray();
+        diagnostics.Record("info", $"Источники базы знаний: {string.Join(", ", directories.Select(source => $"{source.Name}: {source.Directory} ({(Directory.Exists(source.Directory) ? "доступна" : "отсутствует")})")).Replace("/app/knowledge-base", "knowledge-base")}");
         if (force)
         {
             using var scope = serviceProvider.CreateScope();
@@ -68,13 +68,14 @@ internal sealed class KnowledgeImportService(
             logger.LogInformation("Начата принудительная переиндексация RAGify. Очищено фрагментов: {ChunkCount}.", result.ClearedChunkCount);
         }
 
-        foreach (var directory in existingDirectories)
+        foreach (var source in existingDirectories)
         {
-            foreach (var path in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+            foreach (var path in Directory.EnumerateFiles(source.Directory, "*.md", SearchOption.AllDirectories))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 result.FoundFileCount++;
-                var sourceFileName = Path.GetRelativePath(directory, path).Replace(Path.DirectorySeparatorChar, '/');
+                var relativePath = Path.GetRelativePath(source.Directory, path).Replace(Path.DirectorySeparatorChar, '/');
+                var sourceFileName = $"{source.Name}/{relativePath}";
 
                 try
                 {
@@ -110,7 +111,7 @@ internal sealed class KnowledgeImportService(
         }
         if (result.FoundFileCount == 0)
         {
-            diagnostics.Record("warning", "Для индексации не найдено файлов. Проверьте наличие knowledge-inbox в опубликованном образе и /data/inbox в volume.");
+            diagnostics.Record("warning", "Для индексации не найдено файлов. Проверьте наличие knowledge-base в опубликованном образе и /data/inbox в volume.");
         }
         else if (result.FailedFileCount > 0)
         {
@@ -179,6 +180,8 @@ internal sealed class KnowledgeImportService(
         _ => "application/octet-stream"
     };
 }
+
+internal sealed record KnowledgeImportSource(string Directory, string Name);
 
 internal sealed class RagReindexResult
 {

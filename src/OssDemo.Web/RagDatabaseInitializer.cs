@@ -55,7 +55,29 @@ internal sealed class RagDatabaseInitializer(
                 USING gin (to_tsvector('russian',
                     COALESCE(metadata ->> 'Text', '') || ' ' ||
                     COALESCE(metadata ->> 'fileName', '') || ' ' ||
+                    COALESCE(metadata ->> 'title', '') || ' ' ||
+                    COALESCE(metadata ->> 'category', '') || ' ' ||
+                    COALESCE(metadata ->> 'documentType', '') || ' ' ||
                     COALESCE(metadata ->> 'heading', '')))
+                """, cancellationToken);
+            await ExecuteAsync(connection, """
+                CREATE TABLE IF NOT EXISTS knowledge_documents (
+                    id UUID PRIMARY KEY,
+                    source_file_name TEXT NOT NULL UNIQUE,
+                    source_hash TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    source_path TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    document_type TEXT NOT NULL,
+                    processed_by TEXT NOT NULL,
+                    size_bytes BIGINT NOT NULL,
+                    chunk_count INTEGER NOT NULL DEFAULT 0,
+                    indexed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """, cancellationToken);
+            await ExecuteAsync(connection, """
+                CREATE INDEX IF NOT EXISTS knowledge_documents_category_type_idx
+                ON knowledge_documents (category, document_type)
                 """, cancellationToken);
             _initialized = true;
             logger.LogInformation("RAG: PostgreSQL, расширение pgvector, таблица {TableName} и индекс готовы.", TableName);
