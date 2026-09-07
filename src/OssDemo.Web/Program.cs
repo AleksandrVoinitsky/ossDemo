@@ -94,6 +94,7 @@ app.Use(async (context, next) =>
         || path.StartsWithSegments("/Error")
         || path.StartsWithSegments("/css")
         || path.StartsWithSegments("/js")
+        || path.StartsWithSegments("/images")
         || path.StartsWithSegments("/lib")
         || path.StartsWithSegments("/favicon.ico")
         || path.StartsWithSegments("/OssDemo.Web.styles.css");

@@ -3315,8 +3315,8 @@ a { color: var(--primary); }
 
 .auth-page {
   min-height: 100vh;
-  padding: clamp(1rem, 4vw, 4rem);
-  place-items: center;
+  padding: clamp(1rem, 3vw, 3rem);
+  place-items: center end;
 }
 
 .auth-card {
@@ -3379,6 +3379,10 @@ a { color: var(--primary); }
 @media (max-width: 575.98px) {
   .auth-body {
     background-position: 58% center;
+  }
+
+  .auth-page {
+    place-items: center;
   }
 
   .auth-card {
