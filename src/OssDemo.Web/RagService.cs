@@ -10,6 +10,7 @@ using RAGify.Ingestion;
 internal sealed class RagService(
     IRagify ragify,
     IVectorStore vectorStore,
+    LuceneSearchIndex luceneSearchIndex,
     IHttpClientFactory httpClientFactory,
     IConfiguration configuration,
     ILogger<RagService> logger,
@@ -113,48 +114,15 @@ internal sealed class RagService(
 
     private async Task<IReadOnlyList<RagMatch>> RetrieveLexicalCandidatesAsync(string searchQuery, CancellationToken cancellationToken)
     {
-        await using var connection = new NpgsqlConnection(GetConnectionString());
-        await connection.OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand($"""
-            WITH query AS (
-                SELECT websearch_to_tsquery('russian', @query) AS value
-            )
-            SELECT
-                COALESCE(metadata ->> 'fileName', 'Документ'),
-                COALESCE(metadata ->> 'heading', 'Документ'),
-                COALESCE(metadata ->> 'Text', ''),
-                ts_rank_cd(
-                    to_tsvector('russian',
-                        COALESCE(metadata ->> 'Text', '') || ' ' ||
-                        COALESCE(metadata ->> 'fileName', '') || ' ' ||
-                        COALESCE(metadata ->> 'heading', '')),
-                    query.value) AS rank
-            FROM {VectorTableName}, query
-            WHERE query.value <> ''::tsquery
-              AND to_tsvector('russian',
-                    COALESCE(metadata ->> 'Text', '') || ' ' ||
-                    COALESCE(metadata ->> 'fileName', '') || ' ' ||
-                    COALESCE(metadata ->> 'heading', '')) @@ query.value
-            ORDER BY rank DESC, vector_id
-            LIMIT @limit
-            """, connection);
-        command.Parameters.AddWithValue("query", searchQuery);
-        command.Parameters.AddWithValue("limit", CandidateCountPerSearch);
-
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        var matches = new List<RagMatch>();
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            var text = reader.GetString(2);
-            if (!string.IsNullOrWhiteSpace(text))
-            {
-                var rank = reader.GetFloat(3);
-                matches.Add(new(reader.GetString(0), reader.GetString(1), text, rank, rank,
-                    IsVectorMatch: false, IsLexicalMatch: true));
-            }
-        }
-
-        return matches;
+        var results = await luceneSearchIndex.SearchAsync(searchQuery, CandidateCountPerSearch, cancellationToken);
+        return results.Select(match => new RagMatch(
+            match.DocumentTitle,
+            match.SourceLabel,
+            match.Text,
+            match.Score,
+            match.Score,
+            IsVectorMatch: false,
+            IsLexicalMatch: true)).ToArray();
     }
 
     internal static IReadOnlyList<RagMatch> MergeCandidates(
@@ -393,6 +361,7 @@ internal sealed class RagService(
     {
         var chunkCount = await vectorStore.GetCountAsync(cancellationToken);
         await ragify.ClearAsync(cancellationToken);
+        await luceneSearchIndex.ClearAsync(cancellationToken);
         logger.LogInformation("Очищено векторов RAGify: {ChunkCount}.", chunkCount);
         return chunkCount;
     }
@@ -444,6 +413,13 @@ internal sealed class RagService(
             logger.LogInformation("Документ {FileName} обработан. Начинается векторизация...", Path.GetFileName(sourceFileName));
             await ragify.IngestAsync(document, cancellationToken);
             var chunks = await ragify.GetChunksAsync(ragifyDocumentId, cancellationToken);
+            await luceneSearchIndex.IndexDocumentAsync(
+                ragifyDocumentId,
+                sourceFileName,
+                chunks.Select(chunk => new LuceneIndexedChunk(
+                    GetMetadataString(chunk.Metadata, "heading", Path.GetFileNameWithoutExtension(sourceFileName)),
+                    chunk.Text)).ToArray(),
+                cancellationToken);
             logger.LogInformation("RAGify проиндексировал документ {DocumentId}: {ChunkCount} фрагментов.", ragifyDocumentId, chunks.Count);
             return new(documentId, Path.GetFileNameWithoutExtension(sourceFileName), "ragify", "indexed", sourceFileName,
                 DateTimeOffset.UtcNow, file.Length, chunks.Count);

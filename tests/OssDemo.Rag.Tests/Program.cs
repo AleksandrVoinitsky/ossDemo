@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Primitives;
+
 var contextMatches = RagService.SelectContextMatches(new[]
 {
     new RagMatch("СТО", "1", "Первый", 0.8, 0.8),
@@ -40,6 +43,24 @@ AssertTrue(searchRewrites[1] == "периодичность пересмотра
 var uniqueSearchRewrites = RagService.ParseSearchRewrites("[\"запрос\", \"Запрос\", \"другой запрос\"]");
 AssertTrue(uniqueSearchRewrites.SequenceEqual(new[] { "запрос", "другой запрос" }));
 
+var luceneDirectory = Path.Combine(Path.GetTempPath(), $"ossdemo-lucene-{Guid.NewGuid():N}");
+try
+{
+    var luceneConfiguration = new TestConfiguration(new Dictionary<string, string?> { ["Search:LuceneDirectory"] = luceneDirectory });
+    using var luceneIndex = new LuceneSearchIndex(luceneConfiguration);
+    await luceneIndex.IndexDocumentAsync("service", "Справочник по сервису АИ ООС.md", new[]
+    {
+        new LuceneIndexedChunk("Производственный экологический контроль", "ПЭК применяется для контроля соблюдения природоохранных требований."),
+        new LuceneIndexedChunk("Рекультивация земель", "Рекультивация нарушенных земель проводится с учетом местных условий.")
+    }, CancellationToken.None);
+    AssertTrue((await luceneIndex.SearchAsync("ПЭК", 5, CancellationToken.None)).Any(match => match.Text.Contains("ПЭК", StringComparison.Ordinal)));
+    AssertTrue((await luceneIndex.SearchAsync("рекултивация", 5, CancellationToken.None)).Any(match => match.SourceLabel.Contains("Рекультивация", StringComparison.Ordinal)));
+}
+finally
+{
+    if (Directory.Exists(luceneDirectory)) Directory.Delete(luceneDirectory, recursive: true);
+}
+
 var modelDirectory = Path.Combine(AppContext.BaseDirectory, "Models", "paraphrase-multilingual-MiniLM-L12-v2");
 using var embeddingProvider = new MultilingualMiniLmEmbeddingProvider(
     Path.Combine(modelDirectory, "model_O1.onnx"),
@@ -80,4 +101,17 @@ static void AssertThrows(Action action)
     }
 
     throw new InvalidOperationException("Expected InvalidOperationException.");
+}
+
+sealed class TestConfiguration(IReadOnlyDictionary<string, string?> values) : IConfiguration
+{
+    public string? this[string key]
+    {
+        get => values.GetValueOrDefault(key);
+        set => throw new NotSupportedException();
+    }
+
+    public IEnumerable<IConfigurationSection> GetChildren() => Array.Empty<IConfigurationSection>();
+    public IChangeToken GetReloadToken() => throw new NotSupportedException();
+    public IConfigurationSection GetSection(string key) => throw new NotSupportedException();
 }

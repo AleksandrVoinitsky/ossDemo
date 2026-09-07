@@ -56,7 +56,6 @@ builder.Services.AddSingleton<IRagify>(serviceProvider =>
         })
         .WithEmbeddings(serviceProvider.GetRequiredService<IEmbeddingProvider>())
         .WithVectorStore(serviceProvider.GetRequiredService<IVectorStore>())
-        .WithLexicalReranker()
         .WithInMemoryEmbeddingCache(maxEntries: 10_000)
         .WithLogger(serviceProvider.GetRequiredService<ILogger<RAGify.Ragify>>());
 
@@ -68,6 +67,7 @@ builder.Services.AddSingleton<IRagify>(serviceProvider =>
     return ragifyConfiguration.Build();
 });
 builder.Services.AddSingleton<RagService>();
+builder.Services.AddSingleton<LuceneSearchIndex>();
 builder.Services.AddSingleton<RagDatabaseInitializer>();
 builder.Services.AddSingleton<RagDiagnostics>();
 builder.Services.AddSingleton<KnowledgeImportService>();
@@ -674,10 +674,11 @@ internal static class RagStatusFormatter
             | ONNX-модель | `{status.Model}` |
             | Кэш ONNX в volume | {modelCacheState}, {FormatBytes(modelCache.ModelSizeBytes)} |
             | Кэш токенизатора в volume | {tokenizerCacheState}, {FormatBytes(modelCache.TokenizerSizeBytes)} |
-            | Cross-encoder reranker | {(rerankerCache.ModelCached ? $"есть, {FormatBytes(rerankerCache.ModelSizeBytes)}" : "нет, используется RAGify")} |
+            | Cross-encoder reranker | {(rerankerCache.ModelCached ? $"есть, {FormatBytes(rerankerCache.ModelSizeBytes)}" : "нет, используется порядок кандидатов")} |
             | Папка кэша | `{modelCache.Directory}` |
             | Нарезка | Markdown, 1200 символов, overlap 250 |
-            | Реранжирование | Нативный гибридный поиск RAGify, затем local cross-encoder при доступности |
+            | Лексический поиск | Локальный Lucene.NET: BM25, fuzzy-поиск, синонимы, веса полей |
+            | Реранжирование | Кандидаты pgvector + Lucene.NET, затем local cross-encoder при доступности |
 
             ### Проиндексированные документы
             {documents}
