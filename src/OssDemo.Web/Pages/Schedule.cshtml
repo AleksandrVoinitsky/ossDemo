@@ -1,8 +1,8 @@
 @page
 @{
-    ViewData["Title"] = "График проверок";
+    ViewData["Title"] = "График";
     ViewData["Nav"] = "Schedule";
-    ViewData["Breadcrumb"] = "График \\ Календарь событий";
+    ViewData["Breadcrumb"] = "График \\ План выездных проверок";
 }
 
 @section Styles {
@@ -31,8 +31,6 @@
             <select id="scheduleCategory" class="form-select" data-schedule-category>
                 <option value="all">Все типы</option>
                 <option value="inspection">Проверка</option>
-                <option value="documents">ОРД и документы</option>
-                <option value="generation">Генерация чек-листа</option>
                 <option value="control">Контроль нарушения</option>
             </select>
         </div>
@@ -53,10 +51,10 @@
     <div class="soft-panel schedule-calendar-panel p-3 p-lg-4">
         <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
             <div>
-                <h2 class="h4 section-title mb-1">План-график</h2>
+                <h2 class="h4 section-title mb-1">План-график выездных проверок</h2>
                 <p class="muted-note mb-0" data-schedule-result>Загружаем календарь...</p>
             </div>
-            <span class="badge text-bg-info align-self-start">FullCalendar</span>
+            <span class="badge text-bg-info align-self-start">По календарным дням</span>
         </div>
         <div id="scheduleCalendar" class="schedule-calendar" aria-label="Календарь проверок"></div>
     </div>
@@ -71,6 +69,23 @@
                 <span class="badge text-bg-secondary" data-schedule-upcoming-count>0</span>
             </div>
             <div class="schedule-upcoming-list" data-schedule-upcoming></div>
+        </div>
+        <div class="soft-panel schedule-map-panel p-3 p-lg-4">
+            <div class="d-flex justify-content-between gap-3 mb-3">
+                <div>
+                    <h2 class="h4 section-title mb-1">Карта объектов</h2>
+                    <p class="muted-note mb-0">Выберите объект в реестре, чтобы увидеть его расположение.</p>
+                </div>
+                <a class="btn btn-outline-primary btn-sm align-self-start" asp-page="/Facilities">Реестр объектов</a>
+            </div>
+            <div class="schedule-facility-list" data-schedule-facility-list aria-label="Объекты на карте"></div>
+            <div class="facility-map-shell schedule-facility-map-shell mt-3">
+                <iframe class="facility-yandex-map" src="about:blank" title="Объект проверки на карте" loading="lazy" data-schedule-map-frame></iframe>
+            </div>
+            <div class="facility-map-caption mt-3" aria-live="polite">
+                <strong data-schedule-map-name>Загрузка объектов…</strong>
+                <span data-schedule-map-address></span>
+            </div>
         </div>
     </aside>
 </section>

@@ -2682,6 +2682,52 @@ a {
   font-weight: 750;
 }
 
+.schedule-map-panel {
+  min-width: 0;
+}
+
+.schedule-facility-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .55rem;
+}
+
+.schedule-facility-item {
+  display: grid;
+  gap: .2rem;
+  min-width: 0;
+  padding: .65rem .7rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  background: var(--surface);
+  text-align: left;
+}
+
+.schedule-facility-item strong,
+.schedule-facility-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedule-facility-item span {
+  color: var(--ink-muted);
+  font-size: .76rem;
+}
+
+.schedule-facility-item:hover,
+.schedule-facility-item:focus,
+.schedule-facility-item.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.schedule-facility-map-shell {
+  height: 17rem;
+  min-height: 17rem;
+}
+
 @media (max-width: 991.98px) {
   .topbar-tools {
     flex-wrap: wrap;
@@ -2704,6 +2750,10 @@ a {
 
   .schedule-workspace {
     grid-template-columns: 1fr;
+  }
+
+  .schedule-facility-map-shell {
+    height: 22rem;
   }
 
 }

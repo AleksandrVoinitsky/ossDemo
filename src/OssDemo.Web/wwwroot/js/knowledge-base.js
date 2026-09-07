@@ -20,6 +20,18 @@
     let path = [];
     let viewMode = 'grid';
 
+    function activateSpace(space) {
+        const selectedSpace = ['documents', 'templates', 'classifier'].includes(space) ? space : 'documents';
+        root.querySelectorAll('[data-knowledge-space]').forEach(button => {
+            const active = button.dataset.knowledgeSpace === selectedSpace;
+            button.classList.toggle('active', active);
+            button.setAttribute('aria-selected', String(active));
+        });
+        root.querySelectorAll('[data-knowledge-panel]').forEach(panel => {
+            panel.hidden = panel.dataset.knowledgePanel !== selectedSpace;
+        });
+    }
+
     function escapeHtml(value) {
         return String(value || '')
             .replace(/&/g, '&amp;')
@@ -198,7 +210,16 @@
         root.querySelectorAll('[data-view-mode]').forEach(item => item.classList.toggle('active', item === button));
         renderItems();
     }));
+    root.querySelectorAll('[data-knowledge-space]').forEach(button => button.addEventListener('click', () => {
+        const space = button.dataset.knowledgeSpace;
+        activateSpace(space);
+        const url = new URL(window.location.href);
+        if (space === 'documents') url.searchParams.delete('space');
+        else url.searchParams.set('space', space);
+        window.history.replaceState({}, '', url);
+    }));
     printButton.addEventListener('click', () => window.print());
+    activateSpace(new URLSearchParams(window.location.search).get('space'));
     loadDocuments().catch(error => {
         console.error(error);
         render();

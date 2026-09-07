@@ -20,8 +20,6 @@
 
   const categoryMeta = {
     inspection: 'Проверка',
-    documents: 'ОРД и документы',
-    generation: 'Генерация чек-листа',
     control: 'Контроль нарушения'
   };
 
@@ -29,8 +27,8 @@
     {
       id: 'sch-18',
       title: 'Березниковское ЛПУМГ: плановая проверка',
-      start: '2026-08-21T10:00:00',
-      end: '2026-08-21T13:30:00',
+      start: '2026-08-21',
+      end: '2026-08-24',
       status: 'ready',
       category: 'inspection',
       object: 'Березниковское ЛПУМГ',
@@ -38,47 +36,15 @@
       responsible: 'Дулаева Н. И.',
       criteria: 'Общие, атмосфера, вода, отходы, недра',
       match: 'Профиль подставлен автоматически, пакет ОРД найден',
-      note: 'Демо-сценарий: запуск генерации чек-листа по готовому объектному профилю.',
+      note: 'Выездная плановая проверка на три календарных дня. Профиль и пакет ОРД подготовлены.',
       actionLabel: 'Создать чек-лист',
       actionUrl: '/Checklists/New'
     },
     {
-      id: 'doc-ber-2026',
-      title: 'Березниковское ЛПУМГ: сверка ОРД',
-      start: '2026-08-20T15:00:00',
-      end: '2026-08-20T16:00:00',
-      status: 'ready',
-      category: 'documents',
-      object: 'Березниковское ЛПУМГ',
-      objectType: 'Пакет приказов и лицензий',
-      responsible: 'Смирнова Е. А.',
-      criteria: 'Приказ ПЭК, распоряжение, приложение к лицензии',
-      match: 'Документы распознаны, неоднозначность по скважине №3 вынесена в решение',
-      note: 'Событие показывает подготовительный этап до проверки.',
-      actionLabel: 'Открыть чек-лист',
-      actionUrl: '/Checklists/New'
-    },
-    {
-      id: 'gen-ber-2026',
-      title: 'Березниковское ЛПУМГ: генерация чек-листа',
-      start: '2026-08-21T14:30:00',
-      end: '2026-08-21T15:15:00',
-      status: 'ready',
-      category: 'generation',
-      object: 'Березниковское ЛПУМГ',
-      objectType: 'Формирование проекта чек-листа',
-      responsible: 'inspector',
-      criteria: '42 пункта из базы знаний, ОРД, нарушений и архива',
-      match: '4 агента завершили анализ источников',
-      note: 'Быстрый переход ведет на мастер создания чек-листа.',
-      actionLabel: 'Перейти к генерации',
-      actionUrl: '/Checklists/New'
-    },
-    {
       id: 'sch-21',
-      title: 'Воткинское ЛПУМГ: проверка профиля',
-      start: '2026-09-09T09:30:00',
-      end: '2026-09-09T12:00:00',
+      title: 'Воткинское ЛПУМГ: плановая проверка',
+      start: '2026-09-09',
+      end: '2026-09-11',
       status: 'profile',
       category: 'inspection',
       object: 'Воткинское ЛПУМГ',
@@ -91,26 +57,10 @@
       actionUrl: '/Facilities'
     },
     {
-      id: 'doc-vot-2026',
-      title: 'Воткинское ЛПУМГ: загрузить приложение к лицензии',
-      start: '2026-09-05T11:00:00',
-      end: '2026-09-05T12:00:00',
-      status: 'profile',
-      category: 'documents',
-      object: 'Воткинское ЛПУМГ',
-      objectType: 'Подготовка документов',
-      responsible: 'Каримов А. В.',
-      criteria: 'Недостающие приложения и зона ответственности',
-      match: 'Найден приказ ПЭК, приложение к лицензии отсутствует',
-      note: 'Событие подсвечивает причину желтого статуса в календаре.',
-      actionLabel: 'Доработать профиль',
-      actionUrl: '/Facilities'
-    },
-    {
       id: 'sch-24',
       title: 'УАВР №1: создать профиль объекта',
-      start: '2026-10-06T10:00:00',
-      end: '2026-10-06T11:30:00',
+      start: '2026-10-06',
+      end: '2026-10-08',
       status: 'missing',
       category: 'inspection',
       object: 'УАВР №1',
@@ -125,8 +75,8 @@
     {
       id: 'ctrl-31',
       title: 'Контроль устранения: протоколы инструментального контроля',
-      start: '2026-10-14T16:00:00',
-      end: '2026-10-14T17:00:00',
+      start: '2026-10-14',
+      end: '2026-10-15',
       status: 'control',
       category: 'control',
       object: 'Березниковское ЛПУМГ',
@@ -141,8 +91,8 @@
     {
       id: 'sch-29',
       title: 'Пермское ЛПУМГ: подготовить проверку',
-      start: '2026-11-12T09:00:00',
-      end: '2026-11-12T12:00:00',
+      start: '2026-11-12',
+      end: '2026-11-14',
       status: 'draft',
       category: 'inspection',
       object: 'Пермское ЛПУМГ',
@@ -157,8 +107,8 @@
     {
       id: 'ctrl-perm-2026',
       title: 'Пермское ЛПУМГ: срок обновления ПНООЛР',
-      start: '2026-11-18T15:00:00',
-      end: '2026-11-18T16:00:00',
+      start: '2026-11-18',
+      end: '2026-11-19',
       status: 'control',
       category: 'control',
       object: 'Пермское ЛПУМГ',
@@ -179,13 +129,12 @@
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 
-  const formatDate = (date, withTime = true) => {
+  const formatDate = (date) => {
     if (!date) return '—';
     return new Intl.DateTimeFormat('ru-RU', {
       day: '2-digit',
       month: 'long',
-      year: 'numeric',
-      ...(withTime ? { hour: '2-digit', minute: '2-digit' } : {})
+      year: 'numeric'
     }).format(date);
   };
 
@@ -198,6 +147,7 @@
       title: event.title,
       start: event.start,
       end: event.end,
+      allDay: true,
       url: getEventUrl(event.id),
       classNames: ['schedule-event', meta.className],
       extendedProps: event
@@ -232,12 +182,21 @@
       const meta = statusMeta[event.status] || statusMeta.draft;
       return `
         <a class="schedule-upcoming-item" href="${escapeHtml(getEventUrl(event.id))}">
-          <span class="schedule-upcoming-date">${escapeHtml(formatDate(new Date(event.start), false))}</span>
+          <span class="schedule-upcoming-date">${escapeHtml(formatPeriod(event.start, event.end))}</span>
           <strong>${escapeHtml(event.title)}</strong>
           <span>${escapeHtml(event.responsible)} · ${escapeHtml(categoryMeta[event.category] || event.category)}</span>
           <span class="badge ${meta.badge}">${escapeHtml(meta.label)}</span>
         </a>`;
     }).join('');
+  };
+
+  const formatPeriod = (start, end) => {
+    const startDate = new Date(`${start}T00:00:00`);
+    const endDate = new Date(`${end}T00:00:00`);
+    endDate.setDate(endDate.getDate() - 1);
+    const startText = formatDate(startDate);
+    const endText = formatDate(endDate);
+    return startText === endText ? startText : `${startText} — ${endText}`;
   };
 
   const updateStats = (events) => {
@@ -260,21 +219,17 @@
     locale: 'ru',
     firstDay: 1,
     height: 'auto',
-    nowIndicator: true,
-    selectable: true,
     navLinks: true,
     dayMaxEvents: 3,
-    eventTimeFormat: { hour: '2-digit', minute: '2-digit', meridiem: false },
     headerToolbar: {
       left: 'prev,next today',
       center: 'title',
-      right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+      right: 'dayGridMonth,dayGridWeek,listWeek'
     },
     buttonText: {
       today: 'Сегодня',
       month: 'Месяц',
       week: 'Неделя',
-      day: 'День',
       list: 'Список'
     },
     events: scheduleEvents.map(toCalendarEvent),
@@ -282,9 +237,7 @@
       info.jsEvent.preventDefault();
       window.location.assign(getEventUrl(info.event.id));
     },
-    dateClick: (info) => {
-      calendar.changeView('timeGridDay', info.dateStr);
-    }
+    eventDisplay: 'block'
   });
 
   calendar.render();
@@ -303,4 +256,18 @@
   });
 
   applyFilters();
+
+  const facilityList = document.querySelector('[data-schedule-facility-list]');
+  const mapFrame = document.querySelector('[data-schedule-map-frame]');
+  const mapName = document.querySelector('[data-schedule-map-name]');
+  const mapAddress = document.querySelector('[data-schedule-map-address]');
+  const mapUrl = (facility) => `https://yandex.ru/map-widget/v1/?ll=${facility.longitude}%2C${facility.latitude}&z=10&pt=${facility.longitude}%2C${facility.latitude}%2Cpm2blm`;
+  if (facilityList) {
+    fetch('/api/operations/facilities').then((response) => response.ok ? response.json() : Promise.reject()).then((facilities) => {
+      facilityList.innerHTML = facilities.map((facility, index) => `<button class="schedule-facility-item ${index === 0 ? 'active' : ''}" type="button" data-map-url="${mapUrl(facility)}" data-name="${escapeHtml(facility.name)}" data-address="${escapeHtml(facility.address)}"><strong>${escapeHtml(facility.name)}</strong><span>НВОС ${escapeHtml(facility.nvocCategory)}</span></button>`).join('') || '<p class="muted-note mb-0">В реестре пока нет объектов.</p>';
+      const selectFacility = (button) => { facilityList.querySelectorAll('button').forEach((item) => item.classList.toggle('active', item === button)); if (mapFrame) mapFrame.src = button.dataset.mapUrl; if (mapName) mapName.textContent = button.dataset.name; if (mapAddress) mapAddress.textContent = button.dataset.address; };
+      facilityList.querySelectorAll('button').forEach((button) => button.addEventListener('click', () => selectFacility(button)));
+      if (facilityList.querySelector('button')) selectFacility(facilityList.querySelector('button'));
+    }).catch(() => { facilityList.innerHTML = '<p class="text-danger mb-0">Не удалось загрузить объекты.</p>'; });
+  }
 })();

@@ -6,6 +6,24 @@
 }
 
 <div class="knowledge-page" data-knowledge-workspace>
+    <header class="knowledge-page-header">
+        <div>
+            <p class="eyebrow mb-1">Единое рабочее пространство</p>
+            <h1 class="h3 section-title mb-1">База знаний</h1>
+            <p class="muted-note mb-0">Документы, шаблоны проверок и классификатор критериев собраны в одном месте.</p>
+        </div>
+        <div class="knowledge-summary" aria-label="Состав базы знаний">
+            <span>Нормативные документы</span><span>Шаблоны</span><span>Критерии контроля</span>
+        </div>
+    </header>
+
+    <div class="knowledge-space-tabs" role="tablist" aria-label="Разделы базы знаний">
+        <button class="knowledge-space-tab active" type="button" role="tab" aria-selected="true" data-knowledge-space="documents">Документы <span>Нормативные источники</span></button>
+        <button class="knowledge-space-tab" type="button" role="tab" aria-selected="false" data-knowledge-space="templates">Шаблоны чек-листа <span>Структуры проверок</span></button>
+        <button class="knowledge-space-tab" type="button" role="tab" aria-selected="false" data-knowledge-space="classifier">Классификатор <span>Критерии контроля</span></button>
+    </div>
+
+    <section class="knowledge-space" data-knowledge-panel="documents">
     <section class="knowledge-toolbar" aria-label="Панель инструментов базы знаний">
         <div class="knowledge-breadcrumb" data-workspace-breadcrumb></div>
         <div class="knowledge-toolbar-actions">
@@ -33,6 +51,51 @@
 
         <div class="knowledge-items knowledge-items-grid" data-workspace-items></div>
         <div class="knowledge-empty d-none" data-workspace-empty>Ничего не найдено</div>
+    </section>
+    </section>
+
+    <section class="knowledge-space" data-knowledge-panel="templates" hidden>
+        <div class="knowledge-space-intro soft-panel">
+            <div>
+                <p class="eyebrow mb-1">Шаблоны чек-листа</p>
+                <h2 class="h4 section-title mb-1">Проверочная структура без дублирования экранов</h2>
+                <p class="muted-note mb-0">Выберите шаблон: его критерии и колонки будут использованы при формировании чек-листа.</p>
+            </div>
+            <a class="btn btn-primary" asp-page="/Checklists/New">Перейти к формированию</a>
+        </div>
+        <div class="knowledge-template-grid">
+            <article class="soft-panel knowledge-template-card">
+                <span class="badge text-bg-secondary">Корпоративный</span>
+                <h3 class="h5 section-title">Уровень Общества v2026</h3>
+                <p class="muted-note">Базовый шаблон для всех филиалов: общие требования, атмосфера, вода и отходы.</p>
+                <div class="pill-group"><span class="classifier-chip">1 Общие</span><span class="classifier-chip">2 Атмосфера</span><span class="classifier-chip">3 Вода</span><span class="classifier-chip">4 Отходы</span></div>
+            </article>
+            <article class="soft-panel knowledge-template-card featured">
+                <div class="d-flex justify-content-between gap-2"><span class="badge text-bg-success">Основной сценарий</span><span class="small text-muted">v2026</span></div>
+                <h3 class="h5 section-title">Уровень филиала Пермь</h3>
+                <p class="muted-note">Расширен для компрессорных станций, водных объектов и недропользования.</p>
+                <div class="knowledge-template-columns"><span>№ и требование</span><span>Основание</span><span>Результат</span><span>Примечание</span></div>
+            </article>
+        </div>
+    </section>
+
+    <section class="knowledge-space" data-knowledge-panel="classifier" hidden>
+        <div class="knowledge-space-intro soft-panel">
+            <div>
+                <p class="eyebrow mb-1">Классификатор критериев контроля</p>
+                <h2 class="h4 section-title mb-1">Версия v2026.01 <span class="badge text-bg-success">активна</span></h2>
+                <p class="muted-note mb-0">Единый справочник связывает требования базы знаний, пункты чек-листов и историю нарушений.</p>
+            </div>
+            <a class="btn btn-outline-primary" asp-page="/Classifier">Открыть полное дерево</a>
+        </div>
+        <div class="knowledge-classifier-grid">
+            <article class="soft-panel knowledge-classifier-card"><span class="classifier-code">1</span><div><h3>Общие вопросы</h3><p>Организационные документы, ПЭК, распределение ответственности.</p></div></article>
+            <article class="soft-panel knowledge-classifier-card"><span class="classifier-code">2</span><div><h3>Охрана атмосферного воздуха</h3><p>Выбросы, инвентаризация, инструментальный контроль.</p></div></article>
+            <article class="soft-panel knowledge-classifier-card"><span class="classifier-code">3</span><div><h3>Водопользование</h3><p>Сбросы, водные объекты, учёт и очистные сооружения.</p></div></article>
+            <article class="soft-panel knowledge-classifier-card"><span class="classifier-code">4</span><div><h3>Обращение с отходами</h3><p>ПНООЛР, паспорта, места накопления и лимиты.</p></div></article>
+            <article class="soft-panel knowledge-classifier-card"><span class="classifier-code">5</span><div><h3>Землепользование</h3><p>Санитарные зоны, загрязнение и рекультивация.</p></div></article>
+            <article class="soft-panel knowledge-classifier-card"><span class="classifier-code">6</span><div><h3>Недропользование</h3><p>Скважины, лицензии, зоны санитарной охраны.</p></div></article>
+        </div>
     </section>
 
     <div class="modal fade knowledge-document-modal" id="knowledgeDocumentModal" tabindex="-1" aria-labelledby="knowledgeDocumentTitle" aria-hidden="true">
