@@ -2825,3 +2825,301 @@ a {
     justify-self: start;
   }
 }
+
+/* Blue glass visual refresh. Kept at the end to preserve page structure and behavior. */
+:root {
+  --app-bg: #eaf2ff;
+  --surface: rgba(255, 255, 255, .70);
+  --surface-muted: rgba(242, 247, 255, .76);
+  --surface-strong: rgba(216, 230, 255, .9);
+  --border: rgba(53, 111, 210, .22);
+  --border-soft: rgba(64, 120, 215, .15);
+  --ink: #10254d;
+  --ink-muted: #536987;
+  --primary: #1769e8;
+  --primary-dark: #104cb8;
+  --primary-soft: #e3efff;
+  --success: #0b996c;
+  --warning: #cc7900;
+  --danger: #d6314b;
+  --info: #1680db;
+  --danger-soft: #fff0f4;
+  --warning-soft: #fff6df;
+  --info-soft: #e6f3ff;
+  --radius: 1rem;
+  --radius-sm: .65rem;
+  --card-shadow: 0 1rem 2.7rem rgba(31, 76, 153, .13);
+}
+
+body {
+  background:
+    radial-gradient(circle at 92% -8%, rgba(57, 130, 246, .34), transparent 29rem),
+    radial-gradient(circle at -8% 88%, rgba(31, 144, 255, .18), transparent 31rem),
+    radial-gradient(circle at 58% 52%, rgba(63, 166, 255, .12), transparent 35rem),
+    linear-gradient(135deg, #f8fbff 0%, var(--app-bg) 52%, #e1edff 100%);
+}
+
+a { color: var(--primary); }
+
+.app-sidebar,
+.app-breadcrumb-bar,
+.soft-panel,
+.hero-panel,
+.feature-card,
+.operation-metric-card,
+.strict-panel,
+.wizard-card,
+.live-checklist-shell,
+.generation-stage,
+.agent-card,
+.facility-list-item,
+.schedule-upcoming-item,
+.auth-card,
+.modal-content {
+  border-color: var(--border);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  backdrop-filter: blur(18px) saturate(135%);
+}
+
+.app-sidebar {
+  border-right-color: rgba(255, 255, 255, .18);
+  color: #eaf3ff;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(94, 181, 255, .34), transparent 20rem),
+    linear-gradient(165deg, #145ac9 0%, #10479f 58%, #0b367d 100%);
+  box-shadow: .65rem 0 2.6rem rgba(12, 49, 118, .28);
+}
+
+.app-sidebar .app-brand,
+.app-sidebar .app-brand:hover,
+.app-sidebar .app-brand:focus { color: #fff; }
+.app-sidebar .app-brand small,
+.app-sidebar .sidebar-caption { color: rgba(228, 242, 255, .7); }
+
+.app-brand .brand-mark {
+  color: #fff;
+  border-color: rgba(255, 255, 255, .58);
+  background: linear-gradient(135deg, #48a5ff, #1b69e5);
+  box-shadow: 0 .55rem 1.25rem rgba(41, 101, 228, .34);
+}
+
+.app-sidebar .nav-link {
+  color: #fff;
+  border-color: transparent;
+  transition: color .2s ease, background-color .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+
+.app-sidebar .nav-link i {
+  color: rgba(232, 244, 255, .88);
+  border-color: rgba(255, 255, 255, .18);
+  background: rgba(255, 255, 255, .1);
+}
+
+.app-sidebar .nav-link i svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.75;
+}
+
+.app-sidebar .nav-link:hover,
+.app-sidebar .nav-link:focus,
+.app-sidebar .nav-link.active {
+  color: #fff;
+  border-color: rgba(255, 255, 255, .16);
+  background: linear-gradient(100deg, rgba(115, 190, 255, .28), rgba(255, 255, 255, .11));
+  box-shadow: inset .22rem 0 0 #7bc8ff, 0 .35rem .85rem rgba(4, 37, 94, .18);
+}
+
+.app-sidebar .nav-link.active i,
+.app-sidebar .nav-link:hover i {
+  color: #1556b9;
+  border-color: rgba(255, 255, 255, .65);
+  background: #fff;
+  box-shadow: 0 .3rem .75rem rgba(4, 38, 98, .24);
+}
+
+.app-sidebar .sidebar-footer { border-top-color: rgba(255, 255, 255, .16); }
+
+.app-breadcrumb-bar {
+  background: rgba(255, 255, 255, .42);
+  box-shadow: 0 .35rem 1.4rem rgba(27, 72, 143, .05);
+}
+
+.btn-primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, #2879ff, #1657d4);
+  box-shadow: 0 .55rem 1.3rem rgba(32, 100, 235, .3);
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  border-color: transparent;
+  background: linear-gradient(135deg, #1769ee, #104bbd);
+  box-shadow: 0 .75rem 1.65rem rgba(29, 89, 216, .38);
+}
+
+.btn-outline-primary {
+  border-color: rgba(29, 102, 231, .44);
+  color: var(--primary-dark);
+  background: rgba(255, 255, 255, .42);
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus {
+  border-color: var(--primary);
+  color: #fff;
+  background: var(--primary);
+  box-shadow: 0 .45rem 1rem rgba(30, 101, 229, .24);
+}
+
+.form-control,
+.form-select {
+  border-color: rgba(55, 112, 206, .25);
+  background-color: rgba(255, 255, 255, .7);
+}
+
+.form-control:focus,
+.form-select:focus,
+.btn:focus,
+.btn-link.nav-link:focus,
+.form-check-input:focus {
+  border-color: rgba(36, 112, 244, .75);
+  box-shadow: 0 0 0 .24rem rgba(38, 116, 244, .18);
+}
+
+.operation-metric-card,
+.soft-panel,
+.feature-card,
+.facility-list-item,
+.schedule-upcoming-item,
+.agent-card {
+  transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+}
+
+.operation-metric-card:hover,
+.soft-panel:hover,
+.feature-card:hover,
+.facility-list-item:hover,
+.schedule-upcoming-item:hover,
+.schedule-upcoming-item:focus {
+  border-color: rgba(35, 108, 237, .42);
+  box-shadow: 0 1.15rem 2.5rem rgba(28, 80, 169, .16);
+}
+
+.operation-metric-icon,
+.metric-icon-blue {
+  color: #fff;
+  background: linear-gradient(135deg, #2681ff, #1460da);
+  box-shadow: 0 .5rem 1rem rgba(38, 110, 235, .28);
+}
+
+.metric-icon-red { color: var(--danger); background: #fff0f4; }
+.metric-icon-amber { color: var(--warning); background: #fff5df; }
+.metric-icon-green { color: var(--success); background: #e3f9f1; }
+
+.badge,
+.priority-state,
+.schedule-legend-item {
+  border-color: rgba(48, 108, 205, .18);
+  box-shadow: 0 .2rem .6rem rgba(36, 90, 180, .06);
+}
+
+.table thead th {
+  color: var(--primary-dark);
+  background: rgba(219, 234, 255, .42);
+}
+
+.table-hover > tbody > tr:hover > * {
+  --bs-table-accent-bg: rgba(50, 122, 241, .07);
+  color: var(--ink);
+}
+
+.schedule-calendar .fc-button {
+  border-color: rgba(43, 107, 207, .34) !important;
+  background: rgba(255, 255, 255, .62) !important;
+}
+
+.schedule-calendar .fc-button:hover,
+.schedule-calendar .fc-button:focus,
+.schedule-calendar .fc-button-active {
+  background: linear-gradient(135deg, #2879ff, #1758d3) !important;
+}
+
+.schedule-calendar .fc-day-today { background: rgba(50, 123, 244, .11) !important; }
+
+.ai-widget-button {
+  border: 1px solid rgba(255, 255, 255, .7);
+  background: linear-gradient(135deg, #2a7dff, #1357ce);
+  box-shadow: 0 .85rem 2rem rgba(28, 92, 221, .36);
+}
+
+.ai-widget-button:hover,
+.ai-widget-button:focus {
+  box-shadow: 0 1rem 2.4rem rgba(28, 92, 221, .48);
+}
+
+.modal-content { background: rgba(249, 252, 255, .88); }
+.modal-header,
+.modal-footer { border-color: var(--border-soft); }
+
+/* Transparent, frosted conversation area for the AI consultant. */
+.ai-widget-chat {
+  position: relative;
+  isolation: isolate;
+  background: transparent;
+}
+
+.ai-widget-chat .chat-thread {
+  background:
+    radial-gradient(circle at 90% 6%, rgba(62, 142, 255, .2), transparent 18rem),
+    radial-gradient(circle at 8% 94%, rgba(33, 136, 246, .13), transparent 19rem),
+    rgba(227, 239, 255, .36);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
+  backdrop-filter: blur(14px) saturate(135%);
+}
+
+.ai-widget-chat .chat-bubble {
+  border-color: rgba(72, 130, 221, .2);
+  background: rgba(255, 255, 255, .55);
+  box-shadow: 0 .5rem 1.15rem rgba(27, 78, 159, .1);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  backdrop-filter: blur(16px) saturate(135%);
+}
+
+.ai-widget-chat .chat-message-assistant .chat-bubble {
+  background: rgba(242, 248, 255, .48);
+}
+
+.ai-widget-chat .chat-message-user .chat-bubble {
+  background: linear-gradient(135deg, rgba(41, 121, 255, .84), rgba(18, 81, 197, .82));
+  box-shadow: 0 .7rem 1.4rem rgba(27, 90, 211, .24);
+}
+
+.ai-widget-chat .chat-input {
+  border-top-color: rgba(61, 121, 219, .2);
+  background: rgba(236, 245, 255, .55);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+}
+
+.ai-widget-chat .chat-textarea {
+  border-color: rgba(60, 122, 223, .24);
+  background: rgba(255, 255, 255, .52);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

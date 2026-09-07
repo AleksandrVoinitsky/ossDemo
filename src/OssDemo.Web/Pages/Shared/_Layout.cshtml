@@ -19,19 +19,19 @@
             <a class="app-brand" asp-area="" asp-page="/Index"><span class="brand-mark">ООС</span><span><b>АИ ООС</b><small>Инспекционный контур</small></span></a>
             <div class="sidebar-caption">Рабочие модули</div>
             <nav class="app-nav">
-                <a class="nav-link @(ViewData["Nav"] as string == "Home" ? "active" : "")" asp-page="/Index"><i>01</i><span>Оперативная панель</span></a>
-                <a class="nav-link @(ViewData["Nav"] as string == "Schedule" ? "active" : "")" asp-page="/Schedule"><i>02</i><span>График проверок</span></a>
-                <a class="nav-link @(ViewData["Nav"] as string == "Checklist" ? "active" : "")" asp-page="/Checklists/New"><i>03</i><span>Чек-листы</span></a>
-                <a class="nav-link @(ViewData["Nav"] as string == "Knowledge" ? "active" : "")" asp-page="/KnowledgeBase"><i>04</i><span>База знаний</span></a>
-                <a class="nav-link @(ViewData["Nav"] as string == "Templates" ? "active" : "")" asp-page="/Templates"><i>05</i><span>Шаблоны</span></a>
-                <a class="nav-link @(ViewData["Nav"] as string == "Classifier" ? "active" : "")" asp-page="/Classifier"><i>06</i><span>Классификатор</span></a>
-                <a class="nav-link @(ViewData["Nav"] as string == "Facilities" ? "active" : "")" asp-page="/Facilities"><i>07</i><span>Объекты</span></a>
-                <a class="nav-link @(ViewData["Nav"] as string == "Violations" ? "active" : "")" asp-page="/Violations"><i>08</i><span>Нарушения</span></a>
+                <a class="nav-link @(ViewData["Nav"] as string == "Home" ? "active" : "")" asp-page="/Index"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4v9Zm0 7h6v-4H4v4Zm10 0h6v-9h-6v9Zm0-16v4h6V4h-6Z" /></svg></i><span>Оперативная панель</span></a>
+                <a class="nav-link @(ViewData["Nav"] as string == "Schedule" ? "active" : "")" asp-page="/Schedule"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 2v3m10-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm3 8h3v3H8v-3Z" /></svg></i><span>График проверок</span></a>
+                <a class="nav-link @(ViewData["Nav"] as string == "Checklist" ? "active" : "")" asp-page="/Checklists/New"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 4h8a2 2 0 0 1 2 2v14H5V6a2 2 0 0 1 2-2h2Zm-2 7 2 2 3-3m2 2h3m-3 4h3" /></svg></i><span>Чек-листы</span></a>
+                <a class="nav-link @(ViewData["Nav"] as string == "Knowledge" ? "active" : "")" asp-page="/KnowledgeBase"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H12v17H6.5A2.5 2.5 0 0 0 4 22V5.5Zm16 0A2.5 2.5 0 0 0 17.5 3H12v17h5.5A2.5 2.5 0 0 1 20 22V5.5Z" /></svg></i><span>База знаний</span></a>
+                <a class="nav-link @(ViewData["Nav"] as string == "Templates" ? "active" : "")" asp-page="/Templates"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6V3Zm8 0v5h5M9 12h6m-6 4h6" /></svg></i><span>Шаблоны</span></a>
+                <a class="nav-link @(ViewData["Nav"] as string == "Classifier" ? "active" : "")" asp-page="/Classifier"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 5h12M6 12h12M6 19h12M3 5h.01M3 12h.01M3 19h.01" /></svg></i><span>Классификатор</span></a>
+                <a class="nav-link @(ViewData["Nav"] as string == "Facilities" ? "active" : "")" asp-page="/Facilities"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 21V5l8-3 8 3v16M8 21v-5h8v5M8 8h.01M12 8h.01M16 8h.01M8 12h.01M12 12h.01M16 12h.01" /></svg></i><span>Объекты</span></a>
+                <a class="nav-link @(ViewData["Nav"] as string == "Violations" ? "active" : "")" asp-page="/Violations"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3Zm0 6v5m0 3h.01" /></svg></i><span>Нарушения</span></a>
             </nav>
             <div class="sidebar-footer">
-                <a class="nav-link @(ViewData["Nav"] as string == "Audit" ? "active" : "")" asp-page="/AuditLog"><i>Ж</i><span>Журнал действий</span></a>
-                <a class="nav-link @(ViewData["Nav"] as string == "Profile" ? "active" : "")" asp-page="/Profile"><i>П</i><span>Профиль инспектора</span></a>
-                <form method="post" asp-page="/Login" asp-page-handler="Logout"><button class="nav-link sidebar-logout" type="submit"><i>×</i><span>Выйти</span></button></form>
+                <a class="nav-link @(ViewData["Nav"] as string == "Audit" ? "active" : "")" asp-page="/AuditLog"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 8v5l3 2m5-3a8 8 0 1 1-2.34-5.66" /></svg></i><span>Журнал действий</span></a>
+                <a class="nav-link @(ViewData["Nav"] as string == "Profile" ? "active" : "")" asp-page="/Profile"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 21a8 8 0 0 0-16 0m12-13a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" /></svg></i><span>Профиль инспектора</span></a>
+                <form method="post" asp-page="/Login" asp-page-handler="Logout"><button class="nav-link sidebar-logout" type="submit"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 17l5-5-5-5m5 5H3m9-8h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6" /></svg></i><span>Выйти</span></button></form>
             </div>
         </aside>
         <div class="app-workspace">
