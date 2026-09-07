@@ -119,14 +119,15 @@ internal sealed class RagService(
         var results = await luceneSearchIndex.SearchAsync(searchQuery, CandidateCountPerSearch, cancellationToken);
         return results.Select(match => new RagMatch(
             match.DocumentTitle,
-            match.SourceLabel,
+            string.IsNullOrWhiteSpace(match.Clause) ? match.SourceLabel : $"{match.SourceLabel} ({match.Clause})",
             match.Text,
             match.Score,
-            match.Score,
+            match.Score + match.StructuralScore,
             IsVectorMatch: false,
             IsLexicalMatch: true,
             Category: match.Category,
-            DocumentType: match.DocumentType)).ToArray();
+            DocumentType: match.DocumentType,
+            StructuralScore: match.StructuralScore)).ToArray();
     }
 
     internal static IReadOnlyList<RagMatch> MergeCandidates(
@@ -156,12 +157,18 @@ internal sealed class RagService(
                         IsVectorMatch = existing.IsVectorMatch || match.IsVectorMatch,
                         IsLexicalMatch = existing.IsLexicalMatch || match.IsLexicalMatch,
                         Category = string.IsNullOrWhiteSpace(existing.Category) ? match.Category : existing.Category,
-                        DocumentType = string.IsNullOrWhiteSpace(existing.DocumentType) ? match.DocumentType : existing.DocumentType
+                        DocumentType = string.IsNullOrWhiteSpace(existing.DocumentType) ? match.DocumentType : existing.DocumentType,
+                        StructuralScore = Math.Max(existing.StructuralScore, match.StructuralScore)
                     };
                 }
                 else
                 {
-                    merged.Add(key, match with { RankingScore = reciprocalRank, IsVectorMatch = isVector, IsLexicalMatch = !isVector });
+                    merged.Add(key, match with
+                    {
+                        RankingScore = reciprocalRank + (isVector ? 0d : match.StructuralScore * 0.1d),
+                        IsVectorMatch = isVector,
+                        IsLexicalMatch = !isVector
+                    });
                 }
             }
         }
@@ -422,6 +429,14 @@ internal sealed class RagService(
             ["documentType"] = documentMetadata.DocumentType,
             ["processedBy"] = documentMetadata.ProcessedBy
         };
+        string? markdown = null;
+        if (string.Equals(file.ContentType, "text/markdown", StringComparison.OrdinalIgnoreCase))
+        {
+            stream.Position = 0;
+            using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
+            markdown = await reader.ReadToEndAsync(cancellationToken);
+            stream.Position = 0;
+        }
 
         try
         {
@@ -437,15 +452,28 @@ internal sealed class RagService(
             logger.LogInformation("Документ {FileName} обработан. Начинается векторизация...", Path.GetFileName(sourceFileName));
             await ragify.IngestAsync(document, cancellationToken);
             var chunks = await ragify.GetChunksAsync(ragifyDocumentId, cancellationToken);
+            var structuredChunks = markdown is null
+                ? Array.Empty<KnowledgeStructuredChunk>()
+                : KnowledgeMarkdownStructure.Extract(markdown, documentMetadata);
             await luceneSearchIndex.IndexDocumentAsync(
                 ragifyDocumentId,
                 sourceFileName,
-                chunks.Select(chunk => new LuceneIndexedChunk(
-                    GetMetadataString(chunk.Metadata, "heading", Path.GetFileNameWithoutExtension(sourceFileName)),
-                    chunk.Text,
-                    documentMetadata.Title,
-                    documentMetadata.Category,
-                    documentMetadata.DocumentType)).ToArray(),
+                structuredChunks.Count > 0
+                    ? structuredChunks.Select(chunk => new LuceneIndexedChunk(
+                        chunk.Heading,
+                        chunk.Text,
+                        documentMetadata.Title,
+                        documentMetadata.Category,
+                        documentMetadata.DocumentType,
+                        chunk.HeadingPath,
+                        chunk.Clause,
+                        chunk.References)).ToArray()
+                    : chunks.Select(chunk => new LuceneIndexedChunk(
+                        GetMetadataString(chunk.Metadata, "heading", Path.GetFileNameWithoutExtension(sourceFileName)),
+                        chunk.Text,
+                        documentMetadata.Title,
+                        documentMetadata.Category,
+                        documentMetadata.DocumentType)).ToArray(),
                 cancellationToken);
             await UpsertKnowledgeDocumentAsync(documentId, sourceFileName, sourceHash, documentMetadata, file.Length, chunks.Count, cancellationToken);
             logger.LogInformation("RAGify проиндексировал документ {DocumentId}: {ChunkCount} фрагментов.", ragifyDocumentId, chunks.Count);
@@ -662,7 +690,8 @@ internal sealed record RagMatch(
     bool IsVectorMatch = false,
     bool IsLexicalMatch = false,
     string Category = "",
-    string DocumentType = "");
+    string DocumentType = "",
+    double StructuralScore = 0d);
 
 internal sealed record RagSearchResult(IReadOnlyList<RagMatch> Matches, bool IsAmbiguous, IReadOnlyList<string> AmbiguousDocuments)
 {

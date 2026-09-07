@@ -83,6 +83,36 @@ try
     AssertTrue((await luceneIndex.SearchAsync("ПЭК", 5, CancellationToken.None)).Any(match => match.Text.Contains("ПЭК", StringComparison.Ordinal)));
     AssertTrue((await luceneIndex.SearchAsync("рекултивация", 5, CancellationToken.None)).Any(match => match.SourceLabel.Contains("Рекультивация", StringComparison.Ordinal)));
     AssertTrue((await luceneIndex.SearchAsync("корпоративные", 5, CancellationToken.None)).Any(match => match.Category == "Корпоративные документы"));
+
+    var structuredDocument = KnowledgeDocumentMetadata.FromMarkdown(new MemoryStream(System.Text.Encoding.UTF8.GetBytes("""
+        ---
+        title: "Водный кодекс Российской Федерации 74-ФЗ"
+        category: "Законодательные документы"
+        document_type: "нормативный акт"
+        ---
+        # Водный кодекс
+        Статья 6. Водные объекты общего пользования
+        Каждый гражданин вправе иметь доступ к водным объектам общего пользования.
+        """)), "repository/Водный кодекс.md");
+    var structuredChunks = KnowledgeMarkdownStructure.Extract("""
+        ---
+        title: "Водный кодекс Российской Федерации 74-ФЗ"
+        ---
+        # Водный кодекс
+        Статья 6. Водные объекты общего пользования
+        Каждый гражданин вправе иметь доступ к водным объектам общего пользования.
+        """, structuredDocument);
+    AssertTrue(structuredChunks.Single().Clause == "Статья 6");
+    AssertTrue(structuredChunks.Single().References.Contains("74-ФЗ"));
+    await luceneIndex.IndexDocumentAsync("water-code", "Водный кодекс 74-ФЗ.md", structuredChunks.Select(chunk => new LuceneIndexedChunk(
+        chunk.Heading, chunk.Text, structuredDocument.Title, structuredDocument.Category, structuredDocument.DocumentType,
+        chunk.HeadingPath, chunk.Clause, chunk.References)).ToArray(), CancellationToken.None);
+    var exactReferenceMatches = await luceneIndex.SearchAsync("Что установлено Водным кодексом 74-ФЗ?", 5, CancellationToken.None);
+    AssertTrue(exactReferenceMatches[0].DocumentTitle == "Водный кодекс Российской Федерации 74-ФЗ");
+    AssertTrue(exactReferenceMatches[0].StructuralScore == 2d);
+    var exactClauseMatches = await luceneIndex.SearchAsync("Что говорит статья 6 Водного кодекса?", 5, CancellationToken.None);
+    AssertTrue(exactClauseMatches[0].Clause == "Статья 6");
+    AssertTrue(exactClauseMatches[0].StructuralScore >= 1d);
 }
 finally
 {

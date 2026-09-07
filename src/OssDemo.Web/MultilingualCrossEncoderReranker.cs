@@ -74,7 +74,7 @@ internal sealed class MultilingualCrossEncoderReranker : IDisposable
             ?? throw new InvalidOperationException("ONNX-reranker не вернул logits.");
 
         return matches
-            .Select((match, index) => match with { RankingScore = logits[index, 0] })
+            .Select((match, index) => match with { RankingScore = logits[index, 0] + match.StructuralScore * 5d })
             .OrderByDescending(match => match.RankingScore)
             .ThenByDescending(match => match.Similarity)
             .Take(maxMatches)

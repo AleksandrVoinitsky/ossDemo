@@ -8,7 +8,7 @@ using Lucene.Net.Store;
 using Lucene.Net.Util;
 using Directory = Lucene.Net.Store.Directory;
 
-internal sealed class LuceneSearchIndex : IDisposable
+internal sealed partial class LuceneSearchIndex : IDisposable
 {
     private const LuceneVersion Version = LuceneVersion.LUCENE_48;
     private const int MaximumFuzzyEdits = 2;
@@ -19,6 +19,11 @@ internal sealed class LuceneSearchIndex : IDisposable
     private const string AliasesField = "aliases";
     private const string CategoryField = "category";
     private const string DocumentTypeField = "documentType";
+    private const string HeadingPathField = "headingPath";
+    private const string ClauseField = "clause";
+    private const string ClauseExactField = "clauseExact";
+    private const string ReferencesField = "references";
+    private const string ReferenceExactField = "referenceExact";
     private const string TextField = "text";
 
     private static readonly IReadOnlyDictionary<string, string[]> Synonyms =
@@ -112,7 +117,11 @@ internal sealed class LuceneSearchIndex : IDisposable
                     document.Get(TextField) ?? string.Empty,
                     hit.Score,
                     document.Get(CategoryField) ?? string.Empty,
-                    document.Get(DocumentTypeField) ?? string.Empty);
+                    document.Get(DocumentTypeField) ?? string.Empty,
+                    document.Get(HeadingPathField) ?? string.Empty,
+                    document.Get(ClauseField) ?? string.Empty,
+                    document.Get(ReferencesField) ?? string.Empty,
+                    GetStructuralScore(query, document));
             }).Where(match => !string.IsNullOrWhiteSpace(match.Text)).ToArray();
         }
         finally
@@ -143,25 +152,45 @@ internal sealed class LuceneSearchIndex : IDisposable
     private static Document CreateDocument(string documentId, string sourceFileName, LuceneIndexedChunk chunk)
     {
         var title = string.IsNullOrWhiteSpace(chunk.Title) ? Path.GetFileNameWithoutExtension(sourceFileName) : chunk.Title;
-        var aliases = $"{title} {sourceFileName} {chunk.Category} {chunk.DocumentType} {NormalizeReference(sourceFileName)} {NormalizeReference(title)} {NormalizeReference(chunk.Heading)}";
+        var references = string.Join(' ', chunk.References);
+        var aliases = $"{title} {sourceFileName} {chunk.Category} {chunk.DocumentType} {chunk.HeadingPath} {chunk.Clause} {references} {NormalizeReference(sourceFileName)} {NormalizeReference(title)} {NormalizeReference(chunk.Heading)}";
         var id = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes($"{documentId}\u001f{chunk.Heading}\u001f{chunk.Text}")));
-        return new Document
+        var document = new Document
         {
             new StringField(IdField, id, Field.Store.NO),
             new StringField(DocumentIdField, documentId, Field.Store.NO),
             new TextField(TitleField, title, Field.Store.YES),
             new TextField(HeadingField, chunk.Heading, Field.Store.YES),
+            new TextField(HeadingPathField, chunk.HeadingPath, Field.Store.YES),
+            new TextField(ClauseField, chunk.Clause, Field.Store.YES),
+            new StringField(ClauseExactField, KnowledgeMarkdownStructure.NormalizeClause(chunk.Clause), Field.Store.NO),
+            new TextField(ReferencesField, references, Field.Store.YES),
             new TextField(AliasesField, aliases, Field.Store.NO),
             new TextField(CategoryField, chunk.Category, Field.Store.YES),
             new TextField(DocumentTypeField, chunk.DocumentType, Field.Store.YES),
             new TextField(TextField, chunk.Text, Field.Store.YES)
         };
+        foreach (var reference in chunk.References)
+        {
+            document.Add(new StringField(ReferenceExactField, reference, Field.Store.NO));
+        }
+
+        return document;
     }
 
     private static Query BuildQuery(string query)
     {
         var result = new BooleanQuery();
+        foreach (var reference in KnowledgeMarkdownStructure.ExtractReferences(query))
+        {
+            result.Add(Boost(new TermQuery(new Term(ReferenceExactField, reference)), 100f), Occur.SHOULD);
+        }
+
+        if (TryGetQueryClause(query, out var clause))
+        {
+            result.Add(Boost(new TermQuery(new Term(ClauseExactField, KnowledgeMarkdownStructure.NormalizeClause(clause))), 60f), Occur.SHOULD);
+        }
         foreach (var expandedQuery in ExpandSynonyms(query))
         {
             foreach (var term in Tokenize(expandedQuery))
@@ -181,6 +210,23 @@ internal sealed class LuceneSearchIndex : IDisposable
         }
 
         return result;
+    }
+
+    private static bool TryGetQueryClause(string query, out string clause)
+    {
+        var match = QueryClausePattern().Match(query);
+        clause = match.Success ? match.Value : string.Empty;
+        return match.Success;
+    }
+
+    private static double GetStructuralScore(string query, Document document)
+    {
+        var queryReferences = KnowledgeMarkdownStructure.ExtractReferences(query);
+        var references = (document.Get(ReferencesField) ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (queryReferences.Intersect(references, StringComparer.OrdinalIgnoreCase).Any()) return 2d;
+        return TryGetQueryClause(query, out var clause) && string.Equals(
+            KnowledgeMarkdownStructure.NormalizeClause(clause),
+            KnowledgeMarkdownStructure.NormalizeClause(document.Get(ClauseField) ?? string.Empty), StringComparison.Ordinal) ? 1d : 0d;
     }
 
     private static IEnumerable<string> Tokenize(string value) => value
@@ -203,6 +249,9 @@ internal sealed class LuceneSearchIndex : IDisposable
         .Replace(".", " ")
         .Replace("-", " ");
 
+    [System.Text.RegularExpressions.GeneratedRegex("(?:статья|пункт|раздел|глава|приложение)\\s+\\d+(?:\\.\\d+)*", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex QueryClausePattern();
+
     public void Dispose()
     {
         _analyzer.Dispose();
@@ -211,5 +260,8 @@ internal sealed class LuceneSearchIndex : IDisposable
     }
 }
 
-internal sealed record LuceneIndexedChunk(string Heading, string Text, string Title = "", string Category = "", string DocumentType = "");
-internal sealed record LuceneSearchMatch(string DocumentTitle, string SourceLabel, string Text, float Score, string Category, string DocumentType);
+internal sealed record LuceneIndexedChunk(string Heading, string Text, string Title = "", string Category = "", string DocumentType = "", string HeadingPath = "", string Clause = "", IReadOnlyList<string>? References = null)
+{
+    public IReadOnlyList<string> References { get; init; } = References ?? Array.Empty<string>();
+}
+internal sealed record LuceneSearchMatch(string DocumentTitle, string SourceLabel, string Text, float Score, string Category, string DocumentType, string HeadingPath, string Clause, string References, double StructuralScore);
