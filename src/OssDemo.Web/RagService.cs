@@ -17,8 +17,10 @@ internal sealed class RagService(
 {
     internal const string Model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/model_O1.onnx";
     private const string VectorTableName = "ragify_vectors";
-    private const int CandidateCount = 24;
+    private const int CandidateCountPerSearch = 24;
     private const int ResultCount = 8;
+    private const int ResultsPerSearch = ResultCount / 2;
+    private const int MaximumRephraseAttempts = 8;
     private const double SimilarityThreshold = 0.0001;
 
     public async Task<RagStatus> GetStatusAsync(CancellationToken cancellationToken)
@@ -49,17 +51,22 @@ internal sealed class RagService(
     private async Task<RagSearchResult> SearchAsync(string question, string searchQuery, CancellationToken cancellationToken)
     {
         var candidates = await RetrieveCandidatesAsync(searchQuery, cancellationToken);
-        var matches = candidates.Take(ResultCount).ToArray();
+        var matches = SelectFinalMatches(candidates, ResultCount, ResultsPerSearch).ToArray();
         if (reranker is not null)
         {
             try
             {
-                matches = reranker.Rerank(question, candidates, ResultCount).ToArray();
+                var reranked = reranker.Rerank(question, candidates, candidates.Count).ToArray();
+                matches = SelectFinalMatches(reranked, ResultCount, ResultsPerSearch).ToArray();
             }
             catch (Exception exception)
             {
-                logger.LogWarning(exception, "Cross-encoder reranker не выполнил оценку кандидатов. Использовано ранжирование RAGify.");
+                logger.LogWarning(exception, "Cross-encoder reranker не выполнил оценку кандидатов. Сохранены лучшие кандидаты обоих поисков.");
             }
+        }
+        else
+        {
+            matches = SelectFinalMatches(candidates, ResultCount, ResultsPerSearch).ToArray();
         }
         return new(matches, false, Array.Empty<string>());
     }
@@ -72,11 +79,19 @@ internal sealed class RagService(
 
     private async Task<IReadOnlyList<RagMatch>> RetrieveCandidatesAsync(string searchQuery, CancellationToken cancellationToken)
     {
+        var vectorSearch = RetrieveVectorCandidatesAsync(searchQuery, cancellationToken);
+        var lexicalSearch = RetrieveLexicalCandidatesAsync(searchQuery, cancellationToken);
+        await Task.WhenAll(vectorSearch, lexicalSearch);
+        return MergeCandidates(vectorSearch.Result, lexicalSearch.Result);
+    }
+
+    private async Task<IReadOnlyList<RagMatch>> RetrieveVectorCandidatesAsync(string searchQuery, CancellationToken cancellationToken)
+    {
         var result = await ragify.QueryAsync(searchQuery, new QueryOptions
         {
             Retrieval = new RetrievalOptions
             {
-                TopK = CandidateCount,
+                TopK = CandidateCountPerSearch,
                 SimilarityThreshold = SimilarityThreshold,
                 EnableDynamicTopK = false,
                 EnableDeduplication = true
@@ -90,17 +105,133 @@ internal sealed class RagService(
                 GetMetadataString(context.Chunk.Metadata, "heading", "Документ"),
                 context.Chunk.Text,
                 context.Similarity,
-                context.Similarity))
+                context.Similarity,
+                IsVectorMatch: true,
+                IsLexicalMatch: false))
             .ToArray();
     }
+
+    private async Task<IReadOnlyList<RagMatch>> RetrieveLexicalCandidatesAsync(string searchQuery, CancellationToken cancellationToken)
+    {
+        await using var connection = new NpgsqlConnection(GetConnectionString());
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand($"""
+            WITH query AS (
+                SELECT websearch_to_tsquery('russian', @query) AS value
+            )
+            SELECT
+                COALESCE(metadata ->> 'fileName', 'Документ'),
+                COALESCE(metadata ->> 'heading', 'Документ'),
+                COALESCE(metadata ->> 'Text', ''),
+                ts_rank_cd(
+                    to_tsvector('russian',
+                        COALESCE(metadata ->> 'Text', '') || ' ' ||
+                        COALESCE(metadata ->> 'fileName', '') || ' ' ||
+                        COALESCE(metadata ->> 'heading', '')),
+                    query.value) AS rank
+            FROM {VectorTableName}, query
+            WHERE query.value <> ''::tsquery
+              AND to_tsvector('russian',
+                    COALESCE(metadata ->> 'Text', '') || ' ' ||
+                    COALESCE(metadata ->> 'fileName', '') || ' ' ||
+                    COALESCE(metadata ->> 'heading', '')) @@ query.value
+            ORDER BY rank DESC, vector_id
+            LIMIT @limit
+            """, connection);
+        command.Parameters.AddWithValue("query", searchQuery);
+        command.Parameters.AddWithValue("limit", CandidateCountPerSearch);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var matches = new List<RagMatch>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var text = reader.GetString(2);
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                var rank = reader.GetFloat(3);
+                matches.Add(new(reader.GetString(0), reader.GetString(1), text, rank, rank,
+                    IsVectorMatch: false, IsLexicalMatch: true));
+            }
+        }
+
+        return matches;
+    }
+
+    internal static IReadOnlyList<RagMatch> MergeCandidates(
+        IReadOnlyList<RagMatch> vectorMatches,
+        IReadOnlyList<RagMatch> lexicalMatches)
+    {
+        var merged = new Dictionary<string, RagMatch>(StringComparer.Ordinal);
+        foreach (var match in vectorMatches.Concat(lexicalMatches))
+        {
+            var key = $"{match.DocumentTitle}\u001f{match.SourceLabel}\u001f{match.Text}";
+            if (merged.TryGetValue(key, out var existing))
+            {
+                merged[key] = existing with
+                {
+                    Similarity = Math.Max(existing.Similarity, match.Similarity),
+                    RankingScore = Math.Max(existing.RankingScore, match.RankingScore),
+                    IsVectorMatch = existing.IsVectorMatch || match.IsVectorMatch,
+                    IsLexicalMatch = existing.IsLexicalMatch || match.IsLexicalMatch
+                };
+            }
+            else
+            {
+                merged.Add(key, match);
+            }
+        }
+
+        return merged.Values
+            .OrderByDescending(match => match.RankingScore)
+            .ThenByDescending(match => match.Similarity)
+            .ToArray();
+    }
+
+    internal static IReadOnlyList<RagMatch> SelectFinalMatches(
+        IReadOnlyList<RagMatch> rankedMatches,
+        int maxMatches,
+        int maxMatchesPerSearch)
+    {
+        var selected = new List<RagMatch>(maxMatches);
+        AddMatches(rankedMatches.Where(match => match.IsVectorMatch), selected, maxMatchesPerSearch, match => match.IsVectorMatch);
+        AddMatches(rankedMatches.Where(match => match.IsLexicalMatch), selected, maxMatchesPerSearch, match => match.IsLexicalMatch);
+        AddMatches(rankedMatches, selected, maxMatches, _ => true);
+        return selected.Take(maxMatches).ToArray();
+    }
+
+    private static void AddMatches(
+        IEnumerable<RagMatch> matches,
+        ICollection<RagMatch> selected,
+        int limit,
+        Func<RagMatch, bool> belongsToSearch)
+    {
+        foreach (var match in matches)
+        {
+            if (selected.Any(item => IsSameChunk(item, match)) || selected.Count(belongsToSearch) >= limit)
+            {
+                continue;
+            }
+
+            selected.Add(match);
+        }
+    }
+
+    private static bool IsSameChunk(RagMatch left, RagMatch right) =>
+        string.Equals(left.DocumentTitle, right.DocumentTitle, StringComparison.Ordinal) &&
+        string.Equals(left.SourceLabel, right.SourceLabel, StringComparison.Ordinal) &&
+        string.Equals(left.Text, right.Text, StringComparison.Ordinal);
 
     public async Task<RagAnswerResult> AnswerAsync(
         string question,
         IReadOnlyList<ChatHistoryMessage> conversation,
         CancellationToken cancellationToken)
     {
-        var searchQuery = ChatSearchQuery.Build(conversation, question, maxLength: 6_000);
-        var searchResult = await SearchAsync(question, searchQuery, cancellationToken);
+        var searchResult = await FindSourcesAsync(question, conversation, cancellationToken);
+        if (searchResult.Matches.Count == 0)
+        {
+            return new(NoSourcesAnswer, Array.Empty<RagMatch>());
+        }
+
         using var response = await SendAnswerRequestAsync(question, searchResult.Matches, conversation, stream: false, cancellationToken);
         var payload = await response.Content.ReadAsStringAsync(cancellationToken);
         EnsureSuccessfulQwenResponse(response, payload);
@@ -120,8 +251,12 @@ internal sealed class RagService(
         IReadOnlyList<ChatHistoryMessage> conversation,
         CancellationToken cancellationToken)
     {
-        var searchQuery = ChatSearchQuery.Build(conversation, question, maxLength: 6_000);
-        var searchResult = await SearchAsync(question, searchQuery, cancellationToken);
+        var searchResult = await FindSourcesAsync(question, conversation, cancellationToken);
+        if (searchResult.Matches.Count == 0)
+        {
+            return new(null, Array.Empty<RagMatch>(), NoSourcesAnswer);
+        }
+
         var response = await SendAnswerRequestAsync(question, searchResult.Matches, conversation, stream: true, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
@@ -132,6 +267,105 @@ internal sealed class RagService(
         return new(response, searchResult.Matches, null);
     }
 
+    private const string NoSourcesAnswer = "В проиндексированных документах не найдено подтверждённых фрагментов по этому вопросу.";
+
+    private async Task<RagSearchResult> FindSourcesAsync(
+        string question,
+        IReadOnlyList<ChatHistoryMessage> conversation,
+        CancellationToken cancellationToken)
+    {
+        var searchQuery = ChatSearchQuery.Build(conversation, question, maxLength: 6_000);
+        var searchResult = await SearchAsync(question, searchQuery, cancellationToken);
+        if (searchResult.Matches.Count > 0)
+        {
+            return searchResult;
+        }
+
+        logger.LogInformation("По исходному вопросу не найдены источники. Запускается перефразирование для поиска.");
+        var attemptedQueries = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { searchQuery };
+        var rephrasedQuestions = await RephraseForSearchAsync(question, cancellationToken);
+        foreach (var rephrasedQuestion in rephrasedQuestions)
+        {
+            if (string.IsNullOrWhiteSpace(rephrasedQuestion) || !attemptedQueries.Add(rephrasedQuestion))
+            {
+                continue;
+            }
+
+            searchResult = await SearchAsync(question, rephrasedQuestion, cancellationToken);
+            if (searchResult.Matches.Count > 0)
+            {
+                logger.LogInformation("Источники найдены после перефразирования вопроса: вариант {Attempt}.", attemptedQueries.Count - 1);
+                return searchResult;
+            }
+        }
+
+        logger.LogInformation("Источники не найдены после {AttemptCount} перефразирований.", MaximumRephraseAttempts);
+        return RagSearchResult.Empty;
+    }
+
+    private async Task<IReadOnlyList<string>> RephraseForSearchAsync(string question, CancellationToken cancellationToken)
+    {
+        var token = configuration["AI:ApiToken"]
+            ?? throw new InvalidOperationException("Не задан секрет AI__ApiToken.");
+        var client = httpClientFactory.CreateClient("AmveraInference");
+        using var request = new HttpRequestMessage(HttpMethod.Post, "chat/completions")
+        {
+            Content = JsonContent.Create(new
+            {
+                model = configuration["AI:Model"] ?? "qwen3_30b",
+                messages = new[]
+                {
+                    new InferenceMessage("system", ChatPrompt.BuildSearchRewriteMessage()),
+                    new InferenceMessage("user", question)
+                },
+                temperature = 0.85,
+                stream = false
+            })
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken);
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        EnsureSuccessfulQwenResponse(response, payload);
+        using var json = JsonDocument.Parse(payload);
+        var content = json.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
+        return ParseSearchRewrites(content);
+    }
+
+    internal static IReadOnlyList<string> ParseSearchRewrites(string? content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return Array.Empty<string>();
+        }
+
+        try
+        {
+            using var json = JsonDocument.Parse(content);
+            if (json.RootElement.ValueKind == JsonValueKind.Array)
+            {
+                return json.RootElement.EnumerateArray()
+                    .Where(item => item.ValueKind == JsonValueKind.String)
+                    .Select(item => item.GetString()?.Trim())
+                    .Where(item => !string.IsNullOrWhiteSpace(item))
+                    .Cast<string>()
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(MaximumRephraseAttempts)
+                    .ToArray();
+            }
+        }
+        catch (JsonException)
+        {
+            // Если провайдер не соблюл JSON-формат, используем отдельные непустые строки.
+        }
+
+        return content.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(line => line.TrimStart('-', ' ', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.', ')').Trim())
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(MaximumRephraseAttempts)
+            .ToArray();
+    }
+
     private async Task<HttpResponseMessage> SendAnswerRequestAsync(
         string question,
         IReadOnlyList<RagMatch> matches,
@@ -139,22 +373,18 @@ internal sealed class RagService(
         bool stream,
         CancellationToken cancellationToken)
     {
-        var contextMatches = SelectContextMatches(matches, maxMatches: 6, maxMatchesPerDocument: 3);
+        var contextMatches = SelectContextMatches(matches, maxMatches: ResultCount, maxMatchesPerDocument: 3);
         var context = string.Join("\n\n", contextMatches.Select((match, index) =>
             $"[S{index + 1}] Документ: {match.DocumentTitle}\nРаздел: {match.SourceLabel}\n{match.Text}"));
-        var hasSources = contextMatches.Count > 0;
+        if (contextMatches.Count == 0)
+        {
+            throw new InvalidOperationException("Генерация ответа без найденных источников запрещена.");
+        }
+
         var messages = new List<InferenceMessage>
         {
-            new("system", ChatPrompt.BuildSystemMessage(context, hasSources, Array.Empty<string>()))
+            new("system", ChatPrompt.BuildSystemMessage(context, true, Array.Empty<string>()))
         };
-        if (!hasSources)
-        {
-            messages.AddRange(conversation
-                .Where(message => message.Role is "user" or "assistant")
-                .Where(message => !string.IsNullOrWhiteSpace(message.Content))
-                .TakeLast(6)
-                .Select(message => new InferenceMessage(message.Role, Truncate(message.Content.Trim(), 1_000))));
-        }
         messages.Add(new InferenceMessage("user", question));
         var token = configuration["AI:ApiToken"]
             ?? throw new InvalidOperationException("Не задан секрет AI__ApiToken.");
@@ -412,7 +642,14 @@ internal sealed class RagService(
         value.Length <= maxLength ? value : value[..maxLength];
 }
 
-internal sealed record RagMatch(string DocumentTitle, string SourceLabel, string Text, double Similarity, double RankingScore);
+internal sealed record RagMatch(
+    string DocumentTitle,
+    string SourceLabel,
+    string Text,
+    double Similarity,
+    double RankingScore,
+    bool IsVectorMatch = false,
+    bool IsLexicalMatch = false);
 
 internal sealed record RagSearchResult(IReadOnlyList<RagMatch> Matches, bool IsAmbiguous, IReadOnlyList<string> AmbiguousDocuments)
 {

@@ -513,7 +513,7 @@
     if (options.pending) {
       message.classList.add('chat-message-pending');
       if (markdown) {
-        markdown.innerHTML = '<span class="chat-typing" aria-label="ИИ-консультант готовит ответ"><span></span><span></span><span></span></span>';
+        markdown.innerHTML = '<span class="chat-typing" aria-label="Ищу информацию в базе знаний">Ищу информацию в базе знаний<span></span><span></span><span></span></span>';
       }
     } else {
       renderMarkdown(markdown, options.markdown);

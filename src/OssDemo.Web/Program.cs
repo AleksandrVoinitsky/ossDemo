@@ -381,7 +381,7 @@ app.MapPost("/api/ai/chat", async (
                 $"[{index + 1}] {match.DocumentTitle}",
                 match.Text,
                 Math.Round(match.Similarity, 3),
-                false,
+                match.IsLexicalMatch,
                 true,
                 "source"));
             if (streamingResult.UpstreamResponse is not null)
@@ -405,7 +405,7 @@ app.MapPost("/api/ai/chat", async (
             $"[{index + 1}] {match.DocumentTitle}",
             match.Text,
             Math.Round(match.Similarity, 3),
-            false,
+            match.IsLexicalMatch,
             true,
             "source"));
         return Results.Ok(new
@@ -494,6 +494,17 @@ internal static class ChatSearchQuery
 
 internal static class ChatPrompt
 {
+    public static string BuildSearchRewriteMessage() => """
+        Ты формируешь только поисковую формулировку для базы знаний АИ ООС.
+        Исходный вопрос не дал результатов. Сразу подготовь ровно 8 разных коротких формулировок
+        для поиска в нормативных, корпоративных и инспекционных документах. Используй разные
+        ракурсы, лексику и более точные предметные термины: возможны название документа,
+        требование, процедура, срок, роль, объект, экологический аспект или синонимы.
+        Не отвечай на вопрос, не объясняй ход рассуждений, не добавляй фактов и не упоминай, что ты ИИ.
+        Верни только корректный JSON-массив из 8 строк на русском языке: без Markdown, нумерации,
+        вступлений и любого текста вне JSON.
+        """;
+
     public static string BuildSystemMessage(string context, bool hasSources, IReadOnlyList<string> ambiguousDocuments)
     {
         if (ambiguousDocuments.Count > 0)
@@ -529,17 +540,7 @@ internal static class ChatPrompt
 
             ## Фрагменты базы знаний
             """ + context
-        : """
-            Ты ИИ-консультант АИ ООС — внутренний помощник инспектора по охране окружающей среды
-            для подразделений ПАО «Газпром» и организаций группы. Сервис помогает готовить проверки,
-            чек-листы и запросы по СЭМ, НВОС, производственному экологическому контролю, выбросам,
-            сбросам, отходам, отчётности и корпоративным документам.
-
-            Отвечай по-русски естественно, содержательно и по существу. Поддерживай обычный диалог:
-            на общие вопросы давай понятный общий ответ, а на предметные — практическое пояснение.
-            Не выдумывай ссылки на документы и не утверждай, что сведения взяты из базы знаний,
-            если в контексте нет источников. Не начинай ответ с просьбы уточнить вопрос.
-            """;
+        : throw new InvalidOperationException("Системная инструкция для ответа без источников не используется.");
     }
 }
 

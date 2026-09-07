@@ -9,6 +9,17 @@ var contextMatches = RagService.SelectContextMatches(new[]
 AssertTrue(contextMatches.Count == 4);
 AssertTrue(contextMatches.Count(match => match.DocumentTitle == "СТО") == 2);
 
+var vectorMatch = new RagMatch("Векторный документ", "Раздел", "Векторный фрагмент", 0.8, 0.8, IsVectorMatch: true);
+var lexicalMatch = new RagMatch("Текстовый документ", "Раздел", "Текстовый фрагмент", 0.7, 0.7, IsLexicalMatch: true);
+var sharedMatch = new RagMatch("Общий документ", "Раздел", "Общий фрагмент", 0.9, 0.9, IsVectorMatch: true, IsLexicalMatch: true);
+var mergedMatches = RagService.MergeCandidates(new[] { vectorMatch, sharedMatch }, new[] { lexicalMatch, sharedMatch });
+AssertTrue(mergedMatches.Count == 3);
+AssertTrue(mergedMatches.Single(match => match.Text == "Общий фрагмент").IsVectorMatch);
+AssertTrue(mergedMatches.Single(match => match.Text == "Общий фрагмент").IsLexicalMatch);
+var finalMatches = RagService.SelectFinalMatches(mergedMatches, maxMatches: 4, maxMatchesPerSearch: 2);
+AssertTrue(finalMatches.Any(match => match.IsVectorMatch));
+AssertTrue(finalMatches.Any(match => match.IsLexicalMatch));
+
 var nativeMatch = new RagMatch("Документ", "Раздел", "текст", 0.35, 0.35);
 var debugResponse = RagDebugResponse.Build("тест", new RagSearchResult(new[] { nativeMatch }, false, Array.Empty<string>()));
 AssertTrue(debugResponse.Contains("нативного поиска RAGify", StringComparison.Ordinal));
@@ -17,12 +28,15 @@ AssertTrue(RagDebugResponse.Build("тест", RagSearchResult.Empty).Contains("�
 AssertTrue(RagDebugResponse.Build("тест", new RagSearchResult(new[] { nativeMatch }, false, Array.Empty<string>()), afterRerank: true)
     .Contains("после cross-encoder rerank", StringComparison.Ordinal));
 
-var generalChatPrompt = ChatPrompt.BuildSystemMessage(string.Empty, false, Array.Empty<string>());
-AssertTrue(generalChatPrompt.Contains("Поддерживай обычный диалог", StringComparison.Ordinal));
-AssertTrue(generalChatPrompt.Contains("Не начинай ответ с просьбы уточнить вопрос", StringComparison.Ordinal));
-AssertTrue(!generalChatPrompt.Contains("получить уточнение", StringComparison.Ordinal));
 var documentOverviewPrompt = ChatPrompt.BuildSystemMessage("[S1] Документ: Изменение", true, Array.Empty<string>());
 AssertTrue(documentOverviewPrompt.Contains("максимально полезный ответ", StringComparison.Ordinal));
+AssertThrows(() => ChatPrompt.BuildSystemMessage(string.Empty, false, Array.Empty<string>()));
+var searchRewritePrompt = ChatPrompt.BuildSearchRewriteMessage();
+AssertTrue(searchRewritePrompt.Contains("ровно 8 разных", StringComparison.Ordinal));
+AssertTrue(searchRewritePrompt.Contains("Не отвечай на вопрос", StringComparison.Ordinal));
+var searchRewrites = RagService.ParseSearchRewrites("[\"срок актуализации чек-листа\", \"периодичность пересмотра чек-листа\"]");
+AssertTrue(searchRewrites.Count == 2);
+AssertTrue(searchRewrites[1] == "периодичность пересмотра чек-листа");
 
 var modelDirectory = Path.Combine(AppContext.BaseDirectory, "Models", "paraphrase-multilingual-MiniLM-L12-v2");
 using var embeddingProvider = new MultilingualMiniLmEmbeddingProvider(
@@ -50,4 +64,18 @@ Console.WriteLine("RAGify adapter checks passed.");
 static void AssertTrue(bool value)
 {
     if (!value) throw new InvalidOperationException("Assertion failed.");
+}
+
+static void AssertThrows(Action action)
+{
+    try
+    {
+        action();
+    }
+    catch (InvalidOperationException)
+    {
+        return;
+    }
+
+    throw new InvalidOperationException("Expected InvalidOperationException.");
 }
