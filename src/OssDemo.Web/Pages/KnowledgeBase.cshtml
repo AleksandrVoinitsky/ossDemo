@@ -6,21 +6,17 @@
 }
 
 <div class="knowledge-page" data-knowledge-workspace>
-    <header class="knowledge-page-header">
+    <header class="knowledge-page-header soft-panel">
         <div>
-            <p class="eyebrow mb-1">Единое рабочее пространство</p>
             <h1 class="h3 section-title mb-1">База знаний</h1>
-            <p class="muted-note mb-0">Документы, шаблоны проверок и классификатор критериев собраны в одном месте.</p>
-        </div>
-        <div class="knowledge-summary" aria-label="Состав базы знаний">
-            <span>Нормативные документы</span><span>Шаблоны</span><span>Критерии контроля</span>
+            <p class="muted-note mb-0">Документы, шаблоны чек-листов и классификатор критериев контроля.</p>
         </div>
     </header>
 
     <div class="knowledge-space-tabs" role="tablist" aria-label="Разделы базы знаний">
-        <button class="knowledge-space-tab active" type="button" role="tab" aria-selected="true" data-knowledge-space="documents">Документы <span>Нормативные источники</span></button>
-        <button class="knowledge-space-tab" type="button" role="tab" aria-selected="false" data-knowledge-space="templates">Шаблоны чек-листа <span>Структуры проверок</span></button>
-        <button class="knowledge-space-tab" type="button" role="tab" aria-selected="false" data-knowledge-space="classifier">Классификатор <span>Критерии контроля</span></button>
+        <button class="knowledge-space-tab active" type="button" role="tab" aria-selected="true" data-knowledge-space="documents">Документы</button>
+        <button class="knowledge-space-tab" type="button" role="tab" aria-selected="false" data-knowledge-space="templates">Шаблоны чек-листов</button>
+        <button class="knowledge-space-tab" type="button" role="tab" aria-selected="false" data-knowledge-space="classifier">Классификатор</button>
     </div>
 
     <section class="knowledge-space" data-knowledge-panel="documents">
@@ -57,9 +53,8 @@
     <section class="knowledge-space" data-knowledge-panel="templates" hidden>
         <div class="knowledge-space-intro soft-panel">
             <div>
-                <p class="eyebrow mb-1">Шаблоны чек-листа</p>
-                <h2 class="h4 section-title mb-1">Проверочная структура без дублирования экранов</h2>
-                <p class="muted-note mb-0">Выберите шаблон: его критерии и колонки будут использованы при формировании чек-листа.</p>
+                <h2 class="h4 section-title mb-1">Шаблоны чек-листов</h2>
+                <p class="muted-note mb-0">Выберите рабочую структуру перед формированием чек-листа.</p>
             </div>
             <a class="btn btn-primary" asp-page="/Checklists/New">Перейти к формированию</a>
         </div>
@@ -82,8 +77,7 @@
     <section class="knowledge-space" data-knowledge-panel="classifier" hidden>
         <div class="knowledge-space-intro soft-panel">
             <div>
-                <p class="eyebrow mb-1">Классификатор критериев контроля</p>
-                <h2 class="h4 section-title mb-1">Версия v2026.01 <span class="badge text-bg-success">активна</span></h2>
+                <h2 class="h4 section-title mb-1">Классификатор критериев контроля</h2>
                 <p class="muted-note mb-0">Единый справочник связывает требования базы знаний, пункты чек-листов и историю нарушений.</p>
             </div>
             <a class="btn btn-outline-primary" asp-page="/Classifier">Открыть полное дерево</a>

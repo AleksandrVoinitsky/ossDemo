@@ -11,17 +11,27 @@
 
 <section class="facility-workspace">
     <div class="soft-panel p-3 p-lg-4 facility-list-panel">
-            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
-                <div>
-                    <h2 class="section-title h4 mb-1">Объекты проверки</h2>
-                    <p class="muted-note mb-0">Откройте цифровой профиль объекта. Карта размещена в разделе «График» рядом с планом выездных проверок.</p>
-                </div>
-                <div class="d-flex align-items-center gap-2"><span class="badge text-bg-primary" data-facility-count>—</span><a class="btn btn-outline-primary btn-sm" asp-page="/FacilityCard" data-facility-card-link-target>Открыть карточку</a></div>
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+            <div>
+                <h2 class="section-title h4 mb-1">Объекты проверки</h2>
+                <p class="muted-note mb-0">Выберите объект, чтобы показать его на карте и открыть цифровой профиль.</p>
             </div>
+            <div class="d-flex align-items-center gap-2"><span class="badge text-bg-primary" data-facility-count>—</span><a class="btn btn-outline-primary btn-sm" asp-page="/FacilityCard" data-facility-card-link-target>Открыть карточку</a></div>
+        </div>
 
-            <div class="facility-list" role="tablist" aria-label="Объекты" data-facility-list></div>
+        <div class="facility-list" role="tablist" aria-label="Объекты" data-facility-list></div>
     </div>
 
+    <div class="soft-panel p-3 p-lg-4 facility-map-panel">
+        <div class="facility-map-shell">
+            <iframe class="facility-yandex-map" src="about:blank" title="Расположение объекта на карте" loading="lazy" data-facility-map-frame></iframe>
+        </div>
+        <div class="facility-map-caption mt-3" aria-live="polite">
+            <strong data-facility-map-name>Загрузка объектов…</strong>
+            <span data-facility-map-address></span>
+            <span data-facility-map-coordinates></span>
+        </div>
+    </div>
 </section>
 
 @section Scripts {
