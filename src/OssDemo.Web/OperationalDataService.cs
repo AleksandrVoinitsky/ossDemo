@@ -32,10 +32,10 @@ public sealed class OperationalDataService(IConfiguration configuration, ILogger
 
         await EnsureInitializedAsync(cancellationToken);
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("SELECT id, name, address, nvoc_category, latitude, longitude FROM app_facilities ORDER BY name", connection);
+        await using var command = new NpgsqlCommand("SELECT id, name, address, nvoc_category, latitude, longitude, slug FROM app_facilities ORDER BY name", connection);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var items = new List<OperationalFacility>();
-        while (await reader.ReadAsync(cancellationToken)) items.Add(new OperationalFacility(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetDecimal(4), reader.GetDecimal(5)));
+        while (await reader.ReadAsync(cancellationToken)) items.Add(new OperationalFacility(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetDecimal(4), reader.IsDBNull(5) ? null : reader.GetDecimal(5), reader.GetString(6)));
         return items;
     }
 
@@ -149,8 +149,11 @@ public sealed class OperationalDataService(IConfiguration configuration, ILogger
             await using var command = new NpgsqlCommand("""
                 CREATE TABLE IF NOT EXISTS app_facilities (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT NOT NULL UNIQUE, address TEXT NOT NULL,
-                    nvoc_category TEXT NOT NULL, latitude NUMERIC(9,6) NOT NULL, longitude NUMERIC(9,6) NOT NULL,
+                    nvoc_category TEXT NOT NULL, latitude NUMERIC(9,6), longitude NUMERIC(9,6), slug TEXT NOT NULL DEFAULT '',
                     created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+                ALTER TABLE app_facilities ALTER COLUMN latitude DROP NOT NULL;
+                ALTER TABLE app_facilities ALTER COLUMN longitude DROP NOT NULL;
+                ALTER TABLE app_facilities ADD COLUMN IF NOT EXISTS slug TEXT NOT NULL DEFAULT '';
                 CREATE TABLE IF NOT EXISTS app_violations (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), facility_name TEXT NOT NULL, classifier_section TEXT NOT NULL,
                     description TEXT NOT NULL, responsible TEXT NOT NULL, due_date DATE, status TEXT NOT NULL,
@@ -158,9 +161,12 @@ public sealed class OperationalDataService(IConfiguration configuration, ILogger
                 CREATE TABLE IF NOT EXISTS app_audit_log (
                     id BIGSERIAL PRIMARY KEY, occurred_at TIMESTAMPTZ NOT NULL DEFAULT now(), actor TEXT NOT NULL DEFAULT 'inspector',
                     action TEXT NOT NULL, entity_type TEXT NOT NULL, details TEXT NOT NULL);
-                INSERT INTO app_facilities (name, address, nvoc_category, latitude, longitude)
-                VALUES ('Березниковское ЛПУМГ', 'Пермский край, район г. Березники', 'I', 59.4072, 56.8040)
-                ON CONFLICT (name) DO NOTHING;
+                INSERT INTO app_facilities (name, address, nvoc_category, latitude, longitude, slug)
+                VALUES
+                    ('Бардымское ЛПУМГ', '618150, Пермский край, Бардымский район, с. Барда', 'I категория', NULL, NULL, 'bardymskoe'),
+                    ('Березниковское ЛПУМГ', 'Пермский край, г. Березники, промзона', 'I категория', NULL, NULL, 'bereznikovskoe'),
+                    ('Воткинское ЛПУМГ', '427430, Удмуртская Республика, г. Воткинск, ул. Гавриловский тракт, ВЛПУМ', 'I категория', NULL, NULL, 'votkinskoe')
+                ON CONFLICT (name) DO UPDATE SET address = EXCLUDED.address, nvoc_category = EXCLUDED.nvoc_category, latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude, slug = EXCLUDED.slug;
                 INSERT INTO app_violations (facility_name, classifier_section, description, responsible, due_date, status)
                 SELECT 'Березниковское ЛПУМГ', '2.3 Атмосфера', 'Не представлен протокол инструментального контроля', 'Главный инженер', '2026-10-10', 'critical'
                 WHERE NOT EXISTS (SELECT 1 FROM app_violations);
@@ -230,7 +236,7 @@ public sealed record OperationalDashboard(int FacilityCount, int ViolationCount,
 }
 public sealed record OperationalInspection(string Name, string NvocCategory);
 public sealed record OperationalActivity(DateTimeOffset OccurredAt, string Action, string EntityType, string Details);
-public sealed record OperationalFacility(Guid Id, string Name, string Address, string NvocCategory, decimal Latitude, decimal Longitude);
+public sealed record OperationalFacility(Guid Id, string Name, string Address, string NvocCategory, decimal? Latitude, decimal? Longitude, string Slug);
 public sealed record OperationalViolation(Guid Id, DateTimeOffset CreatedAt, string FacilityName, string ClassifierSection, string Description, string Responsible, DateOnly? DueDate, string Status);
 public sealed record OperationalCommandResult(bool IsHandled, bool IsSuccess, string Answer)
 {

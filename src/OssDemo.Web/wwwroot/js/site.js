@@ -524,7 +524,15 @@
     const markdown = message.querySelector('[data-chat-markdown]');
     const sources = message.querySelector('[data-ai-sources]');
 
-    if (avatar) avatar.textContent = options.role === 'user' ? 'И' : 'AI';
+    if (avatar) {
+      if (options.role === 'user') {
+        avatar.textContent = 'И';
+        avatar.setAttribute('aria-hidden', 'true');
+      } else {
+        avatar.innerHTML = '<img src="/images/app-logo.jpg" alt="ИИ-консультант">';
+        avatar.removeAttribute('aria-hidden');
+      }
+    }
     if (author) author.textContent = options.role === 'user' ? 'Инспектор' : 'ИИ-консультант';
 
     if (options.pending) {
