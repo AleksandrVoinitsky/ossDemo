@@ -1,0 +1,8 @@
+(() => {
+  const card = document.querySelector('[data-facility-card]');
+  if (!card) return;
+  const empty = 'Не указано';
+  const setText = (selector, value) => card.querySelectorAll(selector).forEach((element) => { element.textContent = value?.trim() || empty; });
+  const setLines = (selector, value, chip) => { const element = card.querySelector(selector); if (!element) return; element.replaceChildren(); const items = (value || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean); (items.length ? items : [empty]).forEach((item) => { const child = document.createElement(chip ? 'span' : 'li'); child.textContent = item; if (chip) child.className = 'classifier-chip'; element.appendChild(child); }); };
+  fetch(`/api/operations/facility-profiles/${encodeURIComponent(card.dataset.facilitySlug)}`).then((response) => response.ok ? response.json() : Promise.reject()).then((data) => { const profile = data.profile; Object.entries(profile).forEach(([name, value]) => setText(`[data-field="${name}"]`, value)); setLines('[data-list="zones"]', profile.zones, true); setLines('[data-list="environmentalAspects"]', profile.environmentalAspects, true); setLines('[data-lines="equipment"]', profile.equipment, false); setLines('[data-lines="emissionSources"]', profile.emissionSources, false); setLines('[data-lines="permits"]', profile.permits, false); document.title = `${profile.shortName || 'Карточка объекта'} - АИ ООС`; }).catch(() => { const error = card.querySelector('[data-facility-card-error]'); error.textContent = 'Карточка объекта не найдена или рабочая база данных недоступна.'; error.hidden = false; });
+})();

@@ -1,128 +1,25 @@
 @page "/Facilities/Card/{id?}"
 @{
-    var id = (RouteData.Values["id"] as string ?? "bereznikovskoe").ToLowerInvariant();
-    var facility = id switch
-    {
-        "bardymskoe" => CreateBardymskoe(),
-        "votkinskoe" => CreateVotkinskoe(),
-        _ => CreateBereznikovskoe()
-    };
-
-    ViewData["Title"] = facility.ShortName;
+    var id = RouteData.Values["id"] as string ?? "bereznikovskoe";
+    ViewData["Title"] = "Карточка объекта";
     ViewData["Nav"] = "Facilities";
-    ViewData["Breadcrumb"] = $"Объекты \\ Карточка \\ {facility.ShortName}";
+    ViewData["Breadcrumb"] = "Объекты \\ Карточка";
 }
 
-<div class="page-actions mb-3">
+<div class="page-actions mb-3 d-flex flex-wrap justify-content-between gap-2">
     <a class="btn btn-outline-primary" asp-page="/Facilities">Назад к объектам</a>
-    <a class="btn btn-primary" asp-page="/Checklists/New">Создать чек-лист</a>
+    <div class="d-flex gap-2"><a class="btn btn-outline-primary" href="/Facilities/Edit/@id">Редактировать</a><a class="btn btn-primary" asp-page="/Checklists/New">Создать чек-лист</a></div>
 </div>
 
-<section class="soft-panel p-4 mb-4">
-    <div class="d-flex flex-wrap justify-content-between gap-3 mb-4">
-        <div>
-            <h1 class="section-title h2 mb-1">@facility.ShortName</h1>
-            <p class="muted-note mb-0">@facility.FullName</p>
-        </div>
-        <span class="badge text-bg-success align-self-start">Действующий объект</span>
-    </div>
+<div data-facility-card data-facility-slug="@id">
+    <section class="soft-panel p-4 mb-4">
+        <div class="d-flex flex-wrap justify-content-between gap-3 mb-4"><div><h1 class="section-title h2 mb-1" data-field="shortName">Загрузка…</h1><p class="muted-note mb-0" data-field="fullName"></p></div><span class="badge text-bg-success align-self-start">Действующий объект</span></div>
+        <dl class="row g-3 mb-0"><div class="col-md-3"><dt class="small text-muted">Тип объекта</dt><dd class="fw-semibold mb-0" data-field="type"></dd></div><div class="col-md-3"><dt class="small text-muted">Филиал</dt><dd class="fw-semibold mb-0" data-field="branch"></dd></div><div class="col-md-3"><dt class="small text-muted">Категория НВОС</dt><dd class="fw-semibold mb-0" data-field="category"></dd></div><div class="col-md-3"><dt class="small text-muted">Ответственное лицо</dt><dd class="fw-semibold mb-0" data-field="responsible"></dd></div></dl>
+    </section>
+    <section class="row g-4"><div class="col-lg-7"><div class="soft-panel p-4 h-100"><h2 class="section-title h4 mb-3">Основная информация</h2><dl class="row g-3 mb-4"><div class="col-md-6"><dt class="small text-muted">Регион</dt><dd data-field="region"></dd></div><div class="col-md-6"><dt class="small text-muted">Особые природные зоны</dt><dd data-field="specialZones"></dd></div><div class="col-12"><dt class="small text-muted">Адрес</dt><dd data-field="address"></dd></div><div class="col-md-6"><dt class="small text-muted">Телефон</dt><dd data-field="phone"></dd></div><div class="col-md-6"><dt class="small text-muted">E-mail</dt><dd data-field="email"></dd></div></dl><h3 class="h6">Функциональные зоны</h3><div class="pill-group mb-4" data-list="zones"></div><h3 class="h6">Группы экологических аспектов</h3><div class="pill-group" data-list="environmentalAspects"></div></div></div>
+    <div class="col-lg-5"><aside class="soft-panel p-4 h-100"><h2 class="section-title h4 mb-3">Технологические характеристики</h2><h3 class="h6">Перечень оборудования</h3><ul class="mb-4 ps-3" data-lines="equipment"></ul><dl class="row g-3 mb-0"><div class="col-12"><dt class="small text-muted">Газоочистные установки</dt><dd data-field="gasTreatment"></dd></div><div class="col-12"><dt class="small text-muted">Очистные сооружения</dt><dd data-field="treatmentFacilities"></dd></div><div class="col-12"><dt class="small text-muted">Источники водоснабжения</dt><dd data-field="waterSupply"></dd></div></dl></aside></div></section>
+    <section class="row g-4 mt-1"><div class="col-lg-7"><div class="soft-panel p-4 h-100"><h2 class="section-title h4 mb-3">Источники выбросов</h2><ul class="mb-0 ps-3" data-lines="emissionSources"></ul></div></div><div class="col-lg-5"><aside class="soft-panel p-4 h-100"><h2 class="section-title h4 mb-3">Документация и разрешения</h2><h3 class="h6">Разрешительная документация</h3><ul class="mb-4 ps-3" data-lines="permits"></ul><dl class="row g-3 mb-0"><div class="col-12"><dt class="small text-muted">Программа ПЭК</dt><dd data-field="pecProgram"></dd></div><div class="col-12"><dt class="small text-muted">ПНООЛР</dt><dd data-field="wasteStandard"></dd></div><div class="col-12"><dt class="small text-muted">Проект СЗЗ</dt><dd data-field="sanitaryZoneProject"></dd></div></dl></aside></div></section>
+    <div class="alert alert-danger mt-4" data-facility-card-error hidden></div>
+</div>
 
-    <dl class="row g-3 mb-0">
-        <div class="col-md-3"><dt class="small text-muted">Тип объекта</dt><dd class="fw-semibold mb-0">@facility.Type</dd></div>
-        <div class="col-md-3"><dt class="small text-muted">Филиал</dt><dd class="fw-semibold mb-0">@facility.Branch</dd></div>
-        <div class="col-md-3"><dt class="small text-muted">Категория НВОС</dt><dd class="fw-semibold mb-0">@facility.Category</dd></div>
-        <div class="col-md-3"><dt class="small text-muted">Ответственное лицо</dt><dd class="fw-semibold mb-0">@facility.Responsible</dd></div>
-    </dl>
-</section>
-
-<section class="row g-4">
-    <div class="col-lg-7">
-        <div class="soft-panel p-4 h-100">
-            <h2 class="section-title h4 mb-3">Основная информация</h2>
-            <dl class="row g-3 mb-4">
-                <div class="col-md-6"><dt class="small text-muted">Регион</dt><dd class="mb-0">@facility.Region</dd></div>
-                <div class="col-md-6"><dt class="small text-muted">Особые природные зоны</dt><dd class="mb-0">@facility.SpecialZones</dd></div>
-                <div class="col-12"><dt class="small text-muted">Адрес</dt><dd class="mb-0">@facility.Address</dd></div>
-                <div class="col-md-6"><dt class="small text-muted">Телефон</dt><dd class="mb-0">Не указано</dd></div>
-                <div class="col-md-6"><dt class="small text-muted">E-mail</dt><dd class="mb-0">Не указан</dd></div>
-            </dl>
-
-            <h3 class="h6">Функциональные зоны</h3>
-            <div class="pill-group mb-4">
-                @foreach (var item in facility.Zones) { <span class="classifier-chip">@item</span> }
-            </div>
-
-            <h3 class="h6">Группы экологических аспектов</h3>
-            <div class="pill-group">
-                @foreach (var item in facility.EnvironmentalAspects) { <span class="classifier-chip">@item</span> }
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-5">
-        <aside class="soft-panel p-4 h-100">
-            <h2 class="section-title h4 mb-3">Технологические характеристики</h2>
-            <h3 class="h6">Перечень оборудования</h3>
-            <ul class="mb-4 ps-3">
-                @foreach (var item in facility.Equipment) { <li class="mb-2">@item</li> }
-            </ul>
-            <dl class="row g-3 mb-0">
-                <div class="col-12"><dt class="small text-muted">Газоочистные установки</dt><dd class="mb-0">@facility.GasTreatment</dd></div>
-                <div class="col-12"><dt class="small text-muted">Очистные сооружения</dt><dd class="mb-0">@facility.TreatmentFacilities</dd></div>
-                <div class="col-12"><dt class="small text-muted">Источники водоснабжения</dt><dd class="mb-0">@facility.WaterSupply</dd></div>
-            </dl>
-        </aside>
-    </div>
-</section>
-
-<section class="row g-4 mt-1">
-    <div class="col-lg-7">
-        <div class="soft-panel p-4 h-100">
-            <h2 class="section-title h4 mb-3">Источники выбросов</h2>
-            <ul class="mb-0 ps-3">
-                @foreach (var item in facility.EmissionSources) { <li class="mb-2">@item</li> }
-            </ul>
-        </div>
-    </div>
-    <div class="col-lg-5">
-        <aside class="soft-panel p-4 h-100">
-            <h2 class="section-title h4 mb-3">Документация и разрешения</h2>
-            <h3 class="h6">Разрешительная документация</h3>
-            <ul class="mb-4 ps-3">
-                @foreach (var item in facility.Permits) { <li class="mb-2">@item</li> }
-            </ul>
-            <dl class="row g-3 mb-0">
-                <div class="col-12"><dt class="small text-muted">Программа ПЭК</dt><dd class="mb-0">@facility.PecProgram</dd></div>
-                <div class="col-12"><dt class="small text-muted">ПНООЛР</dt><dd class="mb-0">@facility.WasteStandard</dd></div>
-                <div class="col-12"><dt class="small text-muted">Проект СЗЗ</dt><dd class="mb-0">@facility.SanitaryZoneProject</dd></div>
-            </dl>
-        </aside>
-    </div>
-</section>
-
-@functions {
-    private static readonly string[] DefaultZones = ["Компрессорный цех", "Газораспределительный пункт (ГРП)", "Котельная", "Дизельная электростанция (ДЭС)", "Склад ГСМ", "Санитарно-защитная зона (СЗЗ)", "Административное здание"];
-    private static readonly string[] DefaultAspects = ["Выбросы в атмосферный воздух", "Сбросы в водные объекты", "Образование и обращение с отходами", "Потребление природных ресурсов", "Воздействие на земельные ресурсы и почвы", "Аварийные и залповые воздействия"];
-    private static readonly string[] DefaultEmissions = ["Выбросы от газотурбинной установки (ГТУ)", "Дымовая труба газотурбинного двигателя (ГТД)", "Выбросы от котельных установок", "Выбросы от дизельной электростанции (ДЭС)", "Сбросы газа через факельную установку", "Неорганизованные утечки через уплотнения арматуры", "Продувка участков газопровода при ремонте или освидетельствовании", "Выбросы от склада ГСМ"];
-
-    private static FacilityCard CreateBardymskoe() => new(
-        "Бардымское линейное производственное управление магистральных газопроводов", "Бардымское ЛПУМГ", "Линейная часть магистрального газопровода", "ООО «Газпром трансгаз Чайковский»", "I категория", "Пермский край", "618150, Пермский край, Бардымский район, с. Барда", "Отсутствуют", "Иванов И.И., инженер по ООС филиала", DefaultZones, DefaultAspects,
-        ["Газоперекачивающие агрегаты (ГПА)", "Компрессорные цеха КЦ № 3, № 4, № 6", "ГРС «Орда», «Усть-Кишерты», «Голдыревский», «Уинское», «Барда», «Большая Ась»", "Узлы запуска и приёма внутритрубных устройств", "Запорно-регулирующая арматура", "Котельные установки на ГРС", "Резервные ДЭС", "АГНКС"],
-        "Не указано", "Не указано", "Не указано", DefaultEmissions,
-        ["КЭР для объектов I категории НВОС", "Разрешение на выбросы загрязняющих веществ", "Разрешение на сбросы", "ПЛАРН", "Лицензия на эксплуатацию взрывопожароопасных объектов"], "Не указано", "Не указано", "Не указано");
-
-    private static FacilityCard CreateBereznikovskoe() => new(
-        "Березниковское линейное производственное управление магистральных газопроводов", "Березниковское ЛПУМГ", "Линейная часть магистрального газопровода", "ООО «Газпром трансгаз Чайковский»", "I категория", "Пермский край", "Пермский край, г. Березники, промзона", "Водоохранная зона реки Кама", "Иванов И.И., инженер по ООС филиала",
-        ["Компрессорный цех", "Газораспределительный пункт (ГРП)", "Котельная", "Очистные сооружения канализационные (КОС/ЛОС)", "Дизельная электростанция (ДЭС)", "Склад ГСМ", "Санитарно-защитная зона (СЗЗ)", "Артезианская скважина", "Административное здание"], DefaultAspects,
-        ["Газоперекачивающие агрегаты ГПА-1, ГПА-2", "Факельные устройства", "Артезианские скважины — 2 шт.", "Дизель-генераторы"],
-        "Да", "Да (локальные очистные сооружения)", "Да (для хозпитьевого водоснабжения)", DefaultEmissions,
-        ["Разрешение на выбросы № 123 от 15.01.2024", "Договор водопользования № 456 от 10.03.2023", "Лицензия на недропользование (скважины) № 789 от 01.06.2022"], "Да (утверждена приказом № 45 от 20.12.2023)", "Да (утверждён 30.11.2023)", "Да (утверждён 15.08.2020)");
-
-    private static FacilityCard CreateVotkinskoe() => new(
-        "Воткинское линейное производственное управление магистральных газопроводов", "Воткинское ЛПУМГ", "Линейная часть магистрального газопровода", "ООО «Газпром трансгаз Чайковский»", "I категория", "Удмуртская Республика", "427430, Удмуртская Республика, г. Воткинск, ул. Гавриловский тракт, ВЛПУМ", "Отсутствуют", "Черепанов Александр Анатольевич, начальник отдела охраны окружающей среды", DefaultZones, DefaultAspects,
-        ["Компрессорная станция «Игринская»", "Воткинская газокомпрессорная служба", "ГРС-4 в Ижевске, ГРС «Глазов», «Колхоз Искра», «Зюино»", "Ижевская ЛЭС", "Узлы запуска и приёма внутритрубных устройств", "Запорно-регулирующая арматура", "Котельные установки на ГРС", "Резервные ДЭС", "АГНКС"],
-        "Не указано", "Не указано", "Не указано", DefaultEmissions,
-        ["КЭР для объектов I категории НВОС", "Разрешение на выбросы загрязняющих веществ", "Разрешение на сбросы", "ПЛАРН", "Лицензия на эксплуатацию взрывопожароопасных объектов"], "Не указано", "Не указано", "Не указано");
-
-    private sealed record FacilityCard(string FullName, string ShortName, string Type, string Branch, string Category, string Region, string Address, string SpecialZones, string Responsible, string[] Zones, string[] EnvironmentalAspects, string[] Equipment, string GasTreatment, string TreatmentFacilities, string WaterSupply, string[] EmissionSources, string[] Permits, string PecProgram, string WasteStandard, string SanitaryZoneProject);
-}
+@section Scripts { <script src="~/js/facility-card.js" asp-append-version="true"></script> }

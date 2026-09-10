@@ -1,0 +1,48 @@
+@page "/Facilities/Edit/{id?}"
+@{
+    var id = RouteData.Values["id"] as string;
+    ViewData["Title"] = string.IsNullOrWhiteSpace(id) ? "Создать объект" : "Редактировать объект";
+    ViewData["Nav"] = "Facilities";
+    ViewData["Breadcrumb"] = string.IsNullOrWhiteSpace(id) ? "Объекты \\ Создание" : "Объекты \\ Редактирование";
+}
+
+<div class="page-actions mb-3 d-flex flex-wrap justify-content-between gap-2">
+    <div><h1 class="h3 section-title mb-1">@ViewData["Title"]</h1><p class="muted-note mb-0">Заполните профиль — обязательны полное и краткое наименования.</p></div>
+    <a class="btn btn-outline-primary" asp-page="/Facilities">Отмена</a>
+</div>
+
+<form class="vstack gap-4" data-facility-editor data-facility-slug="@id">
+    <div class="soft-panel p-4"><h2 class="section-title h4 mb-3">Основная информация</h2><div class="row g-3">
+        <div class="col-md-6"><label class="form-label" for="fullName">Полное наименование *</label><input class="form-control" id="fullName" name="fullName" required /></div>
+        <div class="col-md-6"><label class="form-label" for="shortName">Краткое наименование *</label><input class="form-control" id="shortName" name="shortName" required /></div>
+        <div class="col-md-4"><label class="form-label" for="type">Тип объекта</label><input class="form-control" id="type" name="type" /></div>
+        <div class="col-md-4"><label class="form-label" for="branch">Филиал</label><input class="form-control" id="branch" name="branch" /></div>
+        <div class="col-md-4"><label class="form-label" for="category">Категория НВОС</label><input class="form-control" id="category" name="category" /></div>
+        <div class="col-md-4"><label class="form-label" for="region">Регион</label><input class="form-control" id="region" name="region" /></div>
+        <div class="col-md-8"><label class="form-label" for="address">Адрес</label><input class="form-control" id="address" name="address" /></div>
+        <div class="col-md-6"><label class="form-label" for="responsible">Ответственное лицо</label><input class="form-control" id="responsible" name="responsible" /></div>
+        <div class="col-md-3"><label class="form-label" for="phone">Телефон</label><input class="form-control" id="phone" name="phone" /></div>
+        <div class="col-md-3"><label class="form-label" for="email">E-mail</label><input class="form-control" id="email" name="email" type="email" /></div>
+        <div class="col-12"><label class="form-label" for="specialZones">Особые природные зоны</label><textarea class="form-control" id="specialZones" name="specialZones" rows="2"></textarea></div>
+        <div class="col-md-6"><label class="form-label" for="latitude">Широта</label><input class="form-control" id="latitude" name="latitude" inputmode="decimal" /></div>
+        <div class="col-md-6"><label class="form-label" for="longitude">Долгота</label><input class="form-control" id="longitude" name="longitude" inputmode="decimal" /></div>
+    </div></div>
+    <div class="soft-panel p-4"><h2 class="section-title h4 mb-3">Экологический и технологический профиль</h2><div class="row g-3">
+        <div class="col-md-6"><label class="form-label" for="zones">Функциональные зоны</label><textarea class="form-control" id="zones" name="zones" rows="6" placeholder="По одному значению в строке"></textarea></div>
+        <div class="col-md-6"><label class="form-label" for="environmentalAspects">Группы экологических аспектов</label><textarea class="form-control" id="environmentalAspects" name="environmentalAspects" rows="6" placeholder="По одному значению в строке"></textarea></div>
+        <div class="col-12"><label class="form-label" for="equipment">Перечень оборудования</label><textarea class="form-control" id="equipment" name="equipment" rows="5" placeholder="По одному значению в строке"></textarea></div>
+        <div class="col-md-4"><label class="form-label" for="gasTreatment">Газоочистные установки</label><input class="form-control" id="gasTreatment" name="gasTreatment" /></div>
+        <div class="col-md-4"><label class="form-label" for="treatmentFacilities">Очистные сооружения</label><input class="form-control" id="treatmentFacilities" name="treatmentFacilities" /></div>
+        <div class="col-md-4"><label class="form-label" for="waterSupply">Источники водоснабжения</label><input class="form-control" id="waterSupply" name="waterSupply" /></div>
+        <div class="col-12"><label class="form-label" for="emissionSources">Источники выбросов</label><textarea class="form-control" id="emissionSources" name="emissionSources" rows="6" placeholder="По одному значению в строке"></textarea></div>
+    </div></div>
+    <div class="soft-panel p-4"><h2 class="section-title h4 mb-3">Документация и разрешения</h2><div class="row g-3">
+        <div class="col-12"><label class="form-label" for="permits">Разрешительная документация</label><textarea class="form-control" id="permits" name="permits" rows="5" placeholder="По одному документу в строке"></textarea></div>
+        <div class="col-md-4"><label class="form-label" for="pecProgram">Программа ПЭК</label><input class="form-control" id="pecProgram" name="pecProgram" /></div>
+        <div class="col-md-4"><label class="form-label" for="wasteStandard">ПНООЛР</label><input class="form-control" id="wasteStandard" name="wasteStandard" /></div>
+        <div class="col-md-4"><label class="form-label" for="sanitaryZoneProject">Проект СЗЗ</label><input class="form-control" id="sanitaryZoneProject" name="sanitaryZoneProject" /></div>
+    </div></div>
+    <div class="d-flex flex-wrap align-items-center gap-3"><button class="btn btn-primary" type="submit">Сохранить карточку</button><span class="text-danger" data-facility-editor-error role="alert"></span></div>
+</form>
+
+@section Scripts { <script src="~/js/facility-editor.js" asp-append-version="true"></script> }

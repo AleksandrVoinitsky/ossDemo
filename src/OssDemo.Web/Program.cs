@@ -72,6 +72,7 @@ builder.Services.AddSingleton<RagDatabaseInitializer>();
 builder.Services.AddSingleton<RagDiagnostics>();
 builder.Services.AddSingleton<KnowledgeImportService>();
 builder.Services.AddSingleton<OperationalDataService>();
+builder.Services.AddSingleton<FacilityProfileService>();
 builder.Services.AddSingleton<ChecklistService>();
 
 var app = builder.Build();
@@ -137,6 +138,21 @@ app.MapGet("/api/operations/dashboard", async (OperationalDataService operationa
     Results.Ok(await operationalData.GetDashboardAsync(cancellationToken)));
 app.MapGet("/api/operations/facilities", async (OperationalDataService operationalData, CancellationToken cancellationToken) =>
     Results.Ok(await operationalData.GetFacilitiesAsync(cancellationToken)));
+app.MapGet("/api/operations/facility-profiles/{slug}", async (string slug, FacilityProfileService profileService, CancellationToken cancellationToken) =>
+{
+    var profile = await profileService.GetAsync(slug, cancellationToken);
+    return profile is null ? Results.NotFound() : Results.Ok(profile);
+});
+app.MapPost("/api/operations/facility-profiles", async (FacilityProfileSaveRequest request, FacilityProfileService profileService, CancellationToken cancellationToken) =>
+{
+    var slug = await profileService.SaveAsync(null, request.Profile, request.Latitude, request.Longitude, cancellationToken);
+    return slug is null ? Results.BadRequest(new { error = "Заполните полное и краткое наименования объекта." }) : Results.Created($"/Facilities/Card/{slug}", new { slug });
+});
+app.MapPut("/api/operations/facility-profiles/{slug}", async (string slug, FacilityProfileSaveRequest request, FacilityProfileService profileService, CancellationToken cancellationToken) =>
+{
+    var savedSlug = await profileService.SaveAsync(slug, request.Profile, request.Latitude, request.Longitude, cancellationToken);
+    return savedSlug is null ? Results.BadRequest(new { error = "Заполните полное и краткое наименования объекта." }) : Results.Ok(new { slug = savedSlug });
+});
 app.MapGet("/api/operations/violations", async (OperationalDataService operationalData, CancellationToken cancellationToken) =>
     Results.Ok(await operationalData.GetViolationsAsync(cancellationToken)));
 app.MapGet("/api/checklists/catalog", async (ChecklistService checklistService, CancellationToken cancellationToken) =>
