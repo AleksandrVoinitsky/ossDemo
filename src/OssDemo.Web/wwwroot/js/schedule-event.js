@@ -1,0 +1,9 @@
+(() => {
+  const container = document.querySelector('[data-schedule-event]');
+  if (!container) return;
+  const statusMeta = { ready: ['Готово к генерации', 'text-bg-success'], profile: ['Профиль требует доработки', 'text-bg-warning'], missing: ['Требует создания', 'text-bg-danger'], control: ['Контрольный срок', 'text-bg-info'], draft: ['В подготовке', 'text-bg-secondary'] };
+  const eventTypes = { inspection: 'Плановая проверка', control: 'Контрольный срок' };
+  const setText = (selector, value) => container.querySelectorAll(selector).forEach((element) => { element.textContent = value?.trim() || 'Не указано'; });
+  const format = (value) => new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(`${value}T00:00:00`));
+  fetch(`/api/operations/schedule/${encodeURIComponent(container.dataset.scheduleEventId)}`).then((response) => response.ok ? response.json() : Promise.reject()).then((item) => { ['title', 'facilityName', 'responsible', 'criteria', 'readiness', 'note'].forEach((name) => setText(`[data-field="${name}"]`, item[name])); container.querySelector('[data-event-type]').textContent = eventTypes[item.eventType] || item.eventType; const badge = container.querySelector('[data-event-status]'); const status = statusMeta[item.status] || statusMeta.draft; badge.textContent = status[0]; badge.classList.add(...status[1].split(' ')); container.querySelector('[data-event-period]').textContent = item.startDate === item.endDate ? format(item.startDate) : `${format(item.startDate)} — ${format(item.endDate)}`; document.title = `${item.title} - АИ ООС`; }).catch(() => { const error = container.querySelector('[data-schedule-event-error]'); error.textContent = 'Событие не найдено или рабочая база данных недоступна.'; error.hidden = false; });
+})();

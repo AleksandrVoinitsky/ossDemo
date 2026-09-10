@@ -1,89 +1,56 @@
 @page "/Schedule/Event/{id?}"
-@using System.Globalization
 @{
-    var id = (RouteData.Values["id"] as string ?? "sch-18").ToLowerInvariant();
-    var events = new[]
-    {
-        new ScheduleEvent("sch-18", "Березниковское ЛПУМГ: плановая проверка", new DateTime(2026, 8, 21), new DateTime(2026, 8, 23), "Готово к генерации", "text-bg-success", "Плановая выездная проверка", "Березниковское ЛПУМГ", "Компрессорная станция, НВОС I", "г. Березники, промышленная зона", "Дулаева Н. И.", "Общие, атмосфера, вода, отходы, недра", "Профиль объекта и пакет ОРД подготовлены", "Выездная проверка проводится в течение трёх календарных дней.", "Создать чек-лист", "/Checklists/New"),
-        new ScheduleEvent("sch-21", "Воткинское ЛПУМГ: плановая проверка", new DateTime(2026, 9, 9), new DateTime(2026, 9, 10), "Профиль требует доработки", "text-bg-warning", "Плановая выездная проверка", "Воткинское ЛПУМГ", "Линейное производственное управление", "г. Воткинск, производственная площадка", "Каримов А. В.", "Земля, отходы, общие", "Нужно уточнить категории НВОС в цифровом профиле", "До выезда необходимо завершить уточнение профиля объекта.", "Доработать профиль", "/Facilities"),
-        new ScheduleEvent("sch-24", "УАВР №1: плановая проверка", new DateTime(2026, 10, 6), new DateTime(2026, 10, 7), "Требует создания", "text-bg-danger", "Плановая выездная проверка", "УАВР №1", "Аварийно-восстановительное подразделение", "Площадка УАВР №1", "Иванова Е. С.", "Отходы, вода", "Цифровой профиль объекта отсутствует в реестре", "Создайте профиль, чтобы сформировать проверочный пакет.", "Создать профиль", "/Facilities"),
-        new ScheduleEvent("ctrl-31", "Контроль устранения: протоколы инструментального контроля", new DateTime(2026, 10, 14), new DateTime(2026, 10, 14), "Контрольный срок", "text-bg-info", "Контроль устранения нарушения", "Березниковское ЛПУМГ", "Предписание по акту 2025", "г. Березники, промышленная зона", "Дулаева Н. И.", "Атмосфера, инструментальный контроль выбросов", "Контрольный срок получен из реестра нарушений", "Проверьте наличие протоколов и зафиксируйте результат устранения.", "Открыть нарушение", "/Violations"),
-        new ScheduleEvent("sch-29", "Пермское ЛПУМГ: плановая проверка", new DateTime(2026, 11, 12), new DateTime(2026, 11, 13), "В подготовке", "text-bg-secondary", "Плановая выездная проверка", "Пермское ЛПУМГ", "Линейное производственное управление", "г. Пермь, производственная площадка", "Соколов П. М.", "Атмосфера, недра", "Профиль найден; пакет документов ожидает проверки", "Подготовительный этап открыт до даты выезда.", "Подготовить чек-лист", "/Checklists/New"),
-        new ScheduleEvent("ctrl-perm-2026", "Пермское ЛПУМГ: срок обновления ПНООЛР", new DateTime(2026, 11, 18), new DateTime(2026, 11, 18), "Контрольный срок", "text-bg-info", "Контроль нормативной документации", "Пермское ЛПУМГ", "Контроль нормативной документации", "г. Пермь, производственная площадка", "Соколов П. М.", "Отходы, лимиты и фактические объёмы", "Срок определён при анализе ОРД и прошлых чек-листов", "Подтвердите актуальность ПНООЛР и приложите подтверждающие документы.", "Подготовить чек-лист", "/Checklists/New")
-    };
-    var currentEvent = events.FirstOrDefault(item => item.Id == id) ?? events[0];
-    var ruCulture = CultureInfo.GetCultureInfo("ru-RU");
-    var period = currentEvent.Start.Date == currentEvent.End.Date
-        ? currentEvent.Start.ToString("dd MMMM yyyy", ruCulture)
-        : $"{currentEvent.Start:dd MMMM} — {currentEvent.End.ToString("dd MMMM yyyy", ruCulture)}";
-
-    ViewData["Title"] = currentEvent.Title;
+    var id = RouteData.Values["id"] as string;
+    ViewData["Title"] = "Событие графика";
     ViewData["Nav"] = "Schedule";
-    ViewData["Breadcrumb"] = $"График \\ Проверка \\ {currentEvent.Object}";
+    ViewData["Breadcrumb"] = "График \\ Событие";
 }
 
-<div class="page-actions mb-3">
+<div class="page-actions mb-3 d-flex flex-wrap justify-content-between gap-2">
     <a class="btn btn-outline-primary" asp-page="/Schedule">Назад к графику</a>
-    <a class="btn btn-primary" href="@currentEvent.ActionUrl">@currentEvent.ActionLabel</a>
+    <div class="d-flex gap-2"><a class="btn btn-outline-primary" href="/Schedule/Edit/@id">Редактировать</a><a class="btn btn-primary" asp-page="/Checklists/New">Создать чек-лист</a></div>
 </div>
 
+<div data-schedule-event data-schedule-event-id="@id">
 <section class="soft-panel p-4 mb-4">
     <div class="d-flex flex-wrap justify-content-between gap-3 mb-4">
         <div>
             <p class="eyebrow mb-1">Карточка события графика</p>
-            <h1 class="section-title h2 mb-1">@currentEvent.Title</h1>
-            <p class="muted-note mb-0">@currentEvent.Category</p>
+            <h1 class="section-title h2 mb-1" data-field="title">Загрузка…</h1>
+            <p class="muted-note mb-0" data-event-type></p>
         </div>
-        <span class="badge @currentEvent.BadgeClass align-self-start">@currentEvent.Status</span>
+        <span class="badge align-self-start" data-event-status></span>
     </div>
 
     <dl class="row g-3 mb-0">
-        <div class="col-md-4"><dt class="small text-muted">Период проверки</dt><dd class="fw-semibold mb-0">@period</dd></div>
-        <div class="col-md-4"><dt class="small text-muted">Объект</dt><dd class="fw-semibold mb-0">@currentEvent.Object</dd></div>
-        <div class="col-md-4"><dt class="small text-muted">Ответственный</dt><dd class="fw-semibold mb-0">@currentEvent.Responsible</dd></div>
+        <div class="col-md-4"><dt class="small text-muted">Период</dt><dd class="fw-semibold mb-0" data-event-period></dd></div>
+        <div class="col-md-4"><dt class="small text-muted">Объект</dt><dd class="fw-semibold mb-0" data-field="facilityName"></dd></div>
+        <div class="col-md-4"><dt class="small text-muted">Ответственный</dt><dd class="fw-semibold mb-0" data-field="responsible"></dd></div>
     </dl>
 </section>
 
 <section class="row g-4">
     <div class="col-lg-7">
         <div class="soft-panel p-4 h-100">
-            <h2 class="section-title h4 mb-3">Параметры проверки</h2>
+            <h2 class="section-title h4 mb-3">Параметры события</h2>
             <dl class="schedule-detail-list">
-                <div><dt>Тип объекта</dt><dd>@currentEvent.ObjectType</dd></div>
-                <div><dt>Адрес или площадка</dt><dd>@currentEvent.Address</dd></div>
-                <div><dt>Охват и критерии контроля</dt><dd>@currentEvent.Criteria</dd></div>
-                <div><dt>Готовность к проведению</dt><dd>@currentEvent.Readiness</dd></div>
+                <div><dt>Охват и критерии контроля</dt><dd data-field="criteria"></dd></div>
+                <div><dt>Готовность к проведению</dt><dd data-field="readiness"></dd></div>
             </dl>
         </div>
     </div>
 
     <div class="col-lg-5">
         <aside class="soft-panel p-4 h-100">
-            <h2 class="section-title h4 mb-3">Следующий шаг</h2>
-            <p class="muted-note">@currentEvent.Note</p>
+            <h2 class="section-title h4 mb-3">Примечание</h2>
+            <p class="muted-note" data-field="note"></p>
             <div class="d-grid">
-                <a class="btn btn-primary btn-lg" href="@currentEvent.ActionUrl">@currentEvent.ActionLabel</a>
+                <a class="btn btn-primary btn-lg" asp-page="/Checklists/New">Создать чек-лист</a>
             </div>
         </aside>
     </div>
 </section>
+<div class="alert alert-danger mt-4" data-schedule-event-error hidden></div>
+</div>
 
-@functions {
-    private sealed record ScheduleEvent(
-        string Id,
-        string Title,
-        DateTime Start,
-        DateTime End,
-        string Status,
-        string BadgeClass,
-        string Category,
-        string Object,
-        string ObjectType,
-        string Address,
-        string Responsible,
-        string Criteria,
-        string Readiness,
-        string Note,
-        string ActionLabel,
-        string ActionUrl);
-}
+@section Scripts { <script src="~/js/schedule-event.js" asp-append-version="true"></script> }

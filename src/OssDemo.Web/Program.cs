@@ -73,6 +73,7 @@ builder.Services.AddSingleton<RagDiagnostics>();
 builder.Services.AddSingleton<KnowledgeImportService>();
 builder.Services.AddSingleton<OperationalDataService>();
 builder.Services.AddSingleton<FacilityProfileService>();
+builder.Services.AddSingleton<ScheduleService>();
 builder.Services.AddSingleton<ChecklistService>();
 
 var app = builder.Build();
@@ -153,6 +154,29 @@ app.MapPut("/api/operations/facility-profiles/{slug}", async (string slug, Facil
     var savedSlug = await profileService.SaveAsync(slug, request.Profile, request.Latitude, request.Longitude, cancellationToken);
     return savedSlug is null ? Results.BadRequest(new { error = "Заполните полное и краткое наименования объекта." }) : Results.Ok(new { slug = savedSlug });
 });
+app.MapGet("/api/operations/schedule", async (ScheduleService scheduleService, CancellationToken cancellationToken) =>
+    Results.Ok(await scheduleService.GetAllAsync(cancellationToken)));
+app.MapGet("/api/operations/schedule/{id:guid}", async (Guid id, ScheduleService scheduleService, CancellationToken cancellationToken) =>
+{
+    var item = await scheduleService.GetAsync(id, cancellationToken);
+    return item is null ? Results.NotFound() : Results.Ok(item);
+});
+app.MapPost("/api/operations/schedule", async (ScheduleItemRequest request, ScheduleService scheduleService, CancellationToken cancellationToken) =>
+{
+    var item = await scheduleService.SaveAsync(null, request, cancellationToken);
+    return item is null ? Results.BadRequest(new { error = "Заполните обязательные поля и укажите дату окончания не раньше даты начала." }) : Results.Created($"/Schedule/Event/{item.Id}", item);
+});
+app.MapPut("/api/operations/schedule/{id:guid}", async (Guid id, ScheduleItemRequest request, ScheduleService scheduleService, CancellationToken cancellationToken) =>
+{
+    if (await scheduleService.GetAsync(id, cancellationToken) is null)
+    {
+        return Results.NotFound();
+    }
+    var item = await scheduleService.SaveAsync(id, request, cancellationToken);
+    return item is null ? Results.BadRequest(new { error = "Заполните обязательные поля и укажите дату окончания не раньше даты начала." }) : Results.Ok(item);
+});
+app.MapDelete("/api/operations/schedule/{id:guid}", async (Guid id, ScheduleService scheduleService, CancellationToken cancellationToken) =>
+    await scheduleService.DeleteAsync(id, cancellationToken) ? Results.NoContent() : Results.NotFound());
 app.MapGet("/api/operations/violations", async (OperationalDataService operationalData, CancellationToken cancellationToken) =>
     Results.Ok(await operationalData.GetViolationsAsync(cancellationToken)));
 app.MapGet("/api/checklists/catalog", async (ChecklistService checklistService, CancellationToken cancellationToken) =>
