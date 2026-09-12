@@ -22,6 +22,7 @@ internal sealed class AmveraAiChecklistSynthesisClient(
         Каждый пункт обязан содержать citations со sourceId из переданного списка и точной подтверждающей цитатой quote из текста этого источника. Объединяй дубли.
         Верни только JSON без Markdown: {"name":"...","items":[{"section":"...","title":"...","reason":"...","confidence":0.0,"citations":[{"sourceId":"S1","quote":"точная цитата"}]}]}.
         confidence должно быть от 0 до 1. Максимум 20 пунктов.
+        Для этого небольшого фрагмента верни максимум 5 наиболее конкретных пунктов. /no_think
         """;
 
     public async Task<string> SynthesizeAsync(
@@ -47,6 +48,7 @@ internal sealed class AmveraAiChecklistSynthesisClient(
                 model = configuration["AI:Model"] ?? "qwen3_30b",
                 messages = new[] { new { role = "system", content = SystemPrompt }, new { role = "user", content = user } },
                 temperature = 0.1,
+                max_tokens = 1_200,
                 stream = false
             })
         };
@@ -93,6 +95,27 @@ internal sealed class AmveraAiChecklistSynthesisClient(
     {
         var header = $"[{item.Id}] Документ: {item.DocumentTitle}\nРаздел: {item.SourceLabel}\nТема поиска: {item.QueryLabel}\nТекст: ";
         return header + item.Text;
+    }
+
+    internal static IReadOnlyList<IReadOnlyList<AiChecklistEvidence>> BuildSequentialUnits(IReadOnlyList<AiChecklistEvidence> evidence)
+    {
+        const int maxContextLength = 3_000;
+        var units = new List<IReadOnlyList<AiChecklistEvidence>>();
+        foreach (var item in evidence)
+        {
+            var empty = item with { Text = string.Empty };
+            var capacity = maxContextLength - RenderEvidence(empty).Length;
+            if (capacity <= 0)
+                throw new AiChecklistGenerationException("ai_context_too_large", "Метаданные источника превышают допустимый объём запроса.");
+            if (item.Text.Length == 0)
+            {
+                units.Add([item]);
+                continue;
+            }
+            for (var offset = 0; offset < item.Text.Length; offset += capacity)
+                units.Add([item with { Text = item.Text.Substring(offset, Math.Min(capacity, item.Text.Length - offset)) }]);
+        }
+        return units;
     }
 
     internal static bool TryReadContent(string payload, out string? content)

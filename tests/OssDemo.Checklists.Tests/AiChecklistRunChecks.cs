@@ -38,6 +38,7 @@ internal static class AiChecklistRunChecks
         var multiRun = await store.CreateAsync(profile, Guid.NewGuid(), "Объект", twoEvidence, AiChecklistBatchPlanner.Build(twoEvidence), CancellationToken.None);
         AssertTrue(await store.QueueBatchesAsync(multiRun.Id, [0, 1], CancellationToken.None), "Все пакеты запуска должны ставиться в очередь одной операцией.");
         AssertTrue((await store.GetAsync(multiRun.Id, CancellationToken.None))!.Batches.All(item => item.Status == "queued"));
+        AssertTrue(await store.QueueBatchesAsync(multiRun.Id, [], CancellationToken.None), "Повторный запуск без новых пакетов должен быть идемпотентным.");
     }
 
     private static void AssertTrue(bool value, string message = "Expected true.") { if (!value) throw new InvalidOperationException(message); }

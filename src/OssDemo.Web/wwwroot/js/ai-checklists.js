@@ -45,10 +45,11 @@
     const completed = run.batches.filter((item) => item.status === 'completed').length;
     const active = run.batches.filter((item) => item.status === 'running' || item.status === 'queued').length;
     const failed = run.batches.filter((item) => item.status === 'failed').length;
+    const empty = run.batches.filter((item) => item.status === 'completed' && item.itemCount === 0).length;
     const progress = run.batches.length ? Math.round((completed / run.batches.length) * 100) : 0;
     root.querySelector('[data-ai-generation-progress]').style.width = `${progress}%`;
     root.querySelector('[data-ai-generation-title]').textContent = completed === run.batches.length ? 'Все тематические пакеты проверены' : `Обработано ${completed} из ${run.batches.length} пакетов`;
-    root.querySelector('[data-ai-generation-status]').textContent = failed ? `${failed} пак. завершились ошибкой — их можно повторить отдельно.` : active ? `${active} пак. находятся в очереди или обрабатываются.` : 'Пакеты подготовлены. Ограничения по времени нет.';
+    root.querySelector('[data-ai-generation-status]').textContent = failed || empty ? `${failed + empty} пак. требуют последовательного повтора.` : active ? `${active} пак. находятся в очереди или обрабатываются.` : 'Пакеты подготовлены. Ограничения по времени нет.';
     root.querySelector('[data-ai-batch-list]').innerHTML = run.batches.map((batch) => `<article class="ai-batch-card ai-batch-${escapeHtml(batch.status)}"><div class="ai-batch-card-head"><span class="ai-batch-state" aria-hidden="true"></span><strong>${escapeHtml(batch.topic)}</strong><span class="badge text-bg-light">${batch.evidenceIds.length} ист.</span></div><div class="small text-muted">${escapeHtml(statusText[batch.status] || batch.status)}${batch.status === 'running' ? ` · ${formatElapsed(batch.updatedAt)}` : batch.durationMs != null ? ` · ${(batch.durationMs / 1000).toFixed(1)} сек.` : ''}</div>${batch.status === 'completed' ? `<div class="small mt-1">Принято пунктов: <b>${batch.itemCount}</b></div>` : ''}${batch.error ? `<div class="small text-danger mt-1">${escapeHtml(batch.error)}</div>` : ''}${batch.status === 'failed' || batch.status === 'completed' && batch.itemCount === 0 ? `<button class="btn btn-sm btn-outline-primary mt-2" type="button" data-ai-retry="${batch.index}">Повторить пакет</button>` : ''}<div class="ai-batch-progress"><span></span></div></article>`).join('');
     root.querySelector('[data-ai-operation-log]').innerHTML = run.batches.map((batch) => `<li><b>${escapeHtml(batch.topic)}:</b> ${escapeHtml(statusText[batch.status] || batch.status)}${batch.status === 'completed' ? `, проверено ${batch.itemCount} пунктов` : ''}.</li>`).join('');
     root.querySelector('[data-ai-elapsed]').textContent = formatElapsed(run.createdAt);
@@ -73,12 +74,13 @@
     try {
       const run = await request(`/api/ai-checklists/runs/${encodeURIComponent(currentRun.id)}`);
       renderRun(run);
-      if (run.batches.every((item) => item.status === 'completed')) { await finish(); return; }
-      const waitingForRetry = run.batches.some((item) => item.status === 'failed') && !run.batches.some((item) => ['queued', 'running'].includes(item.status));
+      if (run.batches.every((item) => item.status === 'completed' && item.itemCount > 0)) { await finish(); return; }
+      const waitingForRetry = run.batches.some((item) => item.status === 'failed' || item.status === 'completed' && item.itemCount === 0) && !run.batches.some((item) => ['queued', 'running'].includes(item.status));
       if (!waitingForRetry) pollTimer = setTimeout(poll, 5000);
     } catch (error) { showError('[data-ai-generation-error]', error); pollTimer = setTimeout(poll, 10000); }
   };
   const queueBatches = async (batches) => {
+    if (!batches.length) { poll(); return; }
     await post(`/api/ai-checklists/runs/${encodeURIComponent(currentRun.id)}/queue`, { batchIndexes: batches.map((batch) => batch.index) });
     poll();
   };

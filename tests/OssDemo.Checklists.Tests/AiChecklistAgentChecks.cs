@@ -183,6 +183,12 @@ internal static class AiChecklistAgentChecks
         AssertTrue(prepared.Count > 1, "Длинный источник должен делиться на несколько сохраняемых фрагментов.");
         AssertEqual(longText, string.Concat(prepared.Select(item => item.Text)));
         AssertTrue(AiChecklistBatchPlanner.Build(prepared).All(batch => batch.ContextCharacters <= 9_000), "Каждый фрагмент длинного источника должен помещаться в контекст целиком.");
+
+        var sequentialSource = new AiChecklistEvidence("SEQ", "Тема", "Документ", "Раздел", new string('с', 8_000) + " КОНЕЦ", .8);
+        var units = AmveraAiChecklistSynthesisClient.BuildSequentialUnits([sequentialSource]);
+        AssertTrue(units.Count > 1, "Крупный пакет должен отправляться модели последовательными небольшими фрагментами.");
+        AssertTrue(units.All(unit => unit.Count == 1 && AmveraAiChecklistSynthesisClient.BuildContext(unit).Length <= 3_000), "Один LLM-запрос должен содержать не более 3000 символов контекста.");
+        AssertEqual(sequentialSource.Text, string.Concat(units.SelectMany(unit => unit).Select(item => item.Text)));
     }
 
     private sealed class FakeFacilitySource(FacilityProfile profile, OperationalFacility facility) : IAiChecklistFacilitySource

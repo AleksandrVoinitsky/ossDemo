@@ -97,12 +97,18 @@ internal sealed class AiChecklistAgent(
         if (work is null) return false;
         var timer = System.Diagnostics.Stopwatch.StartNew();
         var contextCharacters = work.Evidence.Sum(item => item.Text.Length);
-        logger.LogInformation("Запуск {RunId}, пакет {BatchIndex}: отправка {EvidenceCount} источников, {ContextCharacters} символов.", work.RunId, work.Batch.Index, work.Evidence.Count, contextCharacters);
+        logger.LogInformation("Запуск {RunId}, пакет {BatchIndex}: последовательная обработка {EvidenceCount} источников, {ContextCharacters} символов.", work.RunId, work.Batch.Index, work.Evidence.Count, contextCharacters);
         try
         {
-            var raw = await synthesisClient.SynthesizeAsync(work.Facility, work.Evidence, cancellationToken);
-            var parsed = AiChecklistOutputParser.Parse(raw, work.Evidence);
-            var items = parsed.Items.Take(20).ToArray();
+            var generated = new List<AiGeneratedChecklistItem>();
+            var units = AmveraAiChecklistSynthesisClient.BuildSequentialUnits(work.Evidence);
+            for (var unitIndex = 0; unitIndex < units.Count; unitIndex++)
+            {
+                logger.LogInformation("Запуск {RunId}, пакет {BatchIndex}: фрагмент {UnitNumber} из {UnitCount}.", work.RunId, work.Batch.Index, unitIndex + 1, units.Count);
+                var raw = await synthesisClient.SynthesizeAsync(work.Facility, units[unitIndex], cancellationToken);
+                generated.AddRange(AiChecklistOutputParser.Parse(raw, units[unitIndex]).Items);
+            }
+            var items = generated.DistinctBy(item => item.Title.Trim(), StringComparer.OrdinalIgnoreCase).Take(20).ToArray();
             await PersistOutcomeAsync(
                 () => runStore.CompleteBatchAsync(work.RunId, work.Batch.Index, items, timer.ElapsedMilliseconds, cancellationToken),
                 work.RunId,

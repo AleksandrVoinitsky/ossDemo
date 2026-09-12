@@ -69,7 +69,7 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
     public async Task<bool> QueueBatchesAsync(Guid runId, IReadOnlyList<int> batchIndexes, CancellationToken cancellationToken)
     {
         var indexes = batchIndexes.Distinct().ToArray();
-        if (indexes.Length == 0) return false;
+        if (indexes.Length == 0) return true;
         await using var connection = await OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await using (var lockRun = new NpgsqlCommand("SELECT 1 FROM app_ai_checklist_runs WHERE id=@runId AND status='ready' FOR UPDATE", connection, transaction))
