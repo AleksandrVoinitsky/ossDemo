@@ -311,5 +311,5 @@ internal sealed class ChecklistDatabaseInitializer(
 
     private sealed record LegacyWorkingChecklist(Guid Id, string? Name, string? Facility, DateTimeOffset CreatedAt, string? Status, IReadOnlyList<LegacyWorkingChecklistItem>? Items);
     private sealed record LegacyWorkingChecklistItem(Guid Id, int Number, string? Section, string? Title, string? Basis, string? Result, string? Nonconformity, string? Note, string? Origin);
-    internal static DateTimeOffset ToPostgresTimestamp(DateTimeOffset value) => value.ToUniversalTime();
+    internal static DateTime ToPostgresTimestamp(DateTimeOffset value) => value.UtcDateTime;
 }

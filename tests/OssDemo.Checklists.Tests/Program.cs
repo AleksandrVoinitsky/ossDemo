@@ -24,8 +24,8 @@ AssertTrue(ChecklistSeedData.Templates.Select(item => item.Id).Distinct().Count(
 AssertTrue(ChecklistSeedData.History.SelectMany(item => item.Items).All(item => !string.IsNullOrWhiteSpace(item.Title)), "История не должна содержать пустые пункты.");
 var localTimestamp = new DateTimeOffset(2026, 9, 12, 22, 18, 0, TimeSpan.FromHours(5));
 var postgresTimestamp = ChecklistDatabaseInitializer.ToPostgresTimestamp(localTimestamp);
-AssertEqual(TimeSpan.Zero, postgresTimestamp.Offset);
-AssertEqual(localTimestamp.UtcDateTime, postgresTimestamp.UtcDateTime);
+AssertEqual(DateTimeKind.Utc, postgresTimestamp.Kind);
+AssertEqual(localTimestamp.UtcDateTime, postgresTimestamp);
 
 await ChecklistLifecycleChecks.RunAsync();
 
