@@ -23,6 +23,8 @@ AssertTrue(ChecklistSeedData.History.All(item => item.Status == ChecklistStatus.
 AssertTrue(ChecklistSeedData.Templates.Select(item => item.Id).Distinct().Count() == 3, "Идентификаторы шаблонов должны быть уникальны.");
 AssertTrue(ChecklistSeedData.History.SelectMany(item => item.Items).All(item => !string.IsNullOrWhiteSpace(item.Title)), "История не должна содержать пустые пункты.");
 
+await ChecklistLifecycleChecks.RunAsync();
+
 Console.WriteLine("Checklist domain checks passed.");
 
 static void AssertTrue(bool value, string message)
