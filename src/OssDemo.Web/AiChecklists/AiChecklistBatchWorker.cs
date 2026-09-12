@@ -3,26 +3,29 @@ internal sealed class AiChecklistBatchWorker(
     IAiChecklistRunStore runStore,
     ILogger<AiChecklistBatchWorker> logger) : BackgroundService
 {
+    internal const int WorkerCount = 1;
+    internal static readonly TimeSpan IdlePollInterval = TimeSpan.FromSeconds(5);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await runStore.ResetInterruptedAsync(stoppingToken);
-        await Task.WhenAll(RunWorkerAsync(1, stoppingToken), RunWorkerAsync(2, stoppingToken));
+        await RunWorkerAsync(stoppingToken);
     }
 
-    private async Task RunWorkerAsync(int workerNumber, CancellationToken stoppingToken)
+    private async Task RunWorkerAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 if (!await agent.ProcessNextBatchAsync(stoppingToken))
-                    await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+                    await Task.Delay(IdlePollInterval, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Фоновый worker ИИ-чек-листов {WorkerNumber} завершил итерацию с ошибкой.", workerNumber);
-                await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+                logger.LogError(exception, "Фоновый worker ИИ-чек-листов завершил итерацию с ошибкой.");
+                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
             }
         }
     }

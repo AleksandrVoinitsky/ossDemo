@@ -96,12 +96,21 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
 
     public async Task<AiChecklistBatchWork?> ClaimNextBatchAsync(CancellationToken cancellationToken)
     {
-        await using var connection = await OpenAsync(cancellationToken); await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        Guid runId; int batchIndex;
-        await using (var claim = new NpgsqlCommand("SELECT run_id,batch_index FROM app_ai_checklist_batches WHERE status='queued' ORDER BY created_at,batch_index FOR UPDATE SKIP LOCKED LIMIT 1", connection, transaction))
-        { await using var reader=await claim.ExecuteReaderAsync(cancellationToken); if(!await reader.ReadAsync(cancellationToken)){await transaction.RollbackAsync(cancellationToken);return null;} runId=reader.GetGuid(0);batchIndex=reader.GetInt32(1); }
-        await using (var update=new NpgsqlCommand("UPDATE app_ai_checklist_batches SET status='running',updated_at=now() WHERE run_id=@runId AND batch_index=@index",connection,transaction)){update.Parameters.AddWithValue("runId",runId);update.Parameters.AddWithValue("index",batchIndex);await update.ExecuteNonQueryAsync(cancellationToken);} await transaction.CommitAsync(cancellationToken);
-        var run=await GetAsync(runId,cancellationToken);var batch=run!.Batches.Single(item=>item.Index==batchIndex);return new(runId,run.Facility,batch,run.Evidence.Where(item=>batch.EvidenceIds.Contains(item.Id)).ToArray());
+        Guid? runId = null;
+        var batchIndex = 0;
+        await using (var connection = await OpenAsync(cancellationToken))
+        await using (var claim = new NpgsqlCommand("WITH next_batch AS (SELECT run_id,batch_index FROM app_ai_checklist_batches WHERE status='queued' ORDER BY created_at,batch_index FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE app_ai_checklist_batches batch SET status='running',updated_at=now() FROM next_batch WHERE batch.run_id=next_batch.run_id AND batch.batch_index=next_batch.batch_index RETURNING batch.run_id,batch.batch_index", connection))
+        await using (var reader = await claim.ExecuteReaderAsync(cancellationToken))
+        {
+            if (await reader.ReadAsync(cancellationToken))
+            {
+                runId = reader.GetGuid(0);
+                batchIndex = reader.GetInt32(1);
+            }
+        }
+        if (runId is null) return null;
+        var claimedRunId = runId.Value;
+        var run=await GetAsync(claimedRunId,cancellationToken);var batch=run!.Batches.Single(item=>item.Index==batchIndex);return new(claimedRunId,run.Facility,batch,run.Evidence.Where(item=>batch.EvidenceIds.Contains(item.Id)).ToArray());
     }
 
     public Task CompleteBatchAsync(Guid runId,int batchIndex,IReadOnlyList<AiGeneratedChecklistItem> items,long durationMs,CancellationToken ct)=>UpdateBatchAsync(runId,batchIndex,"completed",JsonSerializer.Serialize(items,JsonOptions),null,durationMs,ct);

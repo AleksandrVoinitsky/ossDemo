@@ -65,7 +65,7 @@
       root.querySelector('[data-ai-result-link]').href = `/Checklists/Result?id=${encodeURIComponent(checklist.id)}`;
       history.replaceState(null, '', `?run=${encodeURIComponent(currentRun.id)}`);
       showStep(4);
-    } catch (error) { showError('[data-ai-generation-error]', error); finalizing = false; pollTimer = setTimeout(poll, 3000); }
+    } catch (error) { showError('[data-ai-generation-error]', error); finalizing = false; pollTimer = setTimeout(poll, 5000); }
   };
   const poll = async () => {
     clearTimeout(pollTimer);
@@ -75,8 +75,8 @@
       renderRun(run);
       if (run.batches.every((item) => item.status === 'completed')) { await finish(); return; }
       const waitingForRetry = run.batches.some((item) => item.status === 'failed') && !run.batches.some((item) => ['queued', 'running'].includes(item.status));
-      if (!waitingForRetry) pollTimer = setTimeout(poll, 1500);
-    } catch (error) { showError('[data-ai-generation-error]', error); pollTimer = setTimeout(poll, 3000); }
+      if (!waitingForRetry) pollTimer = setTimeout(poll, 5000);
+    } catch (error) { showError('[data-ai-generation-error]', error); pollTimer = setTimeout(poll, 10000); }
   };
   const queueBatches = async (batches) => {
     await post(`/api/ai-checklists/runs/${encodeURIComponent(currentRun.id)}/queue`, { batchIndexes: batches.map((batch) => batch.index) });

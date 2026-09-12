@@ -2,7 +2,7 @@ using Npgsql;
 
 internal static class PostgresConnectionPolicy
 {
-    internal const int MaximumPoolSize = 6;
+    internal const int MaximumPoolSize = 3;
 
     public static string Apply(string connectionString)
     {
