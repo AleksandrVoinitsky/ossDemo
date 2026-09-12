@@ -59,5 +59,10 @@ coverage.*
 
 # Publish/deployment output
 publish/
+/.checklists-publish/
+/.verify-publish/
 *.nupkg
 *.snupkg
+
+# Local generated image source
+/Gemini_Generated_Image_d6far7d6far7d6fa.jpg
