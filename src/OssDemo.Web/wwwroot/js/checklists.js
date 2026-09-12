@@ -44,6 +44,7 @@
     badge.textContent = approved ? 'Утверждён · только чтение' : 'Черновик сохранён';
     badge.className = `badge text-bg-${approved ? 'success' : 'primary'} align-self-center`;
     document.querySelectorAll('[data-draft-only]').forEach((node) => { node.hidden = approved; });
+    if (approved) document.querySelector('[data-draft-editor]')?.setAttribute('hidden', '');
     const exports = document.querySelector('[data-export-links]');
     if (exports) exports.hidden = false;
     document.querySelector('[data-export-xlsx]')?.setAttribute('href', `/exports/checklists/${checklist.id}.xlsx`);
