@@ -18,3 +18,9 @@ internal sealed record AiGeneratedChecklistItem(
 internal sealed record AiChecklistSynthesis(
     string Name,
     IReadOnlyList<AiGeneratedChecklistItem> Items);
+
+internal sealed class AiChecklistGenerationException(string code, string message, Exception? innerException = null)
+    : Exception(message, innerException)
+{
+    public string Code { get; } = code;
+}
