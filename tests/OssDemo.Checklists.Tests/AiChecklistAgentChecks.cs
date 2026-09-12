@@ -68,6 +68,9 @@ internal static class AiChecklistAgentChecks
         var wrapped = AiChecklistOutputParser.Parse($"<think>служебное рассуждение</think>\n```json\n{json}\n```", evidence);
         AssertEqual(1, wrapped.Items.Count);
 
+        var trailing = AiChecklistOutputParser.Parse(json + "\n{\"items\":[]}", evidence);
+        AssertEqual(1, trailing.Items.Count);
+
         var invalidBeforeValid = AiChecklistOutputParser.Parse("""
             {"name":"x","items":[
               {"title":"Проверить ПЭК","citations":[{"sourceId":"S404","quote":"несуществующая цитата"}]},
@@ -163,9 +166,10 @@ internal static class AiChecklistAgentChecks
 
         var runStore = new InMemoryAiChecklistRunStore();
         var countingSearch = new FakeSearch(evidence);
-        var batchedAgent = new AiChecklistAgent(source, countingSearch, new FakeSynthesis("""
+        var countingSynthesis = new FakeSynthesis("""
             {"name":"ПЭК","items":[{"section":"ПЭК","title":"Проверить программу ПЭК","confidence":0.9,"citations":[{"sourceId":"S1","quote":"Проверить программу ПЭК"}]}]}
-            """), repository, runStore, Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance);
+            """);
+        var batchedAgent = new AiChecklistAgent(source, countingSearch, countingSynthesis, repository, runStore, Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance);
         var createdRun = await batchedAgent.CreateRunAsync("test", CancellationToken.None);
         AssertTrue(createdRun.IsSuccess, "Поиск должен создать сохраняемый запуск.");
         await runStore.QueueBatchesAsync(createdRun.Value!.Id, createdRun.Value.Batches.Select(item => item.Index).ToArray(), CancellationToken.None);
@@ -174,6 +178,7 @@ internal static class AiChecklistAgentChecks
         AssertTrue(finalized.IsSuccess, "Завершённые пакеты должны создать черновик.");
         AssertTrue(finalized.Value!.Items.Any(item => item.Basis.Contains("ФЗ-7")), "Найденные ИИ-пункты должны иметь приоритет над базовыми примерами.");
         AssertEqual(createdRun.Value.Batches.Count, countingSearch.Calls);
+        AssertEqual(createdRun.Value.Batches.Count, countingSynthesis.Calls);
 
         var failedStore = new InMemoryAiChecklistRunStore();
         var failedAgent = new AiChecklistAgent(source, new FakeSearch(evidence), new FakeSynthesis("{}"), repository, failedStore,
@@ -217,11 +222,12 @@ internal static class AiChecklistAgentChecks
         AssertEqual(longText, string.Concat(prepared.Select(item => item.Text)));
         AssertTrue(AiChecklistBatchPlanner.Build(prepared).All(batch => batch.ContextCharacters <= 9_000), "Каждый фрагмент длинного источника должен помещаться в контекст целиком.");
 
-        var sequentialSource = new AiChecklistEvidence("SEQ", "Тема", "Документ", "Раздел", new string('с', 8_000) + " КОНЕЦ", .8);
-        var units = AmveraAiChecklistSynthesisClient.BuildSequentialUnits([sequentialSource]);
-        AssertTrue(units.Count > 1, "Крупный пакет должен отправляться модели последовательными небольшими фрагментами.");
-        AssertTrue(units.All(unit => unit.Count == 1 && AmveraAiChecklistSynthesisClient.BuildContext(unit).Length <= 3_000), "Один LLM-запрос должен содержать не более 3000 символов контекста.");
-        AssertEqual(sequentialSource.Text, string.Concat(units.SelectMany(unit => unit).Select(item => item.Text)));
+        var criterionEvidence = Enumerable.Range(1, 6).Select(index =>
+            new AiChecklistEvidence($"C{index}", "Тема", $"Документ {index}", "Раздел", new string('с', 8_000), 1 - index / 10d)).ToArray();
+        var selected = AmveraAiChecklistSynthesisClient.SelectCriterionEvidence(criterionEvidence);
+        AssertTrue(selected.Count <= 3, "Один критерий должен использовать не более трёх лучших источников.");
+        AssertTrue(AmveraAiChecklistSynthesisClient.BuildContext(selected).Length <= 4_500, "Один критерий должен обрабатываться одним компактным LLM-запросом.");
+        AssertEqual("C1", selected[0].Id);
     }
 
     private sealed class FakeFacilitySource(FacilityProfile profile, OperationalFacility facility) : IAiChecklistFacilitySource
@@ -239,8 +245,10 @@ internal static class AiChecklistAgentChecks
     private sealed class FakeSynthesis(string response) : IAiChecklistSynthesisClient
     {
         public IReadOnlyList<AiChecklistEvidence>? LastEvidence { get; private set; }
+        public int Calls { get; private set; }
         public Task<string> SynthesizeAsync(FacilityProfile facility, IReadOnlyList<AiChecklistEvidence> evidence, CancellationToken cancellationToken)
         {
+            Calls++;
             LastEvidence = evidence;
             var effective = evidence.Count == 0 ? response : response.Replace("\"sourceId\":\"S1\"", $"\"sourceId\":\"{evidence[0].Id}\"", StringComparison.Ordinal);
             return Task.FromResult(effective);

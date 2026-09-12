@@ -11,7 +11,7 @@
   const post = (url, body) => request(url, { method: 'POST', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
   const panels = [...root.querySelectorAll('[data-ai-step]')];
   const stages = ['Объект', 'Карточка', 'Критерии', 'ИИ-агент', 'Черновик'];
-  const statusText = { pending: 'Ожидает запуска', queued: 'Ожидает последовательной обработки', running: 'Ищет статьи и формулирует проверку', completed: 'Обработка завершена', failed: 'Создадим пункт из классификатора' };
+  const statusText = { pending: 'Ожидает запуска', queued: 'Ожидает последовательной обработки', running: 'Ищет статьи и уточняет базовый пункт', completed: 'Пункт готов', failed: 'Базовый пункт из классификатора', skipped: 'Базовый пункт: остановлено до обработки' };
   let step = 0;
   let slug = '';
   let currentRun = null;
@@ -43,24 +43,27 @@
   const renderRun = (run) => {
     currentRun = run;
     const completed = run.batches.filter((item) => item.status === 'completed').length;
-    const active = run.batches.filter((item) => item.status === 'running' || item.status === 'queued').length;
     const failed = run.batches.filter((item) => item.status === 'failed').length;
     const empty = run.batches.filter((item) => item.status === 'completed' && item.itemCount === 0).length;
-    const terminal = run.batches.every((item) => item.status === 'completed' || item.status === 'failed');
-    const partial = terminal && (failed > 0 || empty > 0 || run.batches.length === 0);
-    const finished = completed + failed;
+    const skipped = run.batches.filter((item) => item.status === 'skipped').length;
+    const terminal = run.batches.every((item) => item.status === 'completed' || item.status === 'failed' || item.status === 'skipped');
+    const partial = terminal && (failed > 0 || empty > 0 || skipped > 0 || run.batches.length === 0);
+    const finished = completed + failed + skipped;
     const progress = run.batches.length ? Math.round((finished / run.batches.length) * 100) : 0;
     root.querySelector('[data-ai-generation-progress]').style.width = `${progress}%`;
     const current = run.batches.find((item) => item.status === 'running') || run.batches.find((item) => item.status === 'queued');
-    root.querySelector('[data-ai-generation-title]').textContent = terminal ? 'Все критерии обработаны' : current ? `${(current.criterionCodes || []).join(', ')} · ${current.section || current.topic}` : 'Критерии готовы к запуску';
-    root.querySelector('[data-ai-generation-status]').textContent = terminal ? `Готово ${completed}, с базовой формулировкой ${failed + empty}. Суммируем логически связанные проверки.` : current ? `${statusText[current.status]}. ${current.applicabilityReason || ''}` : 'Ограничений по времени нет. Критерии будут обработаны по одному.';
-    root.querySelector('[data-ai-batch-list]').innerHTML = run.batches.map((batch) => `<article class="ai-batch-card ai-batch-${escapeHtml(batch.status)}"><div class="ai-batch-card-head"><span class="ai-batch-state" aria-hidden="true"></span><strong>${escapeHtml(batch.topic)}</strong><span class="badge text-bg-light">${(batch.batchEvidence || []).length} ист.</span></div><div class="small text-muted">${escapeHtml(statusText[batch.status] || batch.status)}${batch.status === 'running' ? ` · ${formatElapsed(batch.updatedAt)}` : batch.durationMs != null ? ` · ${(batch.durationMs / 1000).toFixed(1)} сек.` : ''}</div><div class="small mt-1">${escapeHtml(batch.applicabilityReason || '')}</div>${batch.error ? `<div class="small text-danger mt-1">${escapeHtml(batch.error)}</div>` : ''}<div class="ai-batch-progress"><span></span></div></article>`).join('');
+    root.querySelector('[data-ai-generation-title]').textContent = terminal ? (run.status === 'stopped' ? 'Формирование остановлено' : 'Все критерии обработаны') : current ? `${(current.criterionCodes || []).join(', ')} · ${current.section || current.topic}` : 'Критерии готовы к запуску';
+    root.querySelector('[data-ai-generation-status]').textContent = terminal ? `ИИ уточнил ${completed - empty}, базовая формулировка используется для ${failed + empty + skipped}. Формируем полный черновик.` : run.status === 'stopping' ? 'Останавливаем после текущего критерия. Уже полученные результаты сохранятся.' : current ? `${statusText[current.status]}. ${current.applicabilityReason || ''}` : 'Ограничений по времени нет. Критерии будут обработаны по одному.';
+    root.querySelector('[data-ai-batch-list]').innerHTML = run.batches.map((batch) => `<article class="ai-batch-card ai-batch-${escapeHtml(batch.status)}"><div class="ai-batch-card-head"><span class="ai-batch-state" aria-hidden="true"></span><strong>${escapeHtml(batch.topic)}</strong><span class="badge text-bg-light">${(batch.batchEvidence || []).length} ист.</span></div><div class="small text-muted">${escapeHtml(statusText[batch.status] || batch.status)}${batch.status === 'running' ? ` · ${formatElapsed(batch.updatedAt)}` : batch.durationMs != null ? ` · ${(batch.durationMs / 1000).toFixed(1)} сек.` : ''}</div><div class="small mt-1">${escapeHtml(batch.applicabilityReason || '')}</div>${batch.error ? `<div class="small ${batch.status === 'skipped' ? 'text-muted' : 'text-danger'} mt-1">${escapeHtml(batch.error)}</div>` : ''}<div class="ai-batch-progress"><span></span></div></article>`).join('');
     root.querySelector('[data-ai-operation-log]').innerHTML = run.batches.length ? run.batches.map((batch) => `<li><b>${escapeHtml((batch.criterionCodes || []).join(', '))}:</b> ${escapeHtml(statusText[batch.status] || batch.status)}${batch.status === 'completed' ? `, источников ${(batch.batchEvidence || []).length}` : ''}.</li>`).join('') : '<li>В активной версии классификатора нет применимых критериев.</li>';
     root.querySelector('[data-ai-elapsed]').textContent = formatElapsed(run.createdAt);
     root.querySelector('[data-ai-continue]').hidden = !partial;
+    const hasActive = run.batches.some((item) => item.status === 'queued' || item.status === 'running');
+    root.querySelector('[data-ai-generate]').hidden = hasActive || terminal || run.status === 'stopping';
+    root.querySelector('[data-ai-stop]').hidden = !hasActive || terminal || run.status === 'stopping';
   };
   const finish = async (allowPartial = false) => {
-    if (finalizing || !currentRun || currentRun.batches.some((item) => item.status !== 'completed' && item.status !== 'failed')) return;
+    if (finalizing || !currentRun || currentRun.batches.some((item) => !['completed', 'failed', 'skipped'].includes(item.status))) return;
     finalizing = true;
     root.querySelector('[data-ai-generation-status]').textContent = 'Объединяем пункты, удаляем дубли и сохраняем черновик…';
     try {
@@ -79,7 +82,7 @@
     try {
       const run = await request(`/api/ai-checklists/runs/${encodeURIComponent(currentRun.id)}`);
       renderRun(run);
-      if (run.batches.every((item) => item.status === 'completed' || item.status === 'failed')) { await finish(true); return; }
+      if (run.batches.every((item) => ['completed', 'failed', 'skipped'].includes(item.status))) { await finish(true); return; }
       pollTimer = setTimeout(poll, 5000);
     } catch (error) { showError('[data-ai-generation-error]', error); pollTimer = setTimeout(poll, 10000); }
   };
@@ -114,6 +117,21 @@
     root.querySelector('[data-ai-generation-error]').hidden = true;
     try { await queueBatches(currentRun.batches.filter((item) => item.status === 'pending' || item.status === 'failed')); } catch (error) { showError('[data-ai-generation-error]', error); }
     finally { setBusy(button, false, ''); }
+  });
+  root.querySelector('[data-ai-stop]').addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    button.dataset.idleLabel = button.textContent;
+    setBusy(button, true, 'Останавливаем после текущего критерия…');
+    root.querySelector('[data-ai-generation-error]').hidden = true;
+    try {
+      await post(`/api/ai-checklists/runs/${encodeURIComponent(currentRun.id)}/stop`);
+      const run = await request(`/api/ai-checklists/runs/${encodeURIComponent(currentRun.id)}`);
+      renderRun(run);
+      poll();
+    } catch (error) {
+      showError('[data-ai-generation-error]', error);
+      setBusy(button, false, '');
+    }
   });
   root.querySelector('[data-ai-continue]').addEventListener('click', () => finish(true));
   root.querySelector('[data-ai-batch-list]').addEventListener('click', async (event) => {

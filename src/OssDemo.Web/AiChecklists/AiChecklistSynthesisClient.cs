@@ -92,6 +92,26 @@ internal sealed class AmveraAiChecklistSynthesisClient(
         return context;
     }
 
+    internal static IReadOnlyList<AiChecklistEvidence> SelectCriterionEvidence(IReadOnlyList<AiChecklistEvidence> evidence)
+    {
+        const int maxSources = 3;
+        const int maxContextLength = 4_500;
+        const int maxTextLength = 1_250;
+        var selected = new List<AiChecklistEvidence>();
+        var used = 0;
+        foreach (var item in evidence.OrderByDescending(item => item.Score).Take(maxSources))
+        {
+            var separatorLength = selected.Count == 0 ? 0 : 2;
+            var headerLength = RenderEvidence(item with { Text = string.Empty }).Length;
+            var capacity = Math.Min(maxTextLength, maxContextLength - used - separatorLength - headerLength);
+            if (capacity <= 0) continue;
+            var text = item.Text.Length <= capacity ? item.Text : item.Text[..capacity];
+            selected.Add(item with { Text = text });
+            used += separatorLength + headerLength + text.Length;
+        }
+        return selected;
+    }
+
     internal static string RenderEvidence(AiChecklistEvidence item)
     {
         var header = $"[{item.Id}] Документ: {item.DocumentTitle}\nРаздел: {item.SourceLabel}\nТема поиска: {item.QueryLabel}\nТекст: ";

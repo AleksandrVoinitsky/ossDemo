@@ -98,12 +98,39 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
         return true;
     }
 
+    public async Task<bool> StopAsync(Guid runId, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using (var lockRun = new NpgsqlCommand("SELECT status FROM app_ai_checklist_runs WHERE id=@runId AND status IN ('ready','stopping') FOR UPDATE", connection, transaction))
+        {
+            lockRun.Parameters.AddWithValue("runId", runId);
+            if (await lockRun.ExecuteScalarAsync(cancellationToken) is null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return false;
+            }
+        }
+        await using (var skip = new NpgsqlCommand("UPDATE app_ai_checklist_batches SET status='skipped',error='Остановлено пользователем.',updated_at=now() WHERE run_id=@runId AND status IN ('pending','queued')", connection, transaction))
+        {
+            skip.Parameters.AddWithValue("runId", runId);
+            await skip.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await using (var update = new NpgsqlCommand("UPDATE app_ai_checklist_runs SET status=CASE WHEN EXISTS(SELECT 1 FROM app_ai_checklist_batches WHERE run_id=@runId AND status='running') THEN 'stopping' ELSE 'stopped' END,updated_at=now() WHERE id=@runId", connection, transaction))
+        {
+            update.Parameters.AddWithValue("runId", runId);
+            await update.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
     public async Task<AiChecklistBatchWork?> ClaimNextBatchAsync(CancellationToken cancellationToken)
     {
         Guid? runId = null;
         var batchIndex = 0;
         await using (var connection = await OpenAsync(cancellationToken))
-        await using (var claim = new NpgsqlCommand("WITH next_batch AS (SELECT run_id,batch_index FROM app_ai_checklist_batches WHERE status='queued' ORDER BY created_at,batch_index FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE app_ai_checklist_batches batch SET status='running',updated_at=now() FROM next_batch WHERE batch.run_id=next_batch.run_id AND batch.batch_index=next_batch.batch_index RETURNING batch.run_id,batch.batch_index", connection))
+        await using (var claim = new NpgsqlCommand("WITH next_batch AS (SELECT batch.run_id,batch.batch_index FROM app_ai_checklist_batches batch JOIN app_ai_checklist_runs run ON run.id=batch.run_id WHERE batch.status='queued' AND run.status='ready' ORDER BY batch.created_at,batch.batch_index FOR UPDATE OF batch SKIP LOCKED LIMIT 1) UPDATE app_ai_checklist_batches batch SET status='running',updated_at=now() FROM next_batch WHERE batch.run_id=next_batch.run_id AND batch.batch_index=next_batch.batch_index RETURNING batch.run_id,batch.batch_index", connection))
         await using (var reader = await claim.ExecuteReaderAsync(cancellationToken))
         {
             if (await reader.ReadAsync(cancellationToken))
@@ -118,15 +145,15 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
     }
 
     public Task CompleteBatchAsync(Guid runId,int batchIndex,IReadOnlyList<AiGeneratedChecklistItem> items,long durationMs,CancellationToken ct)=>UpdateBatchAsync(runId,batchIndex,"completed",JsonSerializer.Serialize(items,JsonOptions),null,durationMs,ct);
-    public async Task CompleteCriterionAsync(Guid runId,int batchIndex,IReadOnlyList<AiChecklistEvidence> evidence,IReadOnlyList<AiGeneratedChecklistItem> items,long durationMs,CancellationToken ct){await using var connection=await OpenAsync(ct);await using var command=new NpgsqlCommand("UPDATE app_ai_checklist_batches SET status='completed',items=CAST(@items AS jsonb),evidence=CAST(@evidence AS jsonb),error=NULL,duration_ms=@duration,updated_at=now() WHERE run_id=@runId AND batch_index=@index",connection);command.Parameters.AddWithValue("items",JsonSerializer.Serialize(items,JsonOptions));command.Parameters.AddWithValue("evidence",JsonSerializer.Serialize(evidence,JsonOptions));command.Parameters.AddWithValue("duration",durationMs);command.Parameters.AddWithValue("runId",runId);command.Parameters.AddWithValue("index",batchIndex);await command.ExecuteNonQueryAsync(ct);}
+    public async Task CompleteCriterionAsync(Guid runId,int batchIndex,IReadOnlyList<AiChecklistEvidence> evidence,IReadOnlyList<AiGeneratedChecklistItem> items,long durationMs,CancellationToken ct){await using var connection=await OpenAsync(ct);await using var command=new NpgsqlCommand("UPDATE app_ai_checklist_batches SET status='completed',items=CAST(@items AS jsonb),evidence=CAST(@evidence AS jsonb),error=NULL,duration_ms=@duration,updated_at=now() WHERE run_id=@runId AND batch_index=@index; UPDATE app_ai_checklist_runs SET status='stopped',updated_at=now() WHERE id=@runId AND status='stopping' AND NOT EXISTS(SELECT 1 FROM app_ai_checklist_batches WHERE run_id=@runId AND status IN ('running','queued'))",connection);command.Parameters.AddWithValue("items",JsonSerializer.Serialize(items,JsonOptions));command.Parameters.AddWithValue("evidence",JsonSerializer.Serialize(evidence,JsonOptions));command.Parameters.AddWithValue("duration",durationMs);command.Parameters.AddWithValue("runId",runId);command.Parameters.AddWithValue("index",batchIndex);await command.ExecuteNonQueryAsync(ct);}
     public Task FailBatchAsync(Guid runId,int batchIndex,string error,long durationMs,CancellationToken ct)=>UpdateBatchAsync(runId,batchIndex,"failed","[]",error,durationMs,ct);
-    private async Task UpdateBatchAsync(Guid runId,int index,string status,string items,string? error,long durationMs,CancellationToken ct){await using var connection=await OpenAsync(ct);await using var command=new NpgsqlCommand("UPDATE app_ai_checklist_batches SET status=@status,items=CAST(@items AS jsonb),error=@error,duration_ms=@duration,updated_at=now() WHERE run_id=@runId AND batch_index=@index",connection);command.Parameters.AddWithValue("status",status);command.Parameters.AddWithValue("items",items);command.Parameters.AddWithValue("error",(object?)error??DBNull.Value);command.Parameters.AddWithValue("duration",durationMs);command.Parameters.AddWithValue("runId",runId);command.Parameters.AddWithValue("index",index);await command.ExecuteNonQueryAsync(ct);}
+    private async Task UpdateBatchAsync(Guid runId,int index,string status,string items,string? error,long durationMs,CancellationToken ct){await using var connection=await OpenAsync(ct);await using var command=new NpgsqlCommand("UPDATE app_ai_checklist_batches SET status=@status,items=CAST(@items AS jsonb),error=@error,duration_ms=@duration,updated_at=now() WHERE run_id=@runId AND batch_index=@index; UPDATE app_ai_checklist_runs SET status='stopped',updated_at=now() WHERE id=@runId AND status='stopping' AND NOT EXISTS(SELECT 1 FROM app_ai_checklist_batches WHERE run_id=@runId AND status IN ('running','queued'))",connection);command.Parameters.AddWithValue("status",status);command.Parameters.AddWithValue("items",items);command.Parameters.AddWithValue("error",(object?)error??DBNull.Value);command.Parameters.AddWithValue("duration",durationMs);command.Parameters.AddWithValue("runId",runId);command.Parameters.AddWithValue("index",index);await command.ExecuteNonQueryAsync(ct);}
     public async Task<bool> BeginFinalizeAsync(Guid runId, CancellationToken cancellationToken)
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         string? status;
-        await using (var lockRun = new NpgsqlCommand("SELECT status FROM app_ai_checklist_runs WHERE id=@id AND status IN ('ready','finalizing') FOR UPDATE", connection, transaction))
+        await using (var lockRun = new NpgsqlCommand("SELECT status FROM app_ai_checklist_runs WHERE id=@id AND status IN ('ready','stopped','finalizing') FOR UPDATE", connection, transaction))
         {
             lockRun.Parameters.AddWithValue("id", runId);
             status = await lockRun.ExecuteScalarAsync(cancellationToken) as string;
@@ -136,7 +163,7 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
             await transaction.RollbackAsync(cancellationToken);
             return false;
         }
-        await using (var incomplete = new NpgsqlCommand("SELECT 1 FROM app_ai_checklist_batches WHERE run_id=@id AND status NOT IN ('completed','failed') LIMIT 1", connection, transaction))
+        await using (var incomplete = new NpgsqlCommand("SELECT 1 FROM app_ai_checklist_batches WHERE run_id=@id AND status NOT IN ('completed','failed','skipped') LIMIT 1", connection, transaction))
         {
             incomplete.Parameters.AddWithValue("id", runId);
             if (await incomplete.ExecuteScalarAsync(cancellationToken) is not null)
@@ -155,6 +182,6 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
     }
     public async Task CompleteFinalizeAsync(Guid runId,Guid checklistId,CancellationToken ct){await using var connection=await OpenAsync(ct);await using var command=new NpgsqlCommand("UPDATE app_ai_checklist_runs SET status='completed',checklist_id=@checklistId,updated_at=now() WHERE id=@id",connection);command.Parameters.AddWithValue("id",runId);command.Parameters.AddWithValue("checklistId",checklistId);await command.ExecuteNonQueryAsync(ct);}
     public async Task CancelFinalizeAsync(Guid runId,string error,CancellationToken ct){await using var connection=await OpenAsync(ct);await using var command=new NpgsqlCommand("UPDATE app_ai_checklist_runs SET status='ready',updated_at=now() WHERE id=@id AND status='finalizing'",connection);command.Parameters.AddWithValue("id",runId);await command.ExecuteNonQueryAsync(ct);}
-    public async Task ResetInterruptedAsync(CancellationToken ct){await using var connection=await OpenAsync(ct);await using var command=new NpgsqlCommand("UPDATE app_ai_checklist_batches SET status='queued',updated_at=now() WHERE status='running'; UPDATE app_ai_checklist_runs SET status='ready',updated_at=now() WHERE status='finalizing' AND checklist_id IS NULL",connection);await command.ExecuteNonQueryAsync(ct);}
+    public async Task ResetInterruptedAsync(CancellationToken ct){await using var connection=await OpenAsync(ct);await using var command=new NpgsqlCommand("UPDATE app_ai_checklist_batches batch SET status=CASE WHEN run.status='stopping' THEN 'skipped' ELSE 'queued' END,error=CASE WHEN run.status='stopping' THEN 'Остановлено пользователем.' ELSE error END,updated_at=now() FROM app_ai_checklist_runs run WHERE batch.run_id=run.id AND batch.status='running'; UPDATE app_ai_checklist_runs SET status='stopped',updated_at=now() WHERE status='stopping'; UPDATE app_ai_checklist_runs SET status='ready',updated_at=now() WHERE status='finalizing' AND checklist_id IS NULL",connection);await command.ExecuteNonQueryAsync(ct);}
     private async Task<NpgsqlConnection> OpenAsync(CancellationToken ct){var connection=new NpgsqlConnection(configuration.GetConnectionString("OssDatabase")??throw new InvalidOperationException("Не задана строка подключения ConnectionStrings__OssDatabase."));await connection.OpenAsync(ct);return connection;}
 }

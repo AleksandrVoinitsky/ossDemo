@@ -52,6 +52,19 @@ internal static class AiChecklistApi
                 return Error("storage_unavailable", "База данных временно занята. Повторите постановку пакетов.", new Dictionary<string, string[]>());
             }
         });
+        group.MapPost("/runs/{runId:guid}/stop", async (Guid runId, AiChecklistAgent agent, CancellationToken ct) =>
+        {
+            try
+            {
+                return await agent.StopAsync(runId, ct)
+                    ? Results.Accepted($"/api/ai-checklists/runs/{runId}")
+                    : Results.Conflict(new { error = "Формирование уже завершено или перешло к сохранению.", code = "state_conflict" });
+            }
+            catch (Npgsql.NpgsqlException)
+            {
+                return Error("storage_unavailable", "Не удалось остановить формирование. Повторите попытку.", new Dictionary<string, string[]>());
+            }
+        });
         group.MapPost("/runs/{runId:guid}/finalize", async (Guid runId, AiChecklistAgent agent, CancellationToken ct) =>
         {
             var result = await agent.FinalizeRunAsync(runId, ct);

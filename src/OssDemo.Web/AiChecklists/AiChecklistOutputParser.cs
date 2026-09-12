@@ -83,10 +83,25 @@ internal static class AiChecklistOutputParser
         }
 
         var firstObject = trimmed.IndexOf('{');
-        var lastObject = trimmed.LastIndexOf('}');
-        return firstObject >= 0 && lastObject > firstObject
-            ? trimmed[firstObject..(lastObject + 1)]
-            : trimmed;
+        if (firstObject < 0) return trimmed;
+        var depth = 0;
+        var inString = false;
+        var escaped = false;
+        for (var index = firstObject; index < trimmed.Length; index++)
+        {
+            var character = trimmed[index];
+            if (inString)
+            {
+                if (escaped) escaped = false;
+                else if (character == '\\') escaped = true;
+                else if (character == '"') inString = false;
+                continue;
+            }
+            if (character == '"') inString = true;
+            else if (character == '{') depth++;
+            else if (character == '}' && --depth == 0) return trimmed[firstObject..(index + 1)];
+        }
+        return trimmed[firstObject..];
     }
 
     private static string Normalize(string value) => string.Join(' ', value.Split(

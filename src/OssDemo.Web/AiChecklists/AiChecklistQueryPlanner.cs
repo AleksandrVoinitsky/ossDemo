@@ -2,6 +2,7 @@ internal static class AiChecklistQueryPlanner
 {
     private const int MaxQueries = 5;
     private const int MaxQueryLength = 500;
+    private const int MaxCriterionQueryLength = 280;
 
     public static IReadOnlyList<AiChecklistSearchQuery> Build(FacilityProfile facility)
     {
@@ -31,8 +32,9 @@ internal static class AiChecklistQueryPlanner
             ? facts.Values("type", "category", "environmentalAspects", "permits")
             : facts.Values(ruleFields);
         var query = Compact(Join(
-            $"критерий {criterion.Code}", criterion.RiskText, criterion.SearchTerms,
-            string.Join(' ', criterion.SourceHints), match.MatchedValue, match.HistoryExample, string.Join(' ', context)));
+            $"критерий {criterion.Code}", match.MatchedValue, string.Join(' ', context),
+            criterion.CheckText, criterion.SearchTerms, string.Join(' ', criterion.SourceHints), match.HistoryExample));
+        if (query.Length > MaxCriterionQueryLength) query = query[..MaxCriterionQueryLength];
         return new(criterion.Code, $"{criterion.Code} · {match.Section.Title}: {criterion.CheckText}", query);
     }
 

@@ -48,6 +48,21 @@ internal static class AiChecklistRunChecks
         var criterionWork = await criterionStore.ClaimNextBatchAsync(CancellationToken.None);
         AssertEqual("3.9", criterionWork!.Batch.CriterionCodes![0]);
         AssertEqual("эксплуатация очистных сооружений КОС", criterionWork.Batch.Query);
+
+        var stopStore = new InMemoryAiChecklistRunStore();
+        var stopRun = await stopStore.CreateAsync(profile, Guid.NewGuid(), "Объект", twoEvidence, AiChecklistBatchPlanner.Build(twoEvidence), CancellationToken.None);
+        await stopStore.QueueBatchesAsync(stopRun.Id, stopRun.Batches.Select(item => item.Index).ToArray(), CancellationToken.None);
+        var runningAtStop = await stopStore.ClaimNextBatchAsync(CancellationToken.None);
+        AssertTrue(runningAtStop is not null, "Перед остановкой один пакет должен выполняться.");
+        AssertTrue(await stopStore.StopAsync(stopRun.Id, CancellationToken.None), "Активный запуск должен принимать запрос остановки.");
+        var stopping = await stopStore.GetAsync(stopRun.Id, CancellationToken.None);
+        AssertEqual("stopping", stopping!.Status);
+        AssertTrue(stopping.Batches.Where(item => item.Index != runningAtStop!.Batch.Index).All(item => item.Status == "skipped"), "Не начатые критерии должны перейти в базовые пункты.");
+        AssertTrue(await stopStore.ClaimNextBatchAsync(CancellationToken.None) is null, "После остановки новые критерии не должны запускаться.");
+        await stopStore.CompleteBatchAsync(stopRun.Id, runningAtStop!.Batch.Index, [], 250, CancellationToken.None);
+        var stopped = await stopStore.GetAsync(stopRun.Id, CancellationToken.None);
+        AssertEqual("stopped", stopped!.Status);
+        AssertTrue(await stopStore.BeginFinalizeAsync(stopRun.Id, CancellationToken.None), "Остановленный запуск должен разрешать создание черновика.");
     }
 
     private static void AssertTrue(bool value, string message = "Expected true.") { if (!value) throw new InvalidOperationException(message); }

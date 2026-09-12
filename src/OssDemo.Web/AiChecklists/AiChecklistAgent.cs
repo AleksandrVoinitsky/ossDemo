@@ -98,43 +98,46 @@ internal sealed class AiChecklistAgent(
     public Task<AiChecklistRunState?> GetRunAsync(Guid runId, CancellationToken cancellationToken) => runStore.GetAsync(runId, cancellationToken);
     public Task<bool> QueueBatchAsync(Guid runId, int batchIndex, CancellationToken cancellationToken) => runStore.QueueBatchAsync(runId, batchIndex, cancellationToken);
     public Task<bool> QueueBatchesAsync(Guid runId, IReadOnlyList<int> batchIndexes, CancellationToken cancellationToken) => runStore.QueueBatchesAsync(runId, batchIndexes, cancellationToken);
+    public Task<bool> StopAsync(Guid runId, CancellationToken cancellationToken) => runStore.StopAsync(runId, cancellationToken);
 
     public async Task<bool> ProcessNextBatchAsync(CancellationToken cancellationToken)
     {
         var work = await runStore.ClaimNextBatchAsync(cancellationToken);
         if (work is null) return false;
         var timer = System.Diagnostics.Stopwatch.StartNew();
-        var contextCharacters = work.Evidence.Sum(item => item.Text.Length);
-        logger.LogInformation("Запуск {RunId}, пакет {BatchIndex}: последовательная обработка {EvidenceCount} источников, {ContextCharacters} символов.", work.RunId, work.Batch.Index, work.Evidence.Count, contextCharacters);
+        logger.LogInformation("Запуск {RunId}, критерий {BatchIndex}: начат поиск оснований.", work.RunId, work.Batch.Index);
         try
         {
-            var generated = new List<AiGeneratedChecklistItem>();
             var evidence = work.Evidence;
             if (!string.IsNullOrWhiteSpace(work.Batch.Query))
             {
                 var found = await knowledgeSearch.SearchAsync([new(work.Batch.CriterionCodes?.FirstOrDefault() ?? $"C{work.Batch.Index}",work.Batch.Topic,work.Batch.Query)],cancellationToken);
                 evidence = found.Select((item,index)=>item with { Id=$"C{work.Batch.Index+1}-S{index+1}" }).ToArray();
             }
-            IReadOnlyList<IReadOnlyList<AiChecklistEvidence>> units;
-            if (!string.IsNullOrWhiteSpace(work.Batch.Query) && evidence.Count > 0)
+            evidence = AmveraAiChecklistSynthesisClient.SelectCriterionEvidence(evidence);
+            IReadOnlyList<AiGeneratedChecklistItem> items = [];
+            if (evidence.Count > 0)
             {
-                try { _ = AmveraAiChecklistSynthesisClient.BuildContext(evidence); units = [evidence]; }
-                catch (AiChecklistGenerationException) { units = AmveraAiChecklistSynthesisClient.BuildSequentialUnits(evidence); }
+                logger.LogInformation("Запуск {RunId}, критерий {BatchIndex}: один запрос по {EvidenceCount} лучшим источникам.", work.RunId, work.Batch.Index, evidence.Count);
+                try
+                {
+                    var raw = await synthesisClient.SynthesizeAsync(work.Facility, evidence, cancellationToken);
+                    items = AiChecklistOutputParser.Parse(raw, evidence).Items
+                        .DistinctBy(item => item.Title.Trim(), StringComparer.OrdinalIgnoreCase)
+                        .Take(1)
+                        .ToArray();
+                }
+                catch (Exception exception) when (exception is JsonException or AiChecklistGenerationException)
+                {
+                    logger.LogWarning(exception, "Запуск {RunId}, критерий {BatchIndex}: уточнение ИИ отклонено, сохранён базовый пункт классификатора.", work.RunId, work.Batch.Index);
+                }
             }
-            else units = AmveraAiChecklistSynthesisClient.BuildSequentialUnits(evidence);
-            for (var unitIndex = 0; unitIndex < units.Count; unitIndex++)
-            {
-                logger.LogInformation("Запуск {RunId}, пакет {BatchIndex}: фрагмент {UnitNumber} из {UnitCount}.", work.RunId, work.Batch.Index, unitIndex + 1, units.Count);
-                var raw = await synthesisClient.SynthesizeAsync(work.Facility, units[unitIndex], cancellationToken);
-                generated.AddRange(AiChecklistOutputParser.Parse(raw, units[unitIndex]).Items);
-            }
-            var items = generated.DistinctBy(item => item.Title.Trim(), StringComparer.OrdinalIgnoreCase).Take(20).ToArray();
             await PersistOutcomeAsync(
                 () => runStore.CompleteCriterionAsync(work.RunId, work.Batch.Index, evidence, items, timer.ElapsedMilliseconds, cancellationToken),
                 work.RunId,
                 work.Batch.Index,
                 cancellationToken);
-            logger.LogInformation("Запуск {RunId}, пакет {BatchIndex}: принято {ItemCount} пунктов за {DurationMs} мс.", work.RunId, work.Batch.Index, items.Length, timer.ElapsedMilliseconds);
+            logger.LogInformation("Запуск {RunId}, пакет {BatchIndex}: принято {ItemCount} пунктов за {DurationMs} мс.", work.RunId, work.Batch.Index, items.Count, timer.ElapsedMilliseconds);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -158,7 +161,7 @@ internal sealed class AiChecklistAgent(
             var existing = await checklists.GetChecklistAsync(checklistId, cancellationToken);
             return existing is null ? ChecklistOperationResult<ChecklistDetails>.Fail("not_found", "Созданный чек-лист не найден.") : ChecklistOperationResult<ChecklistDetails>.Success(existing);
         }
-        if (run.Batches.Any(item => item.Status is not ("completed" or "failed"))) return ChecklistOperationResult<ChecklistDetails>.Fail("state_conflict", "Дождитесь завершения активных тематических пакетов.");
+        if (run.Batches.Any(item => item.Status is not ("completed" or "failed" or "skipped"))) return ChecklistOperationResult<ChecklistDetails>.Fail("state_conflict", "Дождитесь завершения активных тематических пакетов.");
         if (!await runStore.BeginFinalizeAsync(runId, cancellationToken)) return ChecklistOperationResult<ChecklistDetails>.Fail("state_conflict", "Финализация уже выполняется.");
         try
         {

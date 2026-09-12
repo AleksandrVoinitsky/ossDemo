@@ -2373,11 +2373,12 @@ a {
 .ai-batch-state { width: .65rem; height: .65rem; border-radius: 50%; background: #9aa8b5; }
 .ai-batch-running .ai-batch-state { background: var(--primary); animation: aiAgentPulse 1.2s ease-in-out infinite; }
 .ai-batch-completed .ai-batch-state { background: var(--success); }
-.ai-batch-failed .ai-batch-state { background: var(--danger); }
+.ai-batch-failed .ai-batch-state, .ai-batch-skipped .ai-batch-state { background: var(--warning); }
 .ai-batch-progress { height: .22rem; margin: .7rem -.9rem -.9rem; overflow: hidden; background: var(--border-soft); }
 .ai-batch-progress span { display: block; width: 0; height: 100%; background: var(--primary); }
 .ai-batch-running .ai-batch-progress span { width: 45%; animation: aiAgentTravel 1.4s ease-in-out infinite; }
 .ai-batch-completed .ai-batch-progress span { width: 100%; background: var(--success); }
+.ai-batch-failed .ai-batch-progress span, .ai-batch-skipped .ai-batch-progress span { width: 100%; background: var(--warning); }
 .ai-operation-log { display: grid; gap: .35rem; padding-left: 1.25rem; color: var(--ink-muted); }
 @keyframes aiAgentPulse { 50% { opacity: .35; transform: scale(.72); } }
 @keyframes aiAgentTravel { from { transform: translateX(-110%); } to { transform: translateX(235%); } }

@@ -4,6 +4,7 @@ internal interface IAiChecklistRunStore
     Task<AiChecklistRunState?> GetAsync(Guid runId, CancellationToken cancellationToken);
     Task<bool> QueueBatchAsync(Guid runId, int batchIndex, CancellationToken cancellationToken);
     Task<bool> QueueBatchesAsync(Guid runId, IReadOnlyList<int> batchIndexes, CancellationToken cancellationToken);
+    Task<bool> StopAsync(Guid runId, CancellationToken cancellationToken);
     Task<AiChecklistBatchWork?> ClaimNextBatchAsync(CancellationToken cancellationToken);
     Task CompleteBatchAsync(Guid runId, int batchIndex, IReadOnlyList<AiGeneratedChecklistItem> items, long durationMs, CancellationToken cancellationToken);
     Task CompleteCriterionAsync(Guid runId, int batchIndex, IReadOnlyList<AiChecklistEvidence> evidence, IReadOnlyList<AiGeneratedChecklistItem> items, long durationMs, CancellationToken cancellationToken);

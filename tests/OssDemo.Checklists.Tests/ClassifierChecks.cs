@@ -33,6 +33,8 @@ internal static class ClassifierChecks
         var query = AiChecklistQueryPlanner.Build(water, facts);
         AssertTrue(query.Key == "3.9" && query.Query.Contains("КОС", StringComparison.OrdinalIgnoreCase), "Запрос должен связывать критерий с совпавшим фактом карточки.");
         AssertTrue(query.Label.Contains(water.Criterion.CheckText, StringComparison.Ordinal), "Модель должна получить формулировку выбранного критерия.");
+        AssertTrue(selected.Select(item => AiChecklistQueryPlanner.Build(item, facts)).All(item => item.Query.Length <= 280),
+            "Поиск по критерию должен получать короткий запрос без полной формулировки риска.");
     }
 
     private static void AssertEqual<T>(T expected, T actual)
