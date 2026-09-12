@@ -1,0 +1,59 @@
+@page
+@{
+    ViewData["Title"] = "ИИ-формирование чек-листа";
+    ViewData["Nav"] = "AiChecklist";
+    ViewData["Breadcrumb"] = "Чек-лист \\ ИИ-формирование";
+}
+
+<div class="page-actions mb-3">
+    <a class="btn btn-outline-primary" asp-page="/Checklists/New">Обычное формирование</a>
+    <a class="btn btn-outline-primary" asp-page="/Checklists/Archive">Шаблоны и история</a>
+</div>
+
+<section class="soft-panel checklist-wizard" data-ai-checklist-wizard>
+    <div class="wizard-progress-area">
+        <div class="d-flex flex-wrap justify-content-between gap-2">
+            <span class="badge text-bg-primary" data-ai-wizard-status>Этап 1 из 5 · Объект</span>
+            <span class="badge text-bg-warning">Эксперимент</span>
+        </div>
+        <div class="wizard-progress-line" aria-hidden="true"><div data-ai-wizard-progress></div></div>
+    </div>
+
+    <div class="wizard-panel active" data-ai-step="0">
+        <div class="wizard-panel-header"><div><h1 class="h4 section-title mb-1">Шаг 1. Выберите объект</h1><p class="muted-note mb-0">Карточка и её признаки загружаются из рабочего реестра PostgreSQL.</p></div></div>
+        <div class="wizard-card">
+            <label class="form-label" for="aiFacility">Объект проверки</label>
+            <select class="form-select form-select-lg" id="aiFacility" data-ai-facility><option value="">Загрузка объектов…</option></select>
+            <div class="alert alert-danger mt-3 mb-0" data-ai-error hidden tabindex="-1"></div>
+        </div>
+        <div class="wizard-actions"><button class="btn btn-primary btn-lg" type="button" data-ai-analyze>Проанализировать карточку</button></div>
+    </div>
+
+    <div class="wizard-panel" data-ai-step="1" hidden>
+        <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 2. Профиль для поиска</h2><p class="muted-note mb-0">Проверьте, какие поля карточки агент использует для подбора требований.</p></div></div>
+        <div class="row g-3" data-ai-profile></div>
+        <div class="alert alert-danger mt-3 mb-0" data-ai-search-error hidden tabindex="-1"></div>
+        <div class="wizard-actions"><button class="btn btn-outline-primary btn-lg" type="button" data-ai-prev>Назад</button><button class="btn btn-primary btn-lg" type="button" data-ai-search>Найти основания в базе знаний</button></div>
+    </div>
+
+    <div class="wizard-panel" data-ai-step="2" hidden>
+        <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 3. Результаты поиска</h2><p class="muted-note mb-0">Это реальные фрагменты, найденные гибридным поиском и reranker. Только они могут стать основаниями пунктов.</p></div><span class="badge text-bg-primary" data-ai-evidence-count>0 источников</span></div>
+        <div class="row g-4"><div class="col-lg-4"><div class="wizard-card h-100"><h3 class="h6 section-title">Поисковые темы</h3><div class="d-grid gap-2" data-ai-queries></div></div></div><div class="col-lg-8"><div class="ai-evidence-list" data-ai-evidence></div></div></div>
+        <div class="wizard-actions"><button class="btn btn-outline-primary btn-lg" type="button" data-ai-prev>Назад</button><button class="btn btn-primary btn-lg" type="button" data-ai-next>Перейти к формированию</button></div>
+    </div>
+
+    <div class="wizard-panel" data-ai-step="3" hidden>
+        <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 4. Сформировать проект</h2><p class="muted-note mb-0">Агент повторно читает карточку и ищет источники на сервере, затем Qwen формирует только подтверждённые пункты.</p></div></div>
+        <div class="generation-stage"><div class="generation-orbit" aria-hidden="true"><span></span><span></span><span></span></div><div><strong data-ai-generation-title>Агент готов к запуску</strong><p class="muted-note mb-2" data-ai-generation-status>Черновик появится только после успешной проверки результата.</p><div class="generation-progress"><div class="generation-progress-bar" data-ai-generation-progress></div></div></div></div>
+        <div class="alert alert-danger mt-3 mb-0" data-ai-generation-error hidden tabindex="-1"></div>
+        <div class="wizard-actions"><button class="btn btn-outline-primary btn-lg" type="button" data-ai-prev>Назад</button><button class="btn btn-primary btn-lg" type="button" data-ai-generate>Сформировать ИИ-чек-лист</button></div>
+    </div>
+
+    <div class="wizard-panel" data-ai-step="4" hidden>
+        <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 5. Проект сохранён</h2><p class="muted-note mb-0">Дальше работает обычный цикл: редактирование, заполнение результатов, утверждение, история и экспорт.</p></div><span class="badge text-bg-success">Черновик</span></div>
+        <div class="wizard-card"><table class="table compact-detail-table mb-0"><tbody><tr><th>Название</th><td data-ai-result-name>—</td></tr><tr><th>Объект</th><td data-ai-result-facility>—</td></tr><tr><th>Пунктов</th><td data-ai-result-count>—</td></tr><tr><th>Источник</th><td>ИИ + база знаний</td></tr></tbody></table></div>
+        <div class="wizard-actions"><a class="btn btn-success btn-lg" data-ai-result-link>Открыть интерактивный чек-лист</a></div>
+    </div>
+</section>
+
+@section Scripts { <script src="~/js/ai-checklists.js" asp-append-version="true"></script> }

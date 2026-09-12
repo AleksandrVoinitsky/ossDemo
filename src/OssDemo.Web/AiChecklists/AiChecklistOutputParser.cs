@@ -64,11 +64,18 @@ internal static class AiChecklistOutputParser
     private static string RemoveCodeFence(string value)
     {
         var trimmed = value.Trim();
-        if (!trimmed.StartsWith("```", StringComparison.Ordinal)) return trimmed;
-        var firstLineEnd = trimmed.IndexOf('\n');
-        var lastFence = trimmed.LastIndexOf("```", StringComparison.Ordinal);
-        return firstLineEnd >= 0 && lastFence > firstLineEnd
-            ? trimmed[(firstLineEnd + 1)..lastFence].Trim()
+        if (trimmed.StartsWith("```", StringComparison.Ordinal))
+        {
+            var firstLineEnd = trimmed.IndexOf('\n');
+            var lastFence = trimmed.LastIndexOf("```", StringComparison.Ordinal);
+            if (firstLineEnd >= 0 && lastFence > firstLineEnd)
+                trimmed = trimmed[(firstLineEnd + 1)..lastFence].Trim();
+        }
+
+        var firstObject = trimmed.IndexOf('{');
+        var lastObject = trimmed.LastIndexOf('}');
+        return firstObject >= 0 && lastObject > firstObject
+            ? trimmed[firstObject..(lastObject + 1)]
             : trimmed;
     }
 

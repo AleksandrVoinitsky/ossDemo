@@ -2349,6 +2349,23 @@ a {
   gap: .65rem;
 }
 
+.ai-evidence-list {
+  display: grid;
+  gap: .75rem;
+  max-height: 38rem;
+  overflow: auto;
+}
+
+.ai-evidence-card p,
+.ai-profile-value {
+  white-space: pre-line;
+}
+
+.ai-evidence-card p {
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+
 .empty-live-state {
   padding: 1rem;
   border: 1px dashed var(--border);
