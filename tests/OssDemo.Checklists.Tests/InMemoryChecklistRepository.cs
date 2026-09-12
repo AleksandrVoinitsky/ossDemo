@@ -2,6 +2,7 @@ internal sealed class InMemoryChecklistRepository : IChecklistRepository
 {
     private readonly Dictionary<Guid, ChecklistTemplateDetails> templates = [];
     private readonly Dictionary<Guid, ChecklistDetails> checklists = [];
+    private readonly Dictionary<Guid, Guid> aiRuns = [];
 
     public Task<IReadOnlyList<ChecklistTemplateSummary>> ListTemplatesAsync(CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<ChecklistTemplateSummary>>(templates.Values.Select(ToSummary).ToArray());
@@ -49,6 +50,8 @@ internal sealed class InMemoryChecklistRepository : IChecklistRepository
 
     public Task<ChecklistOperationResult<ChecklistDetails>> CreateAiDraftAsync(CreateAiChecklistDraftRequest request, CancellationToken cancellationToken)
     {
+        if (request.RunId is { } runId && aiRuns.TryGetValue(runId, out var existingId))
+            return Task.FromResult(ChecklistOperationResult<ChecklistDetails>.Success(Clone(checklists[existingId])));
         if (request.FacilityId == Guid.Empty || request.Items.Count == 0)
             return Task.FromResult(FailChecklist("validation", "Нет подтверждённых пунктов."));
         var now = DateTimeOffset.UtcNow;
@@ -57,6 +60,7 @@ internal sealed class InMemoryChecklistRepository : IChecklistRepository
         var checklist = new ChecklistDetails(Guid.NewGuid(), request.Name, request.FacilityId, request.FacilityName,
             null, "ИИ · карточка объекта", "draft", null, null, now, now, null, null, items);
         checklists[checklist.Id] = checklist;
+        if (request.RunId is { } createdRunId) aiRuns[createdRunId] = checklist.Id;
         return Task.FromResult(ChecklistOperationResult<ChecklistDetails>.Success(Clone(checklist)));
     }
 

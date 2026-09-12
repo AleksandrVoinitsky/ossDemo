@@ -92,6 +92,12 @@ internal static class AiChecklistAgentChecks
         AssertEqual("ИИ · карточка объекта", result.Value.TemplateName);
         AssertEqual("ai", result.Value.Items[0].Origin);
         AssertEqual<Guid?>(null, result.Value.TemplateId);
+        var runId = Guid.NewGuid();
+        var idempotentRequest = new CreateAiChecklistDraftRequest(facilityId, "Березниковское ЛПУМГ", "ИИ-проверка",
+            [new("ПЭК", "Проверить программу ПЭК", "ФЗ-7", "Источник S1")], runId);
+        var first = await repository.CreateAiDraftAsync(idempotentRequest, CancellationToken.None);
+        var second = await repository.CreateAiDraftAsync(idempotentRequest, CancellationToken.None);
+        AssertEqual(first.Value!.Id, second.Value!.Id);
     }
 
     public static async Task RunOrchestrationChecksAsync()

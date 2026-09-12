@@ -151,14 +151,23 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
 
         var id = Guid.NewGuid();
         var name = string.IsNullOrWhiteSpace(request.Name) ? $"ИИ-чек-лист — {request.FacilityName}" : request.Name.Trim();
-        await using (var insert = new NpgsqlCommand("INSERT INTO app_checklists (id,name,facility_id,facility_name,template_id,template_name,status) VALUES (@id,@name,@facilityId,@facility,NULL,@templateName,'draft')", connection, transaction))
+        await using (var insert = new NpgsqlCommand("INSERT INTO app_checklists (id,name,facility_id,facility_name,template_id,template_name,status,ai_run_id) VALUES (@id,@name,@facilityId,@facility,NULL,@templateName,'draft',@runId) ON CONFLICT (ai_run_id) WHERE ai_run_id IS NOT NULL DO NOTHING", connection, transaction))
         {
             insert.Parameters.AddWithValue("id", id);
             insert.Parameters.AddWithValue("name", name);
             insert.Parameters.AddWithValue("facilityId", request.FacilityId);
             insert.Parameters.AddWithValue("facility", request.FacilityName);
             insert.Parameters.AddWithValue("templateName", "ИИ · карточка объекта");
-            await insert.ExecuteNonQueryAsync(cancellationToken);
+            AddNullableUuid(insert, "runId", request.RunId);
+            if (await insert.ExecuteNonQueryAsync(cancellationToken) == 0 && request.RunId is { } existingRunId)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                await using var existingConnection = await OpenAsync(cancellationToken);
+                await using var existing = new NpgsqlCommand("SELECT id FROM app_checklists WHERE ai_run_id=@runId", existingConnection);
+                existing.Parameters.AddWithValue("runId", existingRunId);
+                var existingId = (Guid)(await existing.ExecuteScalarAsync(cancellationToken) ?? throw new InvalidOperationException("Не найден идемпотентный ИИ-чек-лист."));
+                return ChecklistOperationResult<ChecklistDetails>.Success((await GetChecklistAsync(existingId, cancellationToken))!);
+            }
         }
 
         for (var index = 0; index < request.Items.Count; index++)

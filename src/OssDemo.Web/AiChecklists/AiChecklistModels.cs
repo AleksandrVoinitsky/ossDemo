@@ -74,7 +74,8 @@ internal sealed record CreateAiChecklistDraftRequest(
     Guid FacilityId,
     string FacilityName,
     string Name,
-    IReadOnlyList<AiGeneratedDraftItem> Items);
+    IReadOnlyList<AiGeneratedDraftItem> Items,
+    Guid? RunId = null);
 
 internal sealed record AiChecklistSynthesisProfile(
     string ShortName,

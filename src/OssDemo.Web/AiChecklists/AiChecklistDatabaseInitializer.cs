@@ -24,6 +24,8 @@ internal sealed class AiChecklistDatabaseInitializer(IConfiguration configuratio
                 PRIMARY KEY (run_id,batch_index),
                 CONSTRAINT app_ai_checklist_batches_status CHECK (status IN ('pending','queued','running','completed','failed')));
             CREATE INDEX IF NOT EXISTS ix_ai_checklist_batches_queue ON app_ai_checklist_batches(status,created_at);
+            ALTER TABLE app_checklists ADD COLUMN IF NOT EXISTS ai_run_id uuid NULL;
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_app_checklists_ai_run_id ON app_checklists(ai_run_id) WHERE ai_run_id IS NOT NULL;
             """, connection);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }

@@ -54,7 +54,7 @@ internal sealed class AmveraAiChecklistSynthesisClient(
 
         try
         {
-            var response = await httpClientFactory.CreateClient("AmveraInference").SendAsync(request, cancellationToken);
+            var response = await httpClientFactory.CreateClient("AmveraChecklistInference").SendAsync(request, cancellationToken);
             var payload = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
             {

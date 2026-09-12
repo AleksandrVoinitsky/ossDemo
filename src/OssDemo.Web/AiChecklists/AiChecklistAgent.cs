@@ -125,7 +125,7 @@ internal sealed class AiChecklistAgent(
         {
             var items = run.Batches.SelectMany(batch => batch.Items).DistinctBy(item => item.Title.Trim(), StringComparer.OrdinalIgnoreCase).Take(100).ToArray();
             if (items.Length == 0) throw new AiChecklistGenerationException("ai_invalid_response", "ИИ не сформировал подтверждённых пунктов.");
-            var result = await checklists.CreateAiDraftAsync(new(run.FacilityId, run.FacilityName, $"ИИ-чек-лист — {run.FacilityName}", ToDraftItems(items, run.Evidence)), cancellationToken);
+            var result = await checklists.CreateAiDraftAsync(new(run.FacilityId, run.FacilityName, $"ИИ-чек-лист — {run.FacilityName}", ToDraftItems(items, run.Evidence), runId), cancellationToken);
             if (!result.IsSuccess) { await runStore.CancelFinalizeAsync(runId, result.Error ?? "Ошибка сохранения.", cancellationToken); return result; }
             await runStore.CompleteFinalizeAsync(runId, result.Value!.Id, cancellationToken);
             return result;

@@ -27,6 +27,11 @@ builder.Services.AddRazorPages();
 builder.Services.AddHttpClient("AmveraInference", client =>
 {
     client.BaseAddress = new Uri("https://inference.waw0.amvera.ru/v1/");
+    client.Timeout = TimeSpan.FromSeconds(60);
+});
+builder.Services.AddHttpClient("AmveraChecklistInference", client =>
+{
+    client.BaseAddress = new Uri("https://inference.waw0.amvera.ru/v1/");
     client.Timeout = Timeout.InfiniteTimeSpan;
 });
 builder.Services.AddSingleton<IVectorStore>(serviceProvider =>
