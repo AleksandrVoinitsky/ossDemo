@@ -46,7 +46,11 @@ internal sealed record AiChecklistBatchState(
     string? Query = null,
     string? FallbackTitle = null,
     string? Section = null,
-    IReadOnlyList<AiChecklistEvidence>? BatchEvidence = null);
+    IReadOnlyList<AiChecklistEvidence>? BatchEvidence = null,
+    string Stage = "waiting",
+    string StageMessage = "Ожидает запуска",
+    int FoundSourceCount = 0,
+    string DraftOutput = "");
 
 internal sealed record AiChecklistRunState(
     Guid Id,

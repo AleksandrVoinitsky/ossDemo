@@ -12,6 +12,9 @@ internal static class AiChecklistAgentChecks
         AssertEqual(409, AiChecklistApi.StatusCode("state_conflict"));
         AssertTrue(AmveraAiChecklistSynthesisClient.TryReadContent("{\"choices\":[{\"message\":{\"content\":\"{}\"}}]}", out var content) && content == "{}", "Должен читаться стандартный ответ Amvera.");
         AssertTrue(!AmveraAiChecklistSynthesisClient.TryReadContent("{\"choices\":[]}", out _), "Пустой choices должен обрабатываться без исключения.");
+        AssertTrue(AmveraAiChecklistSynthesisClient.TryReadDelta("data: {\"choices\":[{\"delta\":{\"content\":\"Проверить\"}}]}", out var delta) && delta == "Проверить",
+            "Потоковый ответ модели должен отдаваться в интерфейс без скрытия.");
+        AssertTrue(!AmveraAiChecklistSynthesisClient.TryReadDelta("data: [DONE]", out _), "Служебное завершение потока не является текстом модели.");
         var contextEvidence = Enumerable.Range(1, 5).Select(index => new AiChecklistEvidence($"S{index}", "Тема", "Документ", "Раздел", new string('я', 3_000), .8)).ToArray();
         var firstContextBatch = AiChecklistBatchPlanner.Build(contextEvidence)[0];
         var boundedContext = AmveraAiChecklistSynthesisClient.BuildContext(contextEvidence.Where(item => firstContextBatch.EvidenceIds.Contains(item.Id)).ToArray());

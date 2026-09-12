@@ -119,9 +119,21 @@ internal sealed class AiChecklistAgent(
             if (evidence.Count > 0)
             {
                 logger.LogInformation("Запуск {RunId}, критерий {BatchIndex}: один запрос по {EvidenceCount} лучшим источникам.", work.RunId, work.Batch.Index, evidence.Count);
+                await runStore.UpdateProgressAsync(work.RunId, work.Batch.Index, "generating", $"Найдено источников: {evidence.Count}. Модель формирует рабочий ответ", evidence.Count, string.Empty, cancellationToken);
+                var streamed = new System.Text.StringBuilder();
+                var savedLength = 0;
+                var lastFlush = System.Diagnostics.Stopwatch.StartNew();
                 try
                 {
-                    var raw = await synthesisClient.SynthesizeAsync(work.Facility, evidence, cancellationToken);
+                    var raw = await synthesisClient.SynthesizeStreamingAsync(work.Facility, evidence, async (delta, ct) =>
+                    {
+                        streamed.Append(delta);
+                        if (streamed.Length - savedLength < 240 && lastFlush.Elapsed < TimeSpan.FromSeconds(1.5)) return;
+                        savedLength = streamed.Length;
+                        lastFlush.Restart();
+                        await runStore.UpdateProgressAsync(work.RunId, work.Batch.Index, "generating", "Модель пишет рабочий ответ", evidence.Count, streamed.ToString(), ct);
+                    }, cancellationToken);
+                    await runStore.UpdateProgressAsync(work.RunId, work.Batch.Index, "validating", "Ответ получен. Проверяем формат и цитаты", evidence.Count, raw, cancellationToken);
                     items = AiChecklistOutputParser.Parse(raw, evidence).Items
                         .DistinctBy(item => item.Title.Trim(), StringComparer.OrdinalIgnoreCase)
                         .Take(1)
@@ -129,8 +141,13 @@ internal sealed class AiChecklistAgent(
                 }
                 catch (Exception exception) when (exception is JsonException or AiChecklistGenerationException)
                 {
+                    await runStore.UpdateProgressAsync(work.RunId, work.Batch.Index, "fallback", "Ответ не прошёл проверку. Используем базовый пункт классификатора", evidence.Count, streamed.ToString(), cancellationToken);
                     logger.LogWarning(exception, "Запуск {RunId}, критерий {BatchIndex}: уточнение ИИ отклонено, сохранён базовый пункт классификатора.", work.RunId, work.Batch.Index);
                 }
+            }
+            else
+            {
+                await runStore.UpdateProgressAsync(work.RunId, work.Batch.Index, "fallback", "Источники не найдены. Используем базовый пункт классификатора", 0, string.Empty, cancellationToken);
             }
             await PersistOutcomeAsync(
                 () => runStore.CompleteCriterionAsync(work.RunId, work.Batch.Index, evidence, items, timer.ElapsedMilliseconds, cancellationToken),

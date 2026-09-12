@@ -8,6 +8,13 @@ internal interface IAiChecklistSynthesisClient
         FacilityProfile facility,
         IReadOnlyList<AiChecklistEvidence> evidence,
         CancellationToken cancellationToken);
+
+    async Task<string> SynthesizeStreamingAsync(
+        FacilityProfile facility,
+        IReadOnlyList<AiChecklistEvidence> evidence,
+        Func<string, CancellationToken, Task> onDelta,
+        CancellationToken cancellationToken) =>
+        await SynthesizeAsync(facility, evidence, cancellationToken);
 }
 
 internal sealed class AmveraAiChecklistSynthesisClient(
@@ -29,6 +36,20 @@ internal sealed class AmveraAiChecklistSynthesisClient(
     public async Task<string> SynthesizeAsync(
         FacilityProfile facility,
         IReadOnlyList<AiChecklistEvidence> evidence,
+        CancellationToken cancellationToken) =>
+        await SynthesizeCoreAsync(facility, evidence, null, cancellationToken);
+
+    public async Task<string> SynthesizeStreamingAsync(
+        FacilityProfile facility,
+        IReadOnlyList<AiChecklistEvidence> evidence,
+        Func<string, CancellationToken, Task> onDelta,
+        CancellationToken cancellationToken) =>
+        await SynthesizeCoreAsync(facility, evidence, onDelta, cancellationToken);
+
+    private async Task<string> SynthesizeCoreAsync(
+        FacilityProfile facility,
+        IReadOnlyList<AiChecklistEvidence> evidence,
+        Func<string, CancellationToken, Task>? onDelta,
         CancellationToken cancellationToken)
     {
         if (evidence.Count == 0)
@@ -50,24 +71,44 @@ internal sealed class AmveraAiChecklistSynthesisClient(
                 messages = new[] { new { role = "system", content = SystemPrompt }, new { role = "user", content = user } },
                 temperature = 0.1,
                 max_tokens = 1_200,
-                stream = false
+                stream = onDelta is not null
             })
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         try
         {
-            var response = await httpClientFactory.CreateClient("AmveraChecklistInference").SendAsync(request, cancellationToken);
-            var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+            using var response = await httpClientFactory.CreateClient("AmveraChecklistInference").SendAsync(
+                request,
+                onDelta is null ? HttpCompletionOption.ResponseContentRead : HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
+                var payload = await response.Content.ReadAsStringAsync(cancellationToken);
                 logger.LogError("ИИ-формирование чек-листа вернуло HTTP {StatusCode}: {Payload}", (int)response.StatusCode, Limit(payload, 1000));
                 throw new AiChecklistGenerationException("ai_unavailable", $"Сервис ИИ вернул HTTP {(int)response.StatusCode}.");
             }
 
-            return TryReadContent(payload, out var content)
-                ? content!
-                : throw new AiChecklistGenerationException("ai_invalid_response", "Сервис ИИ вернул некорректный результат.");
+            if (onDelta is null)
+            {
+                var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+                return TryReadContent(payload, out var content)
+                    ? content!
+                    : throw new AiChecklistGenerationException("ai_invalid_response", "Сервис ИИ вернул некорректный результат.");
+            }
+
+            var result = new System.Text.StringBuilder();
+            await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var reader = new StreamReader(contentStream, System.Text.Encoding.UTF8);
+            while (await reader.ReadLineAsync(cancellationToken) is { } line)
+            {
+                if (!TryReadDelta(line, out var delta)) continue;
+                result.Append(delta);
+                await onDelta(delta!, cancellationToken);
+            }
+            return result.Length > 0
+                ? result.ToString()
+                : throw new AiChecklistGenerationException("ai_invalid_response", "Сервис ИИ не вернул текст результата.");
         }
         catch (AiChecklistGenerationException)
         {
@@ -158,6 +199,32 @@ internal sealed class AmveraAiChecklistSynthesisClient(
             return true;
         }
         content = null;
+        return false;
+    }
+
+    internal static bool TryReadDelta(string line, out string? content)
+    {
+        content = null;
+        if (!line.StartsWith("data: ", StringComparison.Ordinal) || line.AsSpan(6).SequenceEqual("[DONE]")) return false;
+        try
+        {
+            using var chunk = JsonDocument.Parse(line[6..]);
+            if (chunk.RootElement.TryGetProperty("choices", out var choices)
+                && choices.ValueKind == JsonValueKind.Array
+                && choices.GetArrayLength() > 0
+                && choices[0].TryGetProperty("delta", out var delta)
+                && delta.TryGetProperty("content", out var value)
+                && value.ValueKind == JsonValueKind.String
+                && !string.IsNullOrEmpty(value.GetString()))
+            {
+                content = value.GetString();
+                return true;
+            }
+        }
+        catch (JsonException)
+        {
+            // Неполные служебные события провайдера пропускаются, как и в обычном чате.
+        }
         return false;
     }
 }

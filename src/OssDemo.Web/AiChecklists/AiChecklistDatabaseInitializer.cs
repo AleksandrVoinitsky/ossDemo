@@ -30,6 +30,28 @@ internal sealed class AiChecklistDatabaseInitializer(IConfiguration configuratio
             ALTER TABLE app_ai_checklist_batches ADD COLUMN IF NOT EXISTS fallback_title text NULL;
             ALTER TABLE app_ai_checklist_batches ADD COLUMN IF NOT EXISTS classifier_section text NULL;
             ALTER TABLE app_ai_checklist_batches ADD COLUMN IF NOT EXISTS evidence jsonb NOT NULL DEFAULT '[]'::jsonb;
+            ALTER TABLE app_ai_checklist_batches ADD COLUMN IF NOT EXISTS stage text NOT NULL DEFAULT 'waiting';
+            ALTER TABLE app_ai_checklist_batches ADD COLUMN IF NOT EXISTS stage_message text NOT NULL DEFAULT 'Ожидает запуска';
+            ALTER TABLE app_ai_checklist_batches ADD COLUMN IF NOT EXISTS found_source_count integer NOT NULL DEFAULT 0;
+            ALTER TABLE app_ai_checklist_batches ADD COLUMN IF NOT EXISTS draft_output text NOT NULL DEFAULT '';
+            UPDATE app_ai_checklist_batches SET
+                stage=CASE
+                    WHEN status='completed' AND jsonb_array_length(items)>0 THEN 'completed_ai'
+                    WHEN status='completed' THEN 'completed_base'
+                    WHEN status='failed' THEN 'failed'
+                    WHEN status='skipped' THEN 'skipped'
+                    WHEN status='queued' THEN 'queued'
+                    WHEN status='running' THEN 'searching'
+                    ELSE stage END,
+                stage_message=CASE
+                    WHEN status='completed' AND jsonb_array_length(items)>0 THEN 'ИИ-формулировка проверена и сохранена'
+                    WHEN status='completed' THEN 'Сохранён базовый пункт классификатора'
+                    WHEN status='failed' THEN 'Не удалось выполнить обработку; будет использован базовый пункт'
+                    WHEN status='skipped' THEN 'Остановлено до начала обработки'
+                    WHEN status='queued' THEN 'Ожидает последовательной обработки'
+                    WHEN status='running' THEN 'Ищем основания в базе знаний'
+                    ELSE stage_message END
+            WHERE stage='waiting' AND status<>'pending';
             ALTER TABLE app_ai_checklist_runs DROP CONSTRAINT IF EXISTS app_ai_checklist_runs_status;
             ALTER TABLE app_ai_checklist_runs ADD CONSTRAINT app_ai_checklist_runs_status CHECK (status IN ('ready','stopping','stopped','finalizing','completed'));
             ALTER TABLE app_ai_checklist_batches DROP CONSTRAINT IF EXISTS app_ai_checklist_batches_status;

@@ -63,6 +63,27 @@ internal static class AiChecklistRunChecks
         var stopped = await stopStore.GetAsync(stopRun.Id, CancellationToken.None);
         AssertEqual("stopped", stopped!.Status);
         AssertTrue(await stopStore.BeginFinalizeAsync(stopRun.Id, CancellationToken.None), "Остановленный запуск должен разрешать создание черновика.");
+
+        var progressStore = new InMemoryAiChecklistRunStore();
+        var progressRun = await progressStore.CreateAsync(profile, Guid.NewGuid(), "Объект", [], [criterionPlan], CancellationToken.None);
+        await progressStore.QueueBatchAsync(progressRun.Id, 0, CancellationToken.None);
+        await progressStore.ClaimNextBatchAsync(CancellationToken.None);
+        await progressStore.UpdateProgressAsync(progressRun.Id, 0, "generating", "ИИ формирует проверку", 3, "{\"title\":\"Проверить", CancellationToken.None);
+        var progress = (await progressStore.GetAsync(progressRun.Id, CancellationToken.None))!.Batches[0];
+        AssertEqual("generating", progress.Stage);
+        AssertEqual(3, progress.FoundSourceCount);
+        AssertTrue(progress.DraftOutput.Contains("Проверить"), "Черновой поток модели должен сохраняться для интерфейса.");
+
+        var fairStore = new InMemoryAiChecklistRunStore();
+        var firstRun = await fairStore.CreateAsync(profile, Guid.NewGuid(), "Первый", twoEvidence, AiChecklistBatchPlanner.Build(twoEvidence), CancellationToken.None);
+        await Task.Delay(5);
+        var secondRun = await fairStore.CreateAsync(profile, Guid.NewGuid(), "Второй", evidence, AiChecklistBatchPlanner.Build(evidence), CancellationToken.None);
+        await fairStore.QueueBatchesAsync(firstRun.Id, firstRun.Batches.Select(item => item.Index).ToArray(), CancellationToken.None);
+        await fairStore.QueueBatchesAsync(secondRun.Id, secondRun.Batches.Select(item => item.Index).ToArray(), CancellationToken.None);
+        var firstClaim = await fairStore.ClaimNextBatchAsync(CancellationToken.None);
+        await fairStore.CompleteBatchAsync(firstClaim!.RunId, firstClaim.Batch.Index, [], 10, CancellationToken.None);
+        var secondClaim = await fairStore.ClaimNextBatchAsync(CancellationToken.None);
+        AssertEqual(secondRun.Id, secondClaim!.RunId);
     }
 
     private static void AssertTrue(bool value, string message = "Expected true.") { if (!value) throw new InvalidOperationException(message); }

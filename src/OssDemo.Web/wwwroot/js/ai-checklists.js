@@ -40,6 +40,19 @@
     const seconds = Math.max(0, Math.floor((Date.now() - new Date(from).getTime()) / 1000));
     return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
   };
+  const renderLiveProcess = (batch) => {
+    const steps = [
+      ['queued', 'Очередь', 'Ожидаем свободный последовательный worker'],
+      ['searching', 'Поиск по базе знаний', 'Подбираем статьи и исторические основания'],
+      ['sources', 'Отбор источников', batch ? `Выбрано лучших источников: ${batch.foundSourceCount || 0}` : 'Ожидает поиска'],
+      ['generating', 'Формирование пункта', 'Показываем фактический поток ответа модели'],
+      ['validating', 'Проверка результата', 'Проверяем JSON, точные цитаты и связь с требованием'],
+      ['saved', 'Сохранение', 'Фиксируем ИИ-уточнение или базовый пункт классификатора']
+    ];
+    const ranks = { waiting: -1, queued: 0, searching: 1, generating: 3, validating: 4, fallback: 5, completed_ai: 5, completed_base: 5, failed: 5, skipped: 5 };
+    const rank = ranks[batch?.stage] ?? (batch?.status === 'completed' ? 5 : -1);
+    root.querySelector('[data-ai-stage-list]').innerHTML = steps.map(([key, label, detail], index) => `<li class="${index < rank || rank === 5 ? 'done' : index === rank ? 'active' : ''}"><strong>${escapeHtml(label)}</strong><small>${escapeHtml(index === rank && batch?.stageMessage ? batch.stageMessage : detail)}</small></li>`).join('');
+  };
   const renderRun = (run) => {
     currentRun = run;
     const completed = run.batches.filter((item) => item.status === 'completed').length;
@@ -49,13 +62,39 @@
     const terminal = run.batches.every((item) => item.status === 'completed' || item.status === 'failed' || item.status === 'skipped');
     const partial = terminal && (failed > 0 || empty > 0 || skipped > 0 || run.batches.length === 0);
     const finished = completed + failed + skipped;
+    const aiSuccess = run.batches.filter((item) => item.status === 'completed' && item.itemCount > 0).length;
+    const baseCount = run.batches.filter((item) => item.status === 'failed' || item.status === 'skipped' || item.status === 'completed' && item.itemCount === 0).length;
     const progress = run.batches.length ? Math.round((finished / run.batches.length) * 100) : 0;
     root.querySelector('[data-ai-generation-progress]').style.width = `${progress}%`;
     const current = run.batches.find((item) => item.status === 'running') || run.batches.find((item) => item.status === 'queued');
+    const latest = [...run.batches].filter((item) => ['completed', 'failed', 'skipped'].includes(item.status)).sort((left, right) => new Date(right.updatedAt) - new Date(left.updatedAt))[0];
+    const focus = run.batches.find((item) => item.status === 'running') || current || latest || run.batches[0];
     root.querySelector('[data-ai-generation-title]').textContent = terminal ? (run.status === 'stopped' ? 'Формирование остановлено' : 'Все критерии обработаны') : current ? `${(current.criterionCodes || []).join(', ')} · ${current.section || current.topic}` : 'Критерии готовы к запуску';
     root.querySelector('[data-ai-generation-status]').textContent = terminal ? `ИИ уточнил ${completed - empty}, базовая формулировка используется для ${failed + empty + skipped}. Формируем полный черновик.` : run.status === 'stopping' ? 'Останавливаем после текущего критерия. Уже полученные результаты сохранятся.' : current ? `${statusText[current.status]}. ${current.applicabilityReason || ''}` : 'Ограничений по времени нет. Критерии будут обработаны по одному.';
-    root.querySelector('[data-ai-batch-list]').innerHTML = run.batches.map((batch) => `<article class="ai-batch-card ai-batch-${escapeHtml(batch.status)}"><div class="ai-batch-card-head"><span class="ai-batch-state" aria-hidden="true"></span><strong>${escapeHtml(batch.topic)}</strong><span class="badge text-bg-light">${(batch.batchEvidence || []).length} ист.</span></div><div class="small text-muted">${escapeHtml(statusText[batch.status] || batch.status)}${batch.status === 'running' ? ` · ${formatElapsed(batch.updatedAt)}` : batch.durationMs != null ? ` · ${(batch.durationMs / 1000).toFixed(1)} сек.` : ''}</div><div class="small mt-1">${escapeHtml(batch.applicabilityReason || '')}</div>${batch.error ? `<div class="small ${batch.status === 'skipped' ? 'text-muted' : 'text-danger'} mt-1">${escapeHtml(batch.error)}</div>` : ''}<div class="ai-batch-progress"><span></span></div></article>`).join('');
-    root.querySelector('[data-ai-operation-log]').innerHTML = run.batches.length ? run.batches.map((batch) => `<li><b>${escapeHtml((batch.criterionCodes || []).join(', '))}:</b> ${escapeHtml(statusText[batch.status] || batch.status)}${batch.status === 'completed' ? `, источников ${(batch.batchEvidence || []).length}` : ''}.</li>`).join('') : '<li>В активной версии классификатора нет применимых критериев.</li>';
+    root.querySelector('[data-ai-total-progress]').textContent = `${finished} из ${run.batches.length} · ${progress}%`;
+    root.querySelector('[data-ai-success-count]').textContent = aiSuccess;
+    root.querySelector('[data-ai-base-count]').textContent = baseCount;
+    root.querySelector('[data-ai-remaining-count]').textContent = Math.max(0, run.batches.length - finished);
+    root.querySelector('[data-ai-current-code]').textContent = (focus?.criterionCodes || []).join(', ') || '—';
+    root.querySelector('[data-ai-current-criterion]').textContent = focus?.section || focus?.topic || 'Ожидает запуска';
+    root.querySelector('[data-ai-current-base]').textContent = focus?.fallbackTitle || 'После запуска здесь появится базовая формулировка из классификатора.';
+    renderLiveProcess(focus);
+    const stream = root.querySelector('[data-ai-stream-output]');
+    const isStreaming = focus?.status === 'running' && focus?.stage === 'generating';
+    stream.classList.toggle('live', isStreaming);
+    stream.textContent = focus?.draftOutput || (isStreaming ? 'Соединение установлено. Ожидаем первые фрагменты ответа…' : focus?.stageMessage || 'Ответ появится здесь по мере поступления от модели.');
+    root.querySelector('[data-ai-stream-indicator]').textContent = isStreaming ? 'Ответ поступает' : focus?.stage === 'validating' ? 'Проверка' : focus?.status === 'completed' ? 'Завершено' : 'Ожидание';
+    root.querySelector('[data-ai-stream-indicator]').classList.toggle('live', isStreaming);
+    const resultItem = focus?.items?.[0]?.title || (['completed', 'failed', 'skipped'].includes(focus?.status) ? focus?.fallbackTitle : '');
+    root.querySelector('[data-ai-result-preview]').hidden = !resultItem;
+    root.querySelector('[data-ai-result-preview-text]').textContent = resultItem || '';
+    root.querySelector('[data-ai-batch-list]').innerHTML = run.batches.map((batch) => {
+      const batchStatus = batch.status === 'completed' && batch.itemCount === 0 ? 'Базовый пункт из классификатора' : statusText[batch.status] || batch.status;
+      const result = batch.items?.[0]?.title || (['completed', 'failed', 'skipped'].includes(batch.status) ? batch.fallbackTitle : '');
+      return `<article class="ai-batch-card ai-batch-${escapeHtml(batch.status)}"><div class="ai-batch-card-head"><span class="ai-batch-state" aria-hidden="true"></span><strong>${escapeHtml(batch.topic)}</strong><span class="badge text-bg-light">${batch.foundSourceCount || (batch.batchEvidence || []).length} ист.</span></div><div class="small text-muted">${escapeHtml(batchStatus)}${batch.status === 'running' ? ` · ${formatElapsed(batch.updatedAt)}` : batch.durationMs != null ? ` · ${(batch.durationMs / 1000).toFixed(1)} сек.` : ''}</div>${result ? `<div class="small mt-1"><strong>${escapeHtml(result)}</strong></div>` : `<div class="small mt-1">${escapeHtml(batch.applicabilityReason || '')}</div>`}${batch.error ? `<div class="small ${batch.status === 'skipped' ? 'text-muted' : 'text-danger'} mt-1">${escapeHtml(batch.error)}</div>` : ''}<div class="ai-batch-progress"><span></span></div></article>`;
+    }).join('');
+    const recent = [...run.batches].filter((item) => ['completed', 'failed', 'skipped'].includes(item.status)).sort((left, right) => new Date(right.updatedAt) - new Date(left.updatedAt)).slice(0, 8).reverse();
+    root.querySelector('[data-ai-operation-log]').innerHTML = recent.length ? recent.map((batch) => `<li><b>${escapeHtml((batch.criterionCodes || []).join(', '))}:</b> ${escapeHtml(batch.items?.[0]?.title || batch.fallbackTitle || statusText[batch.status])}</li>`).join('') : '<li>Критерии сопоставлены с карточкой и ожидают запуска.</li>';
     root.querySelector('[data-ai-elapsed]').textContent = formatElapsed(run.createdAt);
     root.querySelector('[data-ai-continue]').hidden = !partial;
     const hasActive = run.batches.some((item) => item.status === 'queued' || item.status === 'running');
@@ -74,7 +113,7 @@
       root.querySelector('[data-ai-result-link]').href = `/Checklists/Result?id=${encodeURIComponent(checklist.id)}`;
       history.replaceState(null, '', `?run=${encodeURIComponent(currentRun.id)}`);
       showStep(4);
-    } catch (error) { showError('[data-ai-generation-error]', error); finalizing = false; pollTimer = setTimeout(poll, 5000); }
+    } catch (error) { showError('[data-ai-generation-error]', error); finalizing = false; pollTimer = setTimeout(poll, 2000); }
   };
   const poll = async () => {
     clearTimeout(pollTimer);
@@ -82,9 +121,9 @@
     try {
       const run = await request(`/api/ai-checklists/runs/${encodeURIComponent(currentRun.id)}`);
       renderRun(run);
-      if (run.batches.every((item) => ['completed', 'failed', 'skipped'].includes(item.status))) { await finish(true); return; }
-      pollTimer = setTimeout(poll, 5000);
-    } catch (error) { showError('[data-ai-generation-error]', error); pollTimer = setTimeout(poll, 10000); }
+      if (run.batches.every((item) => ['completed', 'failed', 'skipped'].includes(item.status))) { pollTimer = setTimeout(() => finish(true), 1500); return; }
+      pollTimer = setTimeout(poll, 2000);
+    } catch (error) { showError('[data-ai-generation-error]', error); pollTimer = setTimeout(poll, 5000); }
   };
   const queueBatches = async (batches) => {
     if (!batches.length) { poll(); return; }

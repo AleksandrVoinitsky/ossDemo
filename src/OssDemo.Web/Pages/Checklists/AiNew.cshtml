@@ -45,8 +45,26 @@
     <div class="wizard-panel" data-ai-step="3" hidden>
         <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 4. Сформировать проект</h2><p class="muted-note mb-0">Агент последовательно обрабатывает критерии: ищет статьи, проверяет цитаты и формулирует короткие действия.</p></div></div>
         <div class="generation-stage"><div class="generation-orbit" aria-hidden="true"><span></span><span></span><span></span></div><div><div class="d-flex flex-wrap justify-content-between gap-2"><strong data-ai-generation-title>Агент готов к запуску</strong><span class="muted-note">Прошло: <b data-ai-elapsed>00:00</b></span></div><p class="muted-note mb-2" data-ai-generation-status>Ограничений по времени нет. Все операции выполняются по одной.</p><div class="generation-progress"><div class="generation-progress-bar" data-ai-generation-progress></div></div></div></div>
+        <div class="ai-live-metrics mt-3" aria-live="polite">
+            <div><span>Общий прогресс</span><strong data-ai-total-progress>0 из 0</strong></div>
+            <div><span>Проверено ИИ</span><strong class="text-success" data-ai-success-count>0</strong></div>
+            <div><span>Базовые пункты</span><strong class="text-warning" data-ai-base-count>0</strong></div>
+            <div><span>В очереди</span><strong data-ai-remaining-count>0</strong></div>
+        </div>
+        <div class="ai-live-workspace mt-3">
+            <section class="ai-process-panel">
+                <div class="ai-live-panel-head"><div><span class="eyebrow">Текущий критерий</span><h3 class="h5 mb-0" data-ai-current-criterion>Ожидает запуска</h3></div><span class="badge text-bg-primary" data-ai-current-code>—</span></div>
+                <p class="ai-current-base" data-ai-current-base>После запуска здесь появится базовая формулировка из классификатора.</p>
+                <ol class="ai-stage-list" data-ai-stage-list></ol>
+            </section>
+            <section class="ai-stream-panel">
+                <div class="ai-live-panel-head"><div><span class="eyebrow">Живой ответ модели</span><h3 class="h5 mb-0">Рабочий текст агента</h3></div><span class="ai-stream-indicator" data-ai-stream-indicator>Ожидание</span></div>
+                <pre class="ai-stream-output" data-ai-stream-output aria-live="polite">Ответ появится здесь по мере поступления от модели.</pre>
+                <div class="ai-result-preview" data-ai-result-preview hidden><span>Итоговая формулировка</span><strong data-ai-result-preview-text></strong></div>
+            </section>
+        </div>
         <div class="ai-batch-grid mt-3" data-ai-batch-list></div>
-        <div class="wizard-card mt-3"><h3 class="h6 section-title">Операции агента</h3><ol class="ai-operation-log mb-0" data-ai-operation-log aria-live="polite"><li>Критерии сопоставлены с карточкой и ожидают запуска.</li></ol></div>
+        <div class="wizard-card mt-3"><h3 class="h6 section-title">Последние сформированные пункты</h3><ol class="ai-operation-log mb-0" data-ai-operation-log aria-live="polite"><li>Критерии сопоставлены с карточкой и ожидают запуска.</li></ol></div>
         <div class="alert alert-danger mt-3 mb-0" data-ai-generation-error hidden tabindex="-1"></div>
         <div class="wizard-actions"><button class="btn btn-outline-primary btn-lg" type="button" data-ai-prev>Назад</button><button class="btn btn-primary btn-lg" type="button" data-ai-generate>Сформировать ИИ-чек-лист</button><button class="btn btn-outline-danger btn-lg" type="button" data-ai-stop hidden>Остановить формирование</button><button class="btn btn-success btn-lg" type="button" data-ai-continue hidden>Перейти к чек-листу с доступными данными</button></div>
     </div>

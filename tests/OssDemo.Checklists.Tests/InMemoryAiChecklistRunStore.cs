@@ -22,7 +22,7 @@ internal sealed class InMemoryAiChecklistRunStore : IAiChecklistRunStore
             var batch = run.Batches.FirstOrDefault(item => item.Index == batchIndex);
             if (batch is null) return Task.FromResult(false);
             if (batch.Status is "queued" or "running" || batch.Status == "completed" && batch.ItemCount > 0) return Task.FromResult(true);
-            Replace(run, batch with { Status = "queued", Error = null, UpdatedAt = DateTimeOffset.UtcNow });
+            Replace(run, batch with { Status = "queued", Stage = "queued", StageMessage = "Ожидает последовательной обработки", DraftOutput = string.Empty, FoundSourceCount = 0, Error = null, UpdatedAt = DateTimeOffset.UtcNow });
             return Task.FromResult(true);
         }
     }
@@ -40,7 +40,7 @@ internal sealed class InMemoryAiChecklistRunStore : IAiChecklistRunStore
         {
             if (!runs.TryGetValue(runId, out var run) || run.Status is not ("ready" or "stopping")) return Task.FromResult(false);
             var batches = run.Batches.Select(item => item.Status is "pending" or "queued"
-                ? item with { Status = "skipped", Error = "Остановлено пользователем.", UpdatedAt = DateTimeOffset.UtcNow }
+                ? item with { Status = "skipped", Stage = "skipped", StageMessage = "Остановлено до начала обработки", Error = "Остановлено пользователем.", UpdatedAt = DateTimeOffset.UtcNow }
                 : item).ToArray();
             var status = batches.Any(item => item.Status == "running") ? "stopping" : "stopped";
             runs[runId] = run with { Status = status, Batches = batches, UpdatedAt = DateTimeOffset.UtcNow };
@@ -52,11 +52,11 @@ internal sealed class InMemoryAiChecklistRunStore : IAiChecklistRunStore
     {
         lock (gate)
         {
-            foreach (var run in runs.Values.OrderBy(item => item.CreatedAt))
+            foreach (var run in runs.Values.OrderBy(item => item.UpdatedAt))
             {
                 var batch = run.Batches.FirstOrDefault(item => item.Status == "queued");
                 if (batch is null) continue;
-                var claimed = batch with { Status = "running", UpdatedAt = DateTimeOffset.UtcNow };
+                var claimed = batch with { Status = "running", Stage = "searching", StageMessage = "Ищем основания в базе знаний", UpdatedAt = DateTimeOffset.UtcNow };
                 Replace(run, claimed);
                 return Task.FromResult<AiChecklistBatchWork?>(new(run.Id, run.Facility, claimed, run.Evidence.Where(item => claimed.EvidenceIds.Contains(item.Id)).ToArray()));
             }
@@ -65,9 +65,9 @@ internal sealed class InMemoryAiChecklistRunStore : IAiChecklistRunStore
     }
 
     public Task CompleteBatchAsync(Guid runId, int batchIndex, IReadOnlyList<AiGeneratedChecklistItem> items, long durationMs, CancellationToken cancellationToken)
-    { lock (gate) { var run = runs[runId]; var batch = run.Batches.Single(item => item.Index == batchIndex); Replace(run, batch with { Status = "completed", Items = items, ItemCount = items.Count, DurationMs = durationMs, Error = null, UpdatedAt = DateTimeOffset.UtcNow }); SettleStop(runId); } return Task.CompletedTask; }
+    { lock (gate) { var run = runs[runId]; var batch = run.Batches.Single(item => item.Index == batchIndex); Replace(run, batch with { Status = "completed", Stage = items.Count > 0 ? "completed_ai" : "completed_base", StageMessage = items.Count > 0 ? "ИИ-формулировка проверена и сохранена" : "Сохранён базовый пункт классификатора", Items = items, ItemCount = items.Count, DurationMs = durationMs, Error = null, UpdatedAt = DateTimeOffset.UtcNow }); SettleStop(runId); } return Task.CompletedTask; }
     public Task FailBatchAsync(Guid runId, int batchIndex, string error, long durationMs, CancellationToken cancellationToken)
-    { lock (gate) { var run = runs[runId]; var batch = run.Batches.Single(item => item.Index == batchIndex); Replace(run, batch with { Status = "failed", Error = error, DurationMs = durationMs, UpdatedAt = DateTimeOffset.UtcNow }); SettleStop(runId); } return Task.CompletedTask; }
+    { lock (gate) { var run = runs[runId]; var batch = run.Batches.Single(item => item.Index == batchIndex); Replace(run, batch with { Status = "failed", Stage = "failed", StageMessage = "Не удалось выполнить обработку; будет использован базовый пункт", Error = error, DurationMs = durationMs, UpdatedAt = DateTimeOffset.UtcNow }); SettleStop(runId); } return Task.CompletedTask; }
     public Task<bool> BeginFinalizeAsync(Guid runId, CancellationToken cancellationToken)
     { lock (gate) { if (!runs.TryGetValue(runId, out var run) || run.Status is not ("ready" or "stopped" or "finalizing") || run.Batches.Any(item => item.Status is not ("completed" or "failed" or "skipped"))) return Task.FromResult(false); runs[runId] = run with { Status = "finalizing", UpdatedAt = DateTimeOffset.UtcNow }; return Task.FromResult(true); } }
     public Task CompleteFinalizeAsync(Guid runId, Guid checklistId, CancellationToken cancellationToken) { lock (gate) runs[runId] = runs[runId] with { Status = "completed", ChecklistId = checklistId, UpdatedAt = DateTimeOffset.UtcNow }; return Task.CompletedTask; }
@@ -79,12 +79,23 @@ internal sealed class InMemoryAiChecklistRunStore : IAiChecklistRunStore
         var batches = run.Batches.Select(item => item.Index == batch.Index ? batch : item).ToArray();
         runs[run.Id] = run with { Batches = batches, UpdatedAt = DateTimeOffset.UtcNow };
     }
+
+    public Task UpdateProgressAsync(Guid runId, int batchIndex, string stage, string message, int foundSourceCount, string draftOutput, CancellationToken cancellationToken)
+    {
+        lock (gate)
+        {
+            var run = runs[runId];
+            var batch = run.Batches.Single(item => item.Index == batchIndex);
+            Replace(run, batch with { Stage = stage, StageMessage = message, FoundSourceCount = foundSourceCount, DraftOutput = draftOutput, UpdatedAt = DateTimeOffset.UtcNow });
+        }
+        return Task.CompletedTask;
+    }
     public Task CompleteCriterionAsync(Guid runId, int batchIndex, IReadOnlyList<AiChecklistEvidence> evidence, IReadOnlyList<AiGeneratedChecklistItem> items, long durationMs, CancellationToken cancellationToken)
     {
         lock (gate)
         {
             var run = runs[runId]; var batch = run.Batches.Single(item => item.Index == batchIndex);
-            Replace(run, batch with { Status = "completed", ItemCount = items.Count, Items = items.ToArray(), BatchEvidence = evidence.ToArray(), Error = null, DurationMs = durationMs, UpdatedAt = DateTimeOffset.UtcNow });
+            Replace(run, batch with { Status = "completed", Stage = items.Count > 0 ? "completed_ai" : "completed_base", StageMessage = items.Count > 0 ? "ИИ-формулировка проверена и сохранена" : "Сохранён базовый пункт классификатора", ItemCount = items.Count, Items = items.ToArray(), BatchEvidence = evidence.ToArray(), Error = null, DurationMs = durationMs, UpdatedAt = DateTimeOffset.UtcNow });
             SettleStop(runId);
         }
         return Task.CompletedTask;
