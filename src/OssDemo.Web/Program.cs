@@ -117,12 +117,6 @@ app.Use(async (context, next) =>
 app.UseAuthorization();
 
 app.MapStaticAssets();
-app.MapGet("/exports/checklist.xlsx", () => ExportFiles.CreateXlsx())
-   .WithName("ExportChecklistXlsx");
-app.MapGet("/exports/checklist.docx", () => ExportFiles.CreateDocx())
-   .WithName("ExportChecklistDocx");
-app.MapGet("/exports/checklist.pdf", () => ExportFiles.CreatePdf())
-   .WithName("ExportChecklistPdf");
 app.MapGet("/api/rag/status", async (RagService ragService, CancellationToken cancellationToken) =>
 {
     var status = await ragService.GetStatusAsync(cancellationToken);

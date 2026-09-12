@@ -28,5 +28,21 @@ internal static class ChecklistApi
             ChecklistApiResponses.ToResult(await service.AddItemAsync(id, request, ct)));
         app.MapPost("/api/checklists/{id:guid}/approve", async (Guid id, ChecklistService service, CancellationToken ct) =>
             ChecklistApiResponses.ToResult(await service.ApproveAsync(id, OssDemo.Web.Pages.LoginModel.UserName, ct)));
+
+        app.MapGet("/exports/checklists/{id:guid}.{format}", async (Guid id, string format, ChecklistService service, CancellationToken ct) =>
+        {
+            var checklist = await service.GetChecklistAsync(id, ct);
+            if (checklist is null) return Results.NotFound(new { error = "Чек-лист не найден." });
+            var export = format.ToLowerInvariant() switch
+            {
+                "xlsx" => ChecklistExportFiles.CreateXlsx(checklist),
+                "docx" => ChecklistExportFiles.CreateDocx(checklist),
+                "pdf" => ChecklistExportFiles.CreatePdf(checklist),
+                _ => null
+            };
+            return export is null
+                ? Results.BadRequest(new { error = "Формат экспорта не поддерживается." })
+                : Results.File(export.Content, export.ContentType, export.FileName);
+        });
     }
 }

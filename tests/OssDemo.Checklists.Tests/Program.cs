@@ -29,6 +29,18 @@ AssertEqual(400, ChecklistApiResponses.StatusCode(ChecklistOperationResult<objec
 AssertEqual(404, ChecklistApiResponses.StatusCode(ChecklistOperationResult<object>.Fail("not_found", "Не найдено.")));
 AssertEqual(409, ChecklistApiResponses.StatusCode(ChecklistOperationResult<object>.Fail("version_conflict", "Версия изменилась.")));
 
+var exportChecklist = new ChecklistDetails(
+    Guid.NewGuid(), "Проверка объекта", facilityId, "Березниковское ЛПУМГ", null, "Шаблон ПЭК", "approved",
+    new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 2), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow,
+    DateTimeOffset.UtcNow, "Инспектор",
+    [new ChecklistItemDetails(Guid.NewGuid(), 1, "Общие вопросы", "Проверить программу ПЭК", "ФЗ-7", "Да", "", "Актуально", "template")]);
+var xlsx = ChecklistExportFiles.CreateXlsx(exportChecklist);
+var docx = ChecklistExportFiles.CreateDocx(exportChecklist);
+var pdf = ChecklistExportFiles.CreatePdf(exportChecklist);
+AssertTrue(xlsx.Content.Length > 100 && xlsx.FileName.EndsWith(".xlsx"), "Ожидался XLSX с данными чек-листа.");
+AssertTrue(docx.Content.Length > 100 && docx.FileName.EndsWith(".docx"), "Ожидался DOCX с данными чек-листа.");
+AssertTrue(System.Text.Encoding.ASCII.GetString(pdf.Content, 0, 8).StartsWith("%PDF"), "Ожидался PDF-документ.");
+
 Console.WriteLine("Checklist domain checks passed.");
 
 static void AssertTrue(bool value, string message)
