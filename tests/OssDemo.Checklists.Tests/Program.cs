@@ -25,6 +25,10 @@ AssertTrue(ChecklistSeedData.History.SelectMany(item => item.Items).All(item => 
 
 await ChecklistLifecycleChecks.RunAsync();
 
+AssertEqual(400, ChecklistApiResponses.StatusCode(ChecklistOperationResult<object>.Fail("validation", "Проверьте поля.")));
+AssertEqual(404, ChecklistApiResponses.StatusCode(ChecklistOperationResult<object>.Fail("not_found", "Не найдено.")));
+AssertEqual(409, ChecklistApiResponses.StatusCode(ChecklistOperationResult<object>.Fail("version_conflict", "Версия изменилась.")));
+
 Console.WriteLine("Checklist domain checks passed.");
 
 static void AssertTrue(bool value, string message)

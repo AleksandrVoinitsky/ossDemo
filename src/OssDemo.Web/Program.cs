@@ -182,6 +182,7 @@ app.MapDelete("/api/operations/schedule/{id:guid}", async (Guid id, ScheduleServ
     await scheduleService.DeleteAsync(id, cancellationToken) ? Results.NoContent() : Results.NotFound());
 app.MapGet("/api/operations/violations", async (OperationalDataService operationalData, CancellationToken cancellationToken) =>
     Results.Ok(await operationalData.GetViolationsAsync(cancellationToken)));
+app.MapChecklistApi();
 app.MapGet("/api/knowledge/documents", async (
     RagService ragService,
     ILogger<Program> logger,
