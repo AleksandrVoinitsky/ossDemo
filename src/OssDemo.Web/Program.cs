@@ -9,6 +9,9 @@ using RAGify.Core;
 using RAGify.VectorStores;
 
 var builder = WebApplication.CreateBuilder(args);
+var databaseConnectionString = builder.Configuration.GetConnectionString("OssDatabase");
+if (!string.IsNullOrWhiteSpace(databaseConnectionString))
+    builder.Configuration["ConnectionStrings:OssDatabase"] = PostgresConnectionPolicy.Apply(databaseConnectionString);
 var modelCacheLogger = LoggerFactory.Create(logging => logging.AddConsole())
     .CreateLogger("RagifyModelCache");
 var modelPath = await RagifyModelCache.EnsureAsync(builder.Configuration, modelCacheLogger, CancellationToken.None);

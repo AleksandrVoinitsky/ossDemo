@@ -79,7 +79,7 @@
     } catch (error) { showError('[data-ai-generation-error]', error); pollTimer = setTimeout(poll, 3000); }
   };
   const queueBatches = async (batches) => {
-    await Promise.all(batches.map((batch) => post(`/api/ai-checklists/runs/${encodeURIComponent(currentRun.id)}/batches/${batch.index}`)));
+    await post(`/api/ai-checklists/runs/${encodeURIComponent(currentRun.id)}/queue`, { batchIndexes: batches.map((batch) => batch.index) });
     poll();
   };
 

@@ -26,6 +26,12 @@ internal sealed class InMemoryAiChecklistRunStore : IAiChecklistRunStore
             return Task.FromResult(true);
         }
     }
+    public async Task<bool> QueueBatchesAsync(Guid runId, IReadOnlyList<int> batchIndexes, CancellationToken cancellationToken)
+    {
+        foreach (var index in batchIndexes)
+            if (!await QueueBatchAsync(runId, index, cancellationToken)) return false;
+        return true;
+    }
 
     public Task<AiChecklistBatchWork?> ClaimNextBatchAsync(CancellationToken cancellationToken)
     {

@@ -64,7 +64,12 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
     }
 
     public async Task<bool> QueueBatchAsync(Guid runId, int batchIndex, CancellationToken cancellationToken)
+        => await QueueBatchesAsync(runId, [batchIndex], cancellationToken);
+
+    public async Task<bool> QueueBatchesAsync(Guid runId, IReadOnlyList<int> batchIndexes, CancellationToken cancellationToken)
     {
+        var indexes = batchIndexes.Distinct().ToArray();
+        if (indexes.Length == 0) return false;
         await using var connection = await OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await using (var lockRun = new NpgsqlCommand("SELECT 1 FROM app_ai_checklist_runs WHERE id=@runId AND status='ready' FOR UPDATE", connection, transaction))
@@ -76,11 +81,17 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
                 return false;
             }
         }
-        await using var command = new NpgsqlCommand("UPDATE app_ai_checklist_batches SET status=CASE WHEN status IN ('pending','failed') OR (status='completed' AND jsonb_array_length(items)=0) THEN 'queued' ELSE status END,error=NULL,updated_at=now() WHERE run_id=@runId AND batch_index=@index RETURNING 1", connection, transaction);
-        command.Parameters.AddWithValue("runId",runId); command.Parameters.AddWithValue("index",batchIndex);
-        var found = await command.ExecuteScalarAsync(cancellationToken) is not null;
+        await using var command = new NpgsqlCommand("UPDATE app_ai_checklist_batches SET status=CASE WHEN status IN ('pending','failed') OR (status='completed' AND jsonb_array_length(items)=0) THEN 'queued' ELSE status END,error=NULL,updated_at=now() WHERE run_id=@runId AND batch_index=ANY(@indexes)", connection, transaction);
+        command.Parameters.AddWithValue("runId",runId);
+        command.Parameters.AddWithValue("indexes", NpgsqlDbType.Array | NpgsqlDbType.Integer, indexes);
+        var updated = await command.ExecuteNonQueryAsync(cancellationToken);
+        if (updated != indexes.Length)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return false;
+        }
         await transaction.CommitAsync(cancellationToken);
-        return found;
+        return true;
     }
 
     public async Task<AiChecklistBatchWork?> ClaimNextBatchAsync(CancellationToken cancellationToken)

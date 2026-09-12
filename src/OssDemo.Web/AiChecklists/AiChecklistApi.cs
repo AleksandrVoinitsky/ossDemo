@@ -27,9 +27,31 @@ internal static class AiChecklistApi
             return run is null ? Results.NotFound(new { error = "Запуск ИИ-формирования не найден.", code = "not_found" }) : Results.Ok(run);
         });
         group.MapPost("/runs/{runId:guid}/batches/{batchIndex:int}", async (Guid runId, int batchIndex, AiChecklistAgent agent, CancellationToken ct) =>
-            await agent.QueueBatchAsync(runId, batchIndex, ct)
-                ? Results.Accepted($"/api/ai-checklists/runs/{runId}")
-                : Results.NotFound(new { error = "Пакет ИИ-формирования не найден.", code = "not_found" }));
+        {
+            try
+            {
+                return await agent.QueueBatchAsync(runId, batchIndex, ct)
+                    ? Results.Accepted($"/api/ai-checklists/runs/{runId}")
+                    : Results.NotFound(new { error = "Пакет ИИ-формирования не найден или запуск уже завершается.", code = "not_found" });
+            }
+            catch (Npgsql.NpgsqlException)
+            {
+                return Error("storage_unavailable", "База данных временно занята. Повторите запуск пакета.", new Dictionary<string, string[]>());
+            }
+        });
+        group.MapPost("/runs/{runId:guid}/queue", async (Guid runId, AiChecklistQueueRequest request, AiChecklistAgent agent, CancellationToken ct) =>
+        {
+            try
+            {
+                return await agent.QueueBatchesAsync(runId, request.BatchIndexes ?? [], ct)
+                    ? Results.Accepted($"/api/ai-checklists/runs/{runId}")
+                    : Results.NotFound(new { error = "Пакеты ИИ-формирования не найдены или запуск уже завершается.", code = "not_found" });
+            }
+            catch (Npgsql.NpgsqlException)
+            {
+                return Error("storage_unavailable", "База данных временно занята. Повторите постановку пакетов.", new Dictionary<string, string[]>());
+            }
+        });
         group.MapPost("/runs/{runId:guid}/finalize", async (Guid runId, AiChecklistAgent agent, CancellationToken ct) =>
         {
             var result = await agent.FinalizeRunAsync(runId, ct);
@@ -58,3 +80,4 @@ internal static class AiChecklistApi
 }
 
 internal sealed record AiChecklistRequest(string? FacilitySlug);
+internal sealed record AiChecklistQueueRequest(IReadOnlyList<int> BatchIndexes);

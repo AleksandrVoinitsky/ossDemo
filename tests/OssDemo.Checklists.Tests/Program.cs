@@ -34,6 +34,11 @@ await AiChecklistAgentChecks.RunOrchestrationChecksAsync();
 AiChecklistAgentChecks.RunBatchPlanningChecks();
 await AiChecklistRunChecks.RunAsync();
 
+var boundedConnection = new Npgsql.NpgsqlConnectionStringBuilder(PostgresConnectionPolicy.Apply("Host=localhost;Database=oss;Username=oss;Maximum Pool Size=100"));
+AssertEqual(6, boundedConnection.MaxPoolSize);
+var alreadySmallConnection = new Npgsql.NpgsqlConnectionStringBuilder(PostgresConnectionPolicy.Apply("Host=localhost;Database=oss;Username=oss;Maximum Pool Size=3"));
+AssertEqual(3, alreadySmallConnection.MaxPoolSize);
+
 AssertEqual(400, ChecklistApiResponses.StatusCode(ChecklistOperationResult<object>.Fail("validation", "Проверьте поля.")));
 AssertEqual(404, ChecklistApiResponses.StatusCode(ChecklistOperationResult<object>.Fail("not_found", "Не найдено.")));
 AssertEqual(409, ChecklistApiResponses.StatusCode(ChecklistOperationResult<object>.Fail("version_conflict", "Версия изменилась.")));
