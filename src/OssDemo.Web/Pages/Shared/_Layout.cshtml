@@ -16,7 +16,7 @@
 <body>
     <div class="app-frame">
         <aside class="app-sidebar" aria-label="Основное меню">
-            <a class="app-brand" asp-area="" asp-page="/Index"><img class="brand-mark" src="~/images/app-logo.jpg" asp-append-version="true" alt="Логотип АИ ООС" /><span><b>АИ ООС</b><small>Инспекционный контур</small></span></a>
+            <a class="app-brand" asp-area="" asp-page="/Index"><img class="brand-mark" src="~/images/app-logo.png" asp-append-version="true" alt="Логотип АИ ООС" /><span><b>АИ ООС</b><small>Инспекционный контур</small></span></a>
             <div class="sidebar-caption">Рабочие модули</div>
             <nav class="app-nav">
                 <a class="nav-link @(ViewData["Nav"] as string == "Schedule" ? "active" : "")" asp-page="/Schedule"><i aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 2v3m10-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm3 8h3v3H8v-3Z" /></svg></i><span>График</span></a>
