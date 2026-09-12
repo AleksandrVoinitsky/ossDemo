@@ -66,35 +66,48 @@ internal static class ChecklistExportFiles
             $"AI OOS checklist: {Transliterate(checklist.Name)}",
             $"Facility: {Transliterate(checklist.Facility)}",
             $"Status: {(checklist.Status == "approved" ? "approved" : "draft")}",
-            $"Template: {Transliterate(checklist.TemplateName)}"
+            $"Template: {Transliterate(checklist.TemplateName)}",
+            ""
         };
-        lines.AddRange(checklist.Items.Take(34).Select(item => $"{item.Position}. {Transliterate(item.Title)} | {Transliterate(item.Result)}"));
-        var content = new StringBuilder("BT /F1 9 Tf 45 800 Td 12 TL\n");
-        foreach (var line in lines) content.Append('(').Append(EscapePdf(line)).Append(") Tj T*\n");
-        content.Append("ET");
-        var contentBytes = Encoding.ASCII.GetBytes(content.ToString());
-
-        var objects = new[]
+        foreach (var item in checklist.Items)
+        {
+            var value = $"{item.Position}. [{item.Section}] {item.Title} | Basis: {item.Basis} | Result: {item.Result} | Nonconformity: {item.Nonconformity} | Note: {item.Note}";
+            lines.AddRange(Wrap(Transliterate(value), 92));
+        }
+        var pages = lines.Chunk(56).ToArray();
+        var fontId = 3 + pages.Length * 2;
+        var pageIds = Enumerable.Range(0, pages.Length).Select(index => 3 + index * 2).ToArray();
+        var objects = new List<string>
         {
             "<< /Type /Catalog /Pages 2 0 R >>",
-            "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
-            $"<< /Length {contentBytes.Length} >>\nstream\n{content}\nendstream",
-            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
+            $"<< /Type /Pages /Count {pages.Length} /Kids [{string.Join(' ', pageIds.Select(value => $"{value} 0 R"))}] >>"
         };
+        for (var index = 0; index < pages.Length; index++)
+        {
+            var pageId = pageIds[index];
+            var contentId = pageId + 1;
+            var content = new StringBuilder("BT /F1 8 Tf 35 810 Td 11 TL\n");
+            content.Append('(').Append(EscapePdf($"Page {index + 1} of {pages.Length}")).Append(") Tj T*\n");
+            foreach (var line in pages[index]) content.Append('(').Append(EscapePdf(line)).Append(") Tj T*\n");
+            content.Append("ET");
+            var contentText = content.ToString();
+            objects.Add($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 {fontId} 0 R >> >> /Contents {contentId} 0 R >>");
+            objects.Add($"<< /Length {Encoding.ASCII.GetByteCount(contentText)} >>\nstream\n{contentText}\nendstream");
+        }
+        objects.Add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
         using var output = new MemoryStream();
         using var writer = new StreamWriter(output, Encoding.ASCII, leaveOpen: true) { NewLine = "\n" };
         writer.Write("%PDF-1.4\n"); writer.Flush();
         var offsets = new List<long> { 0 };
-        for (var index = 0; index < objects.Length; index++)
+        for (var index = 0; index < objects.Count; index++)
         {
             offsets.Add(output.Position);
             writer.Write($"{index + 1} 0 obj\n{objects[index]}\nendobj\n"); writer.Flush();
         }
         var xref = output.Position;
-        writer.Write($"xref\n0 {objects.Length + 1}\n0000000000 65535 f \n");
+        writer.Write($"xref\n0 {objects.Count + 1}\n0000000000 65535 f \n");
         foreach (var offset in offsets.Skip(1)) writer.Write($"{offset:0000000000} 00000 n \n");
-        writer.Write($"trailer << /Size {objects.Length + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF"); writer.Flush();
+        writer.Write($"trailer << /Size {objects.Count + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF"); writer.Flush();
         return new(output.ToArray(), "application/pdf", FileName(checklist, "pdf"));
     }
 
@@ -122,6 +135,12 @@ internal static class ChecklistExportFiles
     private static string Column(int index) => index < 26 ? ((char)('A' + index)).ToString() : $"A{(char)('A' + index - 26)}";
     private static string FileName(ChecklistDetails checklist, string extension) => $"AI-OOS-checklist-{checklist.Id:N}.{extension}";
     private static string EscapePdf(string value) => value.Replace("\\", "\\\\").Replace("(", "\\(").Replace(")", "\\)");
+    private static IEnumerable<string> Wrap(string value, int width)
+    {
+        if (value.Length == 0) { yield return string.Empty; yield break; }
+        for (var index = 0; index < value.Length; index += width)
+            yield return value.Substring(index, Math.Min(width, value.Length - index));
+    }
     private static string Transliterate(string value)
     {
         const string source = "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";

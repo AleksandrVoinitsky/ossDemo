@@ -28,6 +28,7 @@ internal sealed record ChecklistTemplateItemDetails(Guid Id, string Title, strin
 internal sealed record CopyChecklistTemplateRequest(string? Name);
 internal sealed record CreateChecklistRequest(Guid TemplateId, string? Name, Guid FacilityId, DateOnly? InspectionStartedOn, DateOnly? InspectionFinishedOn);
 internal sealed record AddChecklistItemRequest(string? Title, string? Basis, string? Section, string? Note);
+internal sealed record UpdateChecklistItemRequest(string? Result, string? Nonconformity, string? Note);
 internal sealed record ChecklistHistoryFilter(string? Search, Guid? FacilityId, DateOnly? From, DateOnly? To);
 internal sealed record ChecklistSummary(Guid Id, string Name, Guid? FacilityId, string Facility, string TemplateName, string Status, DateOnly? InspectionStartedOn, DateOnly? InspectionFinishedOn, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, DateTimeOffset? ApprovedAt, string? ApprovedBy, int ItemCount);
 internal sealed record ChecklistDetails(Guid Id, string Name, Guid? FacilityId, string Facility, Guid? TemplateId, string TemplateName, string Status, DateOnly? InspectionStartedOn, DateOnly? InspectionFinishedOn, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, DateTimeOffset? ApprovedAt, string? ApprovedBy, IReadOnlyList<ChecklistItemDetails> Items);

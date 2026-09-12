@@ -42,6 +42,10 @@ AssertTrue(docx.Content.Length > 100 && docx.FileName.EndsWith(".docx"), "Ожи
 AssertTrue(ReadZipEntry(xlsx.Content, "xl/worksheets/sheet1.xml").Contains("Проверка объекта"), "XLSX должен содержать название чек-листа.");
 AssertTrue(ReadZipEntry(docx.Content, "word/document.xml").Contains("Проверить программу ПЭК"), "DOCX должен содержать пункты чек-листа.");
 AssertTrue(System.Text.Encoding.ASCII.GetString(pdf.Content, 0, 8).StartsWith("%PDF"), "Ожидался PDF-документ.");
+var manyItems = exportChecklist with { Items = Enumerable.Range(1, 80).Select(index => exportChecklist.Items[0] with { Id = Guid.NewGuid(), Position = index, Title = $"Пункт {index}" }).ToArray() };
+var completePdfText = System.Text.Encoding.ASCII.GetString(ChecklistExportFiles.CreatePdf(manyItems).Content);
+AssertTrue(completePdfText.Contains("80."), "PDF не должен обрезать длинный чек-лист.");
+AssertTrue(completePdfText.Contains("Basis: FZ-7") && completePdfText.Contains("Note: Aktualno"), "PDF должен содержать фактические поля пункта.");
 
 Console.WriteLine("Checklist domain checks passed.");
 

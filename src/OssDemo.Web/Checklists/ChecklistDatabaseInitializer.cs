@@ -1,10 +1,12 @@
 using Npgsql;
+using System.Text.Json;
 
 internal sealed class ChecklistDatabaseInitializer(
     IConfiguration configuration,
     ILogger<ChecklistDatabaseInitializer> logger)
 {
     private const string MigrationKey = "checklists-postgres-v1";
+    private const string LegacyDraftMigrationKey = "checklists-json-drafts-v1";
     private readonly SemaphoreSlim initializationLock = new(1, 1);
     private bool initialized;
 
@@ -20,6 +22,7 @@ internal sealed class ChecklistDatabaseInitializer(
             await connection.OpenAsync(cancellationToken);
             await CreateSchemaAsync(connection, cancellationToken);
             await SeedAsync(connection, cancellationToken);
+            await ImportLegacyDraftsAsync(connection, cancellationToken);
             initialized = true;
         }
         catch (Exception exception) when (exception is NpgsqlException or InvalidOperationException)
@@ -37,6 +40,9 @@ internal sealed class ChecklistDatabaseInitializer(
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT NOT NULL UNIQUE, address TEXT NOT NULL,
                 nvoc_category TEXT NOT NULL, latitude NUMERIC(9,6), longitude NUMERIC(9,6), slug TEXT NOT NULL DEFAULT '',
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+            ALTER TABLE app_facilities ALTER COLUMN latitude DROP NOT NULL;
+            ALTER TABLE app_facilities ALTER COLUMN longitude DROP NOT NULL;
+            ALTER TABLE app_facilities ADD COLUMN IF NOT EXISTS slug TEXT NOT NULL DEFAULT '';
             CREATE TABLE IF NOT EXISTS app_data_migrations (
                 key TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now());
             CREATE TABLE IF NOT EXISTS app_checklist_templates (
@@ -208,4 +214,101 @@ internal sealed class ChecklistDatabaseInitializer(
     }
 
     private static string CreateSlug(string value) => string.Join('-', value.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+    private async Task ImportLegacyDraftsAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
+    {
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using (var migrationLock = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext(@key))", connection, transaction))
+        {
+            migrationLock.Parameters.AddWithValue("key", LegacyDraftMigrationKey);
+            await migrationLock.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await using (var check = new NpgsqlCommand("SELECT EXISTS(SELECT 1 FROM app_data_migrations WHERE key=@key)", connection, transaction))
+        {
+            check.Parameters.AddWithValue("key", LegacyDraftMigrationKey);
+            if ((bool)(await check.ExecuteScalarAsync(cancellationToken) ?? false))
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return;
+            }
+        }
+
+        var legacyDirectory = configuration["Checklists:Directory"] ?? "/data/checklists";
+        var skippedFiles = false;
+        if (Directory.Exists(legacyDirectory))
+        {
+            foreach (var path in Directory.EnumerateFiles(legacyDirectory, "*.json", SearchOption.TopDirectoryOnly))
+            {
+                LegacyWorkingChecklist? legacy;
+                try
+                {
+                    await using var stream = File.OpenRead(path);
+                    legacy = await JsonSerializer.DeserializeAsync<LegacyWorkingChecklist>(stream, new JsonSerializerOptions(JsonSerializerDefaults.Web), cancellationToken);
+                }
+                catch (JsonException exception)
+                {
+                    logger.LogWarning(exception, "Пропущен повреждённый прежний черновик {FileName}.", Path.GetFileName(path));
+                    skippedFiles = true;
+                    continue;
+                }
+                if (legacy is null || legacy.Id == Guid.Empty || string.IsNullOrWhiteSpace(legacy.Name) || string.IsNullOrWhiteSpace(legacy.Facility))
+                {
+                    logger.LogWarning("Пропущен неполный прежний черновик {FileName}; импорт будет повторён при следующем запуске.", Path.GetFileName(path));
+                    skippedFiles = true;
+                    continue;
+                }
+
+                await using (var facility = new NpgsqlCommand("INSERT INTO app_facilities (name,address,nvoc_category,slug) VALUES (@name,'Адрес уточняется','I категория',@slug) ON CONFLICT (name) DO NOTHING", connection, transaction))
+                {
+                    facility.Parameters.AddWithValue("name", legacy.Facility.Trim());
+                    facility.Parameters.AddWithValue("slug", CreateSlug(legacy.Facility));
+                    await facility.ExecuteNonQueryAsync(cancellationToken);
+                }
+                var facilityId = await GetFacilityIdAsync(connection, transaction, legacy.Facility.Trim(), cancellationToken);
+                await using var insert = new NpgsqlCommand("""
+                    INSERT INTO app_checklists (id,name,facility_id,facility_name,template_name,status,created_at,updated_at)
+                    VALUES (@id,@name,@facilityId,@facility,'Импортированный рабочий чек-лист','draft',@created,@created)
+                    ON CONFLICT (id) DO NOTHING
+                    """, connection, transaction);
+                insert.Parameters.AddWithValue("id", legacy.Id);
+                insert.Parameters.AddWithValue("name", legacy.Name.Trim());
+                insert.Parameters.AddWithValue("facilityId", facilityId);
+                insert.Parameters.AddWithValue("facility", legacy.Facility.Trim());
+                insert.Parameters.AddWithValue("created", legacy.CreatedAt == default ? DateTimeOffset.UtcNow : legacy.CreatedAt);
+                if (await insert.ExecuteNonQueryAsync(cancellationToken) == 0) continue;
+
+                var position = 0;
+                foreach (var item in legacy.Items ?? [])
+                {
+                    if (string.IsNullOrWhiteSpace(item.Title)) continue;
+                    await using var itemInsert = new NpgsqlCommand("""
+                        INSERT INTO app_checklist_items (id,checklist_id,position,section,title,basis,result,nonconformity,note,origin)
+                        VALUES (@id,@checklistId,@position,@section,@title,@basis,@result,@nonconformity,@note,@origin)
+                        """, connection, transaction);
+                    itemInsert.Parameters.AddWithValue("id", item.Id == Guid.Empty ? Guid.NewGuid() : item.Id);
+                    itemInsert.Parameters.AddWithValue("checklistId", legacy.Id);
+                    itemInsert.Parameters.AddWithValue("position", ++position);
+                    itemInsert.Parameters.AddWithValue("section", item.Section?.Trim() ?? "Без раздела");
+                    itemInsert.Parameters.AddWithValue("title", item.Title.Trim());
+                    itemInsert.Parameters.AddWithValue("basis", item.Basis?.Trim() ?? "Не указано");
+                    itemInsert.Parameters.AddWithValue("result", item.Result?.Trim() ?? "");
+                    itemInsert.Parameters.AddWithValue("nonconformity", item.Nonconformity?.Trim() ?? "");
+                    itemInsert.Parameters.AddWithValue("note", item.Note?.Trim() ?? "");
+                    itemInsert.Parameters.AddWithValue("origin", item.Origin?.Trim() ?? "legacy");
+                    await itemInsert.ExecuteNonQueryAsync(cancellationToken);
+                }
+            }
+        }
+
+        if (!skippedFiles)
+        {
+            await using var record = new NpgsqlCommand("INSERT INTO app_data_migrations (key) VALUES (@key)", connection, transaction);
+            record.Parameters.AddWithValue("key", LegacyDraftMigrationKey);
+            await record.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private sealed record LegacyWorkingChecklist(Guid Id, string? Name, string? Facility, DateTimeOffset CreatedAt, string? Status, IReadOnlyList<LegacyWorkingChecklistItem>? Items);
+    private sealed record LegacyWorkingChecklistItem(Guid Id, int Number, string? Section, string? Title, string? Basis, string? Result, string? Nonconformity, string? Note, string? Origin);
 }

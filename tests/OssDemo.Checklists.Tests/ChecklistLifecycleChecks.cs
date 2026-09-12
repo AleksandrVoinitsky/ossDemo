@@ -24,6 +24,14 @@ internal static class ChecklistLifecycleChecks
         AssertTrue((await service.UpdateTemplateAsync(template.Id, changed, CancellationToken.None)).IsSuccess, "Шаблон должен обновляться.");
         AssertEqual("Исходный пункт", (await service.GetChecklistAsync(draft.Id, CancellationToken.None))!.Items[0].Title);
 
+        var incompleteApproval = await service.ApproveAsync(draft.Id, "inspector", CancellationToken.None);
+        AssertEqual("state_conflict", incompleteApproval.ErrorCode);
+
+        var updatedItem = await service.UpdateItemAsync(draft.Id, draft.Items[0].Id, new UpdateChecklistItemRequest("Да", "", "Проверено"), CancellationToken.None);
+        AssertTrue(updatedItem.IsSuccess && updatedItem.Value!.Items[0].Result == "Да", "Результат пункта черновика должен обновляться.");
+        var invalidResult = await service.UpdateItemAsync(draft.Id, draft.Items[0].Id, new UpdateChecklistItemRequest("произвольный", "", ""), CancellationToken.None);
+        AssertEqual("validation", invalidResult.ErrorCode);
+
         AssertTrue((await service.DeleteTemplateAsync(template.Id, CancellationToken.None)).IsSuccess, "Использованный шаблон должен удаляться.");
         AssertTrue(await service.GetChecklistAsync(draft.Id, CancellationToken.None) is not null, "Черновик должен сохраниться после удаления шаблона.");
         AssertTrue((await service.ApproveAsync(draft.Id, "inspector", CancellationToken.None)).IsSuccess, "Черновик должен утверждаться.");
@@ -31,6 +39,8 @@ internal static class ChecklistLifecycleChecks
         AssertTrue((await service.ListHistoryAsync(new ChecklistHistoryFilter(null, null, null, null), CancellationToken.None)).Any(x => x.Id == draft.Id), "Утверждённый чек-лист должен попасть в историю.");
         var rejected = await service.AddItemAsync(draft.Id, new AddChecklistItemRequest("Пункт", "Основание", "Раздел", ""), CancellationToken.None);
         AssertEqual("state_conflict", rejected.ErrorCode);
+        var rejectedUpdate = await service.UpdateItemAsync(draft.Id, draft.Items[0].Id, new UpdateChecklistItemRequest("Нет", "Нарушение", ""), CancellationToken.None);
+        AssertEqual("state_conflict", rejectedUpdate.ErrorCode);
     }
 
     private static void AssertTrue(bool value, string message)

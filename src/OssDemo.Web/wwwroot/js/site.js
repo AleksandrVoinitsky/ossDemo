@@ -1,4 +1,5 @@
 (() => {
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
   const updateFacilityMap = (button) => {
     const mapUrl = button.dataset.facilityMapUrl;
     if (!mapUrl) return;
@@ -120,7 +121,7 @@
   const appendLiveChecklistItem = (container, item) => {
     const row = document.createElement('div');
     row.className = 'live-checklist-item';
-    row.innerHTML = `<div class="live-item-number">${item.position}</div><div><strong>${item.title}</strong><div class="small text-muted">${item.note}</div><div class="small muted-note mt-1">Источник: ${item.source}</div></div><span class="badge ${item.badge}">${item.status}</span>`;
+    row.innerHTML = `<div class="live-item-number">${item.position}</div><div><strong>${escapeHtml(item.title)}</strong><div class="small text-muted">${escapeHtml(item.note)}</div><div class="small muted-note mt-1">Источник: ${escapeHtml(item.source)}</div></div><span class="badge ${escapeHtml(item.badge)}">${escapeHtml(item.status)}</span>`;
     container.appendChild(row);
   };
 

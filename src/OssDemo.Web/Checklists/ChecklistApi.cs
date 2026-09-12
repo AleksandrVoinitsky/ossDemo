@@ -26,6 +26,8 @@ internal static class ChecklistApi
             await service.GetChecklistAsync(id, ct) is { } value ? Results.Ok(value) : Results.NotFound(new { error = "Чек-лист не найден.", code = "not_found" }));
         app.MapPost("/api/checklists/{id:guid}/items", async (Guid id, AddChecklistItemRequest request, ChecklistService service, CancellationToken ct) =>
             ChecklistApiResponses.ToResult(await service.AddItemAsync(id, request, ct)));
+        app.MapPut("/api/checklists/{id:guid}/items/{itemId:guid}", async (Guid id, Guid itemId, UpdateChecklistItemRequest request, ChecklistService service, CancellationToken ct) =>
+            ChecklistApiResponses.ToResult(await service.UpdateItemAsync(id, itemId, request, ct)));
         app.MapPost("/api/checklists/{id:guid}/approve", async (Guid id, ChecklistService service, CancellationToken ct) =>
             ChecklistApiResponses.ToResult(await service.ApproveAsync(id, OssDemo.Web.Pages.LoginModel.UserName, ct)));
 

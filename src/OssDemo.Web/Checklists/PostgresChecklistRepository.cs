@@ -64,10 +64,32 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
 
     public async Task<ChecklistOperationResult<ChecklistTemplateDetails>> CopyTemplateAsync(Guid id, string name, CancellationToken cancellationToken)
     {
-        var source = await GetTemplateAsync(id, cancellationToken);
-        if (source is null) return ChecklistOperationResult<ChecklistTemplateDetails>.Fail("not_found", "Шаблон не найден.");
-        var request = new ChecklistTemplateWriteRequest(name, source.FacilityId, 0, source.Sections.Select(section => new ChecklistTemplateSectionWrite(section.Title, section.Position, section.Items.Select(item => new ChecklistTemplateItemWrite(item.Title,item.Basis,item.Note,item.Position)).ToArray())).ToArray());
-        return ChecklistOperationResult<ChecklistTemplateDetails>.Success(await CreateTemplateAsync(request, cancellationToken));
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using (var lockSource = new NpgsqlCommand("SELECT 1 FROM app_checklist_templates WHERE id=@id FOR SHARE", connection, transaction))
+        {
+            lockSource.Parameters.AddWithValue("id", id);
+            if (await lockSource.ExecuteScalarAsync(cancellationToken) is null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return ChecklistOperationResult<ChecklistTemplateDetails>.Fail("not_found", "Шаблон не найден.");
+            }
+        }
+
+        var source = (await GetTemplateAsync(connection, transaction, id, cancellationToken))!;
+        var copyId = Guid.NewGuid();
+        await using (var insert = new NpgsqlCommand("INSERT INTO app_checklist_templates (id,name,facility_id) VALUES (@id,@name,@facilityId)", connection, transaction))
+        {
+            insert.Parameters.AddWithValue("id", copyId);
+            insert.Parameters.AddWithValue("name", name);
+            insert.Parameters.AddWithValue("facilityId", source.FacilityId);
+            await insert.ExecuteNonQueryAsync(cancellationToken);
+        }
+        var sections = source.Sections.Select(section => new ChecklistTemplateSectionWrite(section.Title, section.Position,
+            section.Items.Select(item => new ChecklistTemplateItemWrite(item.Title, item.Basis, item.Note, item.Position)).ToArray())).ToArray();
+        await InsertSectionsAsync(connection, transaction, copyId, sections, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return ChecklistOperationResult<ChecklistTemplateDetails>.Success((await GetTemplateAsync(copyId, cancellationToken))!);
     }
 
     public async Task<bool> DeleteTemplateAsync(Guid id, CancellationToken cancellationToken)
@@ -84,7 +106,7 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         string templateName;
         string facilityName;
-        await using (var command = new NpgsqlCommand("SELECT t.name,f.name FROM app_checklist_templates t JOIN app_facilities f ON f.id=@facilityId WHERE t.id=@templateId FOR SHARE", connection, transaction))
+        await using (var command = new NpgsqlCommand("SELECT t.name,f.name FROM app_checklist_templates t JOIN app_facilities f ON f.id=t.facility_id WHERE t.id=@templateId AND t.facility_id=@facilityId FOR SHARE", connection, transaction))
         {
             command.Parameters.AddWithValue("templateId", request.TemplateId); command.Parameters.AddWithValue("facilityId", request.FacilityId);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -137,10 +159,60 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
         return ChecklistOperationResult<ChecklistDetails>.Success((await GetChecklistAsync(id,cancellationToken))!);
     }
 
+    public async Task<ChecklistOperationResult<ChecklistDetails>> UpdateDraftItemAsync(Guid id, Guid itemId, UpdateChecklistItemRequest request, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using var status = new NpgsqlCommand("SELECT status FROM app_checklists WHERE id=@id FOR UPDATE", connection, transaction);
+        status.Parameters.AddWithValue("id", id);
+        var value = await status.ExecuteScalarAsync(cancellationToken);
+        if (value is null) { await transaction.RollbackAsync(cancellationToken); return ChecklistOperationResult<ChecklistDetails>.Fail("not_found", "Чек-лист не найден."); }
+        if ((string)value != "draft") { await transaction.RollbackAsync(cancellationToken); return ChecklistOperationResult<ChecklistDetails>.Fail("state_conflict", "Утверждённый чек-лист нельзя изменять."); }
+        await using var update = new NpgsqlCommand("UPDATE app_checklist_items SET result=@result,nonconformity=@nonconformity,note=@note WHERE id=@itemId AND checklist_id=@id", connection, transaction);
+        update.Parameters.AddWithValue("id", id);
+        update.Parameters.AddWithValue("itemId", itemId);
+        update.Parameters.AddWithValue("result", request.Result!);
+        update.Parameters.AddWithValue("nonconformity", request.Nonconformity ?? "");
+        update.Parameters.AddWithValue("note", request.Note ?? "");
+        if (await update.ExecuteNonQueryAsync(cancellationToken) == 0)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return ChecklistOperationResult<ChecklistDetails>.Fail("not_found", "Пункт чек-листа не найден.");
+        }
+        await using (var touch = new NpgsqlCommand("UPDATE app_checklists SET updated_at=now() WHERE id=@id", connection, transaction))
+        {
+            touch.Parameters.AddWithValue("id", id);
+            await touch.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
+        return ChecklistOperationResult<ChecklistDetails>.Success((await GetChecklistAsync(id, cancellationToken))!);
+    }
+
     public async Task<ChecklistOperationResult<ChecklistDetails>> ApproveAsync(Guid id, string approvedBy, CancellationToken cancellationToken)
     {
-        await using var connection=await OpenAsync(cancellationToken); await using var command=new NpgsqlCommand("UPDATE app_checklists SET status='approved',approved_at=now(),approved_by=@approvedBy,updated_at=now() WHERE id=@id AND status='draft'",connection);command.Parameters.AddWithValue("id",id);command.Parameters.AddWithValue("approvedBy",approvedBy);
-        if(await command.ExecuteNonQueryAsync(cancellationToken)==0){var existing=await GetChecklistAsync(id,cancellationToken);return ChecklistOperationResult<ChecklistDetails>.Fail(existing is null?"not_found":"state_conflict",existing is null?"Чек-лист не найден.":"Чек-лист уже утверждён.");}
+        await using var connection=await OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using (var lockChecklist = new NpgsqlCommand("SELECT status FROM app_checklists WHERE id=@id FOR UPDATE", connection, transaction))
+        {
+            lockChecklist.Parameters.AddWithValue("id", id);
+            var status = await lockChecklist.ExecuteScalarAsync(cancellationToken);
+            if (status is null) { await transaction.RollbackAsync(cancellationToken); return ChecklistOperationResult<ChecklistDetails>.Fail("not_found", "Чек-лист не найден."); }
+            if ((string)status != "draft") { await transaction.RollbackAsync(cancellationToken); return ChecklistOperationResult<ChecklistDetails>.Fail("state_conflict", "Чек-лист уже утверждён."); }
+        }
+        await using (var incomplete = new NpgsqlCommand("SELECT count(*) FILTER (WHERE btrim(result)=''),count(*) FROM app_checklist_items WHERE checklist_id=@id", connection, transaction))
+        {
+            incomplete.Parameters.AddWithValue("id", id);
+            await using var reader = await incomplete.ExecuteReaderAsync(cancellationToken);
+            await reader.ReadAsync(cancellationToken);
+            if (reader.GetInt64(1) == 0 || reader.GetInt64(0) > 0)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return ChecklistOperationResult<ChecklistDetails>.Fail("state_conflict", "Заполните результаты всех пунктов перед утверждением.");
+            }
+        }
+        await using var command=new NpgsqlCommand("UPDATE app_checklists SET status='approved',approved_at=now(),approved_by=@approvedBy,updated_at=now() WHERE id=@id",connection,transaction);command.Parameters.AddWithValue("id",id);command.Parameters.AddWithValue("approvedBy",approvedBy);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return ChecklistOperationResult<ChecklistDetails>.Success((await GetChecklistAsync(id,cancellationToken))!);
     }
 

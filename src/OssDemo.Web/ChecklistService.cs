@@ -1,5 +1,6 @@
 internal sealed class ChecklistService(IChecklistRepository repository)
 {
+    private static readonly HashSet<string> AllowedResults = ["Да", "Нет", "Не применяется", "Не проверено"];
     public Task<IReadOnlyList<ChecklistTemplateSummary>> ListTemplatesAsync(CancellationToken cancellationToken) => repository.ListTemplatesAsync(cancellationToken);
     public Task<ChecklistTemplateDetails?> GetTemplateAsync(Guid id, CancellationToken cancellationToken) => repository.GetTemplateAsync(id, cancellationToken);
     public Task<ChecklistDetails?> GetChecklistAsync(Guid id, CancellationToken cancellationToken) => repository.GetChecklistAsync(id, cancellationToken);
@@ -57,4 +58,17 @@ internal sealed class ChecklistService(IChecklistRepository repository)
 
     public Task<ChecklistOperationResult<ChecklistDetails>> ApproveAsync(Guid id, string approvedBy, CancellationToken cancellationToken) =>
         repository.ApproveAsync(id, approvedBy, cancellationToken);
+
+    public Task<ChecklistOperationResult<ChecklistDetails>> UpdateItemAsync(Guid id, Guid itemId, UpdateChecklistItemRequest request, CancellationToken cancellationToken)
+    {
+        var result = request.Result?.Trim() ?? string.Empty;
+        if (!AllowedResults.Contains(result))
+            return Task.FromResult(ChecklistOperationResult<ChecklistDetails>.Fail("validation", "Выберите допустимый результат проверки пункта."));
+        return repository.UpdateDraftItemAsync(id, itemId, request with
+        {
+            Result = result,
+            Nonconformity = request.Nonconformity?.Trim(),
+            Note = request.Note?.Trim()
+        }, cancellationToken);
+    }
 }
