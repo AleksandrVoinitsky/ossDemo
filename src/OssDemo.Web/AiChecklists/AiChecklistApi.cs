@@ -26,7 +26,8 @@ internal static class AiChecklistApi
     private static int StatusCode(string? code) => code switch
     {
         "not_found" => StatusCodes.Status404NotFound,
-        "search_unavailable" or "ai_unavailable" => StatusCodes.Status503ServiceUnavailable,
+        "search_unavailable" => StatusCodes.Status503ServiceUnavailable,
+        "ai_unavailable" => StatusCodes.Status502BadGateway,
         _ => StatusCodes.Status400BadRequest
     };
 }

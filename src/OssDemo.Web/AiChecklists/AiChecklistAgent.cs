@@ -2,8 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 
 internal sealed class AiChecklistAgent(
-    FacilityProfileService facilityProfiles,
-    OperationalDataService operationalData,
+    IAiChecklistFacilitySource facilitySource,
     IAiChecklistKnowledgeSearch knowledgeSearch,
     IAiChecklistSynthesisClient synthesisClient,
     IChecklistRepository checklists,
@@ -50,8 +49,7 @@ internal sealed class AiChecklistAgent(
             if (synthesis.Items.Count == 0)
                 return ChecklistOperationResult<ChecklistDetails>.Fail("ai_invalid_response", "ИИ не сформировал пунктов с подтверждёнными источниками.");
 
-            var facilities = await operationalData.GetFacilitiesAsync(cancellationToken);
-            var facility = facilities.FirstOrDefault(item => string.Equals(item.Slug, preview.Facility.Slug, StringComparison.OrdinalIgnoreCase));
+            var facility = await facilitySource.GetFacilityAsync(preview.Facility.Slug, cancellationToken);
             if (facility is null)
                 return ChecklistOperationResult<ChecklistDetails>.Fail("not_found", "Объект проверки не найден.");
 
@@ -82,5 +80,5 @@ internal sealed class AiChecklistAgent(
     }
 
     private async Task<FacilityProfile?> LoadFacilityAsync(string? slug, CancellationToken cancellationToken) =>
-        string.IsNullOrWhiteSpace(slug) ? null : await facilityProfiles.GetAsync(slug.Trim(), cancellationToken);
+        string.IsNullOrWhiteSpace(slug) ? null : await facilitySource.GetProfileAsync(slug.Trim(), cancellationToken);
 }

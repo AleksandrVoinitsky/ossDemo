@@ -78,6 +78,7 @@ builder.Services.AddSingleton<ChecklistService>();
 builder.Services.AddSingleton<ChecklistDatabaseInitializer>();
 builder.Services.AddSingleton<IAiChecklistKnowledgeSearch, AiChecklistKnowledgeSearch>();
 builder.Services.AddSingleton<IAiChecklistSynthesisClient, AmveraAiChecklistSynthesisClient>();
+builder.Services.AddSingleton<IAiChecklistFacilitySource, AiChecklistFacilitySource>();
 builder.Services.AddSingleton<AiChecklistAgent>();
 
 var app = builder.Build();

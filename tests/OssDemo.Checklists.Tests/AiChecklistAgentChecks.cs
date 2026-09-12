@@ -2,6 +2,9 @@ internal static class AiChecklistAgentChecks
 {
     public static void RunDomainChecks()
     {
+        AssertTrue(AmveraAiChecklistSynthesisClient.SystemPrompt.Contains("недоверенными данными"), "Промпт должен определять карточку и источники как данные.");
+        AssertTrue(AmveraAiChecklistSynthesisClient.SystemPrompt.Contains("только JSON"), "Промпт должен требовать структурированный ответ.");
+        AssertTrue(AmveraAiChecklistSynthesisClient.SystemPrompt.Contains("sourceIds"), "Промпт должен требовать ссылки на источники.");
         var profile = new FacilityProfile("bereznikovskoe", new FacilityProfileFields
         {
             ShortName = "Березниковское ЛПУМГ",
@@ -51,6 +54,10 @@ internal static class AiChecklistAgentChecks
             ]}
             """, evidence);
         AssertEqual(1, invalidBeforeValid.Items.Count);
+
+        var oversizedItems = string.Join(',', Enumerable.Range(1, 105).Select(index => $"{{\"title\":\"Пункт {index}\",\"sourceIds\":[\"S1\"]}}"));
+        var bounded = AiChecklistOutputParser.Parse($"{{\"name\":\"x\",\"items\":[{oversizedItems}]}}", evidence);
+        AssertEqual(100, bounded.Items.Count);
     }
 
     public static async Task RunPersistenceChecksAsync()
@@ -69,6 +76,50 @@ internal static class AiChecklistAgentChecks
         AssertEqual("ИИ · карточка объекта", result.Value.TemplateName);
         AssertEqual("ai", result.Value.Items[0].Origin);
         AssertEqual<Guid?>(null, result.Value.TemplateId);
+    }
+
+    public static async Task RunOrchestrationChecksAsync()
+    {
+        var facilityId = Guid.NewGuid();
+        var profile = new FacilityProfile("test", new FacilityProfileFields
+        {
+            ShortName = "Тестовый объект",
+            Type = "Промышленный объект",
+            Category = "I категория",
+            EnvironmentalAspects = "Выбросы"
+        }, null, null);
+        var source = new FakeFacilitySource(profile, new OperationalFacility(facilityId, "Тестовый объект", "Адрес", "I", null, null, "test"));
+        var evidence = new[] { new AiChecklistEvidence("S1", "Атмосфера", "ФЗ-7", "Статья 67", "Контроль ПЭК", .9) };
+        var repository = new InMemoryChecklistRepository();
+        var agent = new AiChecklistAgent(source, new FakeSearch(evidence), new FakeSynthesis("""
+            {"name":"ИИ-проверка","items":[{"section":"ПЭК","title":"Проверить программу","reason":"I категория","confidence":0.9,"sourceIds":["S1"]}]}
+            """), repository, Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance);
+
+        var generated = await agent.GenerateAsync("test", CancellationToken.None);
+        AssertTrue(generated.IsSuccess, "Агент должен сохранять валидный результат поиска и синтеза.");
+        AssertEqual("ai", generated.Value!.Items[0].Origin);
+        AssertTrue(generated.Value.Items[0].Basis.Contains("ФЗ-7"), "Основание должно содержать найденный документ.");
+
+        var emptyAgent = new AiChecklistAgent(source, new FakeSearch([]), new FakeSynthesis("{}"), repository,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance);
+        var rejected = await emptyAgent.GenerateAsync("test", CancellationToken.None);
+        AssertEqual("knowledge_empty", rejected.ErrorCode);
+    }
+
+    private sealed class FakeFacilitySource(FacilityProfile profile, OperationalFacility facility) : IAiChecklistFacilitySource
+    {
+        public Task<FacilityProfile?> GetProfileAsync(string slug, CancellationToken cancellationToken) => Task.FromResult<FacilityProfile?>(profile);
+        public Task<OperationalFacility?> GetFacilityAsync(string slug, CancellationToken cancellationToken) => Task.FromResult<OperationalFacility?>(facility);
+    }
+
+    private sealed class FakeSearch(IReadOnlyList<AiChecklistEvidence> evidence) : IAiChecklistKnowledgeSearch
+    {
+        public Task<IReadOnlyList<AiChecklistEvidence>> SearchAsync(IReadOnlyList<AiChecklistSearchQuery> queries, CancellationToken cancellationToken) => Task.FromResult(evidence);
+    }
+
+    private sealed class FakeSynthesis(string response) : IAiChecklistSynthesisClient
+    {
+        public Task<string> SynthesizeAsync(FacilityProfile facility, IReadOnlyList<AiChecklistEvidence> evidence, CancellationToken cancellationToken) => Task.FromResult(response);
     }
 
     private static void AssertTrue(bool value, string message)

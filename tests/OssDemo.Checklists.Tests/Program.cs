@@ -30,6 +30,7 @@ AssertEqual(localTimestamp.UtcDateTime, postgresTimestamp);
 await ChecklistLifecycleChecks.RunAsync();
 AiChecklistAgentChecks.RunDomainChecks();
 await AiChecklistAgentChecks.RunPersistenceChecksAsync();
+await AiChecklistAgentChecks.RunOrchestrationChecksAsync();
 
 AssertEqual(400, ChecklistApiResponses.StatusCode(ChecklistOperationResult<object>.Fail("validation", "Проверьте поля.")));
 AssertEqual(404, ChecklistApiResponses.StatusCode(ChecklistOperationResult<object>.Fail("not_found", "Не найдено.")));
