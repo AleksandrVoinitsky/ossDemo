@@ -58,6 +58,8 @@ internal static class AiChecklistAgentChecks
         var oversizedItems = string.Join(',', Enumerable.Range(1, 105).Select(index => $"{{\"title\":\"Пункт {index}\",\"sourceIds\":[\"S1\"]}}"));
         var bounded = AiChecklistOutputParser.Parse($"{{\"name\":\"x\",\"items\":[{oversizedItems}]}}", evidence);
         AssertEqual(100, bounded.Items.Count);
+        AssertEqual(0, AiChecklistOutputParser.Parse("[]", evidence).Items.Count);
+        AssertEqual(0, AiChecklistOutputParser.Parse("{\"items\":[null,42,\"text\"]}", evidence).Items.Count);
     }
 
     public static async Task RunPersistenceChecksAsync()

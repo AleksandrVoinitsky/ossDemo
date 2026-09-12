@@ -10,7 +10,10 @@ internal static class AiChecklistOutputParser
         var payload = RemoveCodeFence(response);
         using var document = JsonDocument.Parse(payload);
         var root = document.RootElement;
-        var name = ReadString(root, "name") ?? "ИИ-чек-лист";
+        if (root.ValueKind != JsonValueKind.Object)
+            return new AiChecklistSynthesis("ИИ-чек-лист", []);
+        var name = ReadString(root, "name")?.Trim();
+        if (string.IsNullOrWhiteSpace(name)) name = "ИИ-чек-лист";
         if (!root.TryGetProperty("items", out var itemsElement) || itemsElement.ValueKind != JsonValueKind.Array)
             return new AiChecklistSynthesis(name, []);
 
@@ -18,6 +21,7 @@ internal static class AiChecklistOutputParser
         var items = new List<AiGeneratedChecklistItem>();
         foreach (var element in itemsElement.EnumerateArray())
         {
+            if (element.ValueKind != JsonValueKind.Object) continue;
             var title = ReadString(element, "title")?.Trim();
             if (string.IsNullOrWhiteSpace(title)) continue;
 
@@ -40,7 +44,7 @@ internal static class AiChecklistOutputParser
             if (items.Count == MaxItems) break;
         }
 
-        return new AiChecklistSynthesis(name.Trim(), items);
+        return new AiChecklistSynthesis(name, items);
     }
 
     private static IEnumerable<string> ReadSourceIds(JsonElement element)
