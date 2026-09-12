@@ -33,7 +33,7 @@ internal static class AiChecklistQueryPlanner
         var query = Compact(Join(
             $"критерий {criterion.Code}", criterion.RiskText, criterion.SearchTerms,
             string.Join(' ', criterion.SourceHints), match.MatchedValue, match.HistoryExample, string.Join(' ', context)));
-        return new(criterion.Code, $"{criterion.Code} · {match.Section.Title}", query);
+        return new(criterion.Code, $"{criterion.Code} · {match.Section.Title}: {criterion.CheckText}", query);
     }
 
     private static AiChecklistSearchQuery Create(string key, string label, params string?[] parts) =>
