@@ -27,7 +27,8 @@ internal static class AiChecklistAgentChecks
         AssertTrue(!outboundProfile.Contains("Responsible") && !outboundProfile.Contains("Phone") && !outboundProfile.Contains("Email") && !outboundProfile.Contains("Address"), "Контакты и адрес не должны отправляться во внешний сервис ИИ.");
 
         var queries = AiChecklistQueryPlanner.Build(profile);
-        AssertTrue(queries.Count is > 3 and <= 8, "Планировщик должен создавать ограниченный набор запросов.");
+        AssertTrue(queries.Count is > 3 and <= 5, "Планировщик должен создавать не более пяти запросов.");
+        AssertTrue(queries.All(item => item.Query.Length <= 500), "Поисковые запросы не должны содержать всю карточку целиком.");
         AssertTrue(queries.Select(item => item.Query).Distinct(StringComparer.OrdinalIgnoreCase).Count() == queries.Count, "Поисковые запросы не должны повторяться.");
         AssertTrue(queries.Any(item => item.Query.Contains("выброс", StringComparison.OrdinalIgnoreCase)), "Экологические аспекты должны попадать в поиск.");
         AssertTrue(queries.All(item => !item.Query.Contains("Не указано", StringComparison.OrdinalIgnoreCase)), "Пустые признаки не должны попадать в поиск.");
@@ -105,17 +106,30 @@ internal static class AiChecklistAgentChecks
         var repository = new InMemoryChecklistRepository();
         var agent = new AiChecklistAgent(source, new FakeSearch(evidence), new FakeSynthesis("""
             {"name":"ИИ-проверка","items":[{"section":"ПЭК","title":"Проверить программу","reason":"I категория","confidence":0.9,"citations":[{"sourceId":"S1","quote":"Проверить программу ПЭК"}]}]}
-            """), repository, Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance);
+            """), repository, new InMemoryAiChecklistRunStore(), Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance);
 
         var generated = await agent.GenerateAsync("test", CancellationToken.None);
         AssertTrue(generated.IsSuccess, "Агент должен сохранять валидный результат поиска и синтеза.");
         AssertEqual("ai", generated.Value!.Items[0].Origin);
         AssertTrue(generated.Value.Items[0].Basis.Contains("ФЗ-7"), "Основание должно содержать найденный документ.");
 
-        var emptyAgent = new AiChecklistAgent(source, new FakeSearch([]), new FakeSynthesis("{}"), repository,
+        var emptyAgent = new AiChecklistAgent(source, new FakeSearch([]), new FakeSynthesis("{}"), repository, new InMemoryAiChecklistRunStore(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance);
         var rejected = await emptyAgent.GenerateAsync("test", CancellationToken.None);
         AssertEqual("knowledge_empty", rejected.ErrorCode);
+
+        var runStore = new InMemoryAiChecklistRunStore();
+        var countingSearch = new FakeSearch(evidence);
+        var batchedAgent = new AiChecklistAgent(source, countingSearch, new FakeSynthesis("""
+            {"name":"ПЭК","items":[{"section":"ПЭК","title":"Проверить программу ПЭК","confidence":0.9,"citations":[{"sourceId":"S1","quote":"Проверить программу ПЭК"}]}]}
+            """), repository, runStore, Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance);
+        var createdRun = await batchedAgent.CreateRunAsync("test", CancellationToken.None);
+        AssertTrue(createdRun.IsSuccess, "Поиск должен создать сохраняемый запуск.");
+        await runStore.QueueBatchAsync(createdRun.Value!.Id, 0, CancellationToken.None);
+        AssertTrue(await batchedAgent.ProcessNextBatchAsync(CancellationToken.None), "Worker должен обработать пакет из очереди.");
+        var finalized = await batchedAgent.FinalizeRunAsync(createdRun.Value.Id, CancellationToken.None);
+        AssertTrue(finalized.IsSuccess, "Завершённые пакеты должны создать черновик.");
+        AssertEqual(1, countingSearch.Calls);
     }
 
     public static void RunBatchPlanningChecks()
@@ -138,7 +152,8 @@ internal static class AiChecklistAgentChecks
 
     private sealed class FakeSearch(IReadOnlyList<AiChecklistEvidence> evidence) : IAiChecklistKnowledgeSearch
     {
-        public Task<IReadOnlyList<AiChecklistEvidence>> SearchAsync(IReadOnlyList<AiChecklistSearchQuery> queries, CancellationToken cancellationToken) => Task.FromResult(evidence);
+        public int Calls { get; private set; }
+        public Task<IReadOnlyList<AiChecklistEvidence>> SearchAsync(IReadOnlyList<AiChecklistSearchQuery> queries, CancellationToken cancellationToken) { Calls++; return Task.FromResult(evidence); }
     }
 
     private sealed class FakeSynthesis(string response) : IAiChecklistSynthesisClient

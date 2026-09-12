@@ -27,7 +27,7 @@ builder.Services.AddRazorPages();
 builder.Services.AddHttpClient("AmveraInference", client =>
 {
     client.BaseAddress = new Uri("https://inference.waw0.amvera.ru/v1/");
-    client.Timeout = TimeSpan.FromSeconds(60);
+    client.Timeout = Timeout.InfiniteTimeSpan;
 });
 builder.Services.AddSingleton<IVectorStore>(serviceProvider =>
 {
@@ -82,6 +82,7 @@ builder.Services.AddSingleton<IAiChecklistFacilitySource, AiChecklistFacilitySou
 builder.Services.AddSingleton<AiChecklistAgent>();
 builder.Services.AddSingleton<IAiChecklistRunStore, PostgresAiChecklistRunStore>();
 builder.Services.AddSingleton<AiChecklistDatabaseInitializer>();
+builder.Services.AddHostedService<AiChecklistBatchWorker>();
 
 var app = builder.Build();
 await app.Services.GetRequiredService<ChecklistDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);

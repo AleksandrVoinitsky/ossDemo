@@ -1,6 +1,7 @@
 internal static class AiChecklistQueryPlanner
 {
-    private const int MaxQueries = 8;
+    private const int MaxQueries = 5;
+    private const int MaxQueryLength = 500;
 
     public static IReadOnlyList<AiChecklistSearchQuery> Build(FacilityProfile facility)
     {
@@ -8,14 +9,11 @@ internal static class AiChecklistQueryPlanner
         var identity = Join(profile.Type, profile.Category, profile.Region);
         var candidates = new[]
         {
-            Create("base", "Общие требования", "обязательные экологические требования проверка объекта", identity),
+            Create("base", "Общие требования и документы", "обязательные экологические требования разрешения ПЭК нормативы проверка объекта", identity, profile.Permits, profile.PecProgram),
             Create("aspects", "Экологические аспекты", "требования и пункты проверки", profile.EnvironmentalAspects, identity),
             Create("emissions", "Атмосферный воздух", "выбросы источники выбросов требования контроль", profile.EmissionSources, profile.Equipment, identity),
-            Create("waste", "Отходы", "обращение с отходами места накопления учет требования", profile.EnvironmentalAspects, identity),
-            Create("water", "Водопользование", "водоснабжение водоотведение очистные сооружения требования", profile.WaterSupply, profile.TreatmentFacilities, identity),
-            Create("permits", "Разрешительная документация", "разрешения нормативы отчетность сроки действия проверка", profile.Permits, profile.PecProgram, profile.WasteStandard),
-            Create("zones", "Территория и зоны", "санитарно защитная зона специальные зоны требования", profile.SpecialZones, profile.Zones, profile.SanitaryZoneProject),
-            Create("equipment", "Оборудование", "экологические требования эксплуатация оборудования производственный контроль", profile.Equipment, profile.GasTreatment, identity)
+            Create("waste", "Отходы и территория", "обращение с отходами места накопления санитарно защитные и специальные зоны", profile.WasteStandard, profile.SpecialZones, profile.Zones, identity),
+            Create("water", "Вода и очистные сооружения", "водоснабжение водоотведение очистные сооружения газоочистка требования", profile.WaterSupply, profile.TreatmentFacilities, profile.GasTreatment, identity)
         };
 
         return candidates
@@ -26,7 +24,7 @@ internal static class AiChecklistQueryPlanner
     }
 
     private static AiChecklistSearchQuery Create(string key, string label, params string?[] parts) =>
-        new(key, label, Join(parts));
+        new(key, label, Compact(Join(parts)));
 
     private static string Join(params string?[] parts) => string.Join(" ", parts
         .SelectMany(Split)
@@ -41,4 +39,10 @@ internal static class AiChecklistQueryPlanner
     private static string Normalize(string value) => string.Join(' ', value.Split(
         (char[]?)null,
         StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+    private static string Compact(string value)
+    {
+        var normalized = Normalize(value);
+        return normalized.Length <= MaxQueryLength ? normalized : normalized[..MaxQueryLength];
+    }
 }
