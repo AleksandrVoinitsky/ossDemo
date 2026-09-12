@@ -90,11 +90,14 @@ builder.Services.AddSingleton<IAiChecklistFacilitySource, AiChecklistFacilitySou
 builder.Services.AddSingleton<AiChecklistAgent>();
 builder.Services.AddSingleton<IAiChecklistRunStore, PostgresAiChecklistRunStore>();
 builder.Services.AddSingleton<AiChecklistDatabaseInitializer>();
+builder.Services.AddSingleton<IClassifierRepository, PostgresClassifierRepository>();
+builder.Services.AddSingleton<ClassifierDatabaseInitializer>();
 builder.Services.AddHostedService<AiChecklistBatchWorker>();
 
 var app = builder.Build();
 await app.Services.GetRequiredService<ChecklistDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);
 await app.Services.GetRequiredService<AiChecklistDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);
+await app.Services.GetRequiredService<ClassifierDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -193,6 +196,7 @@ app.MapGet("/api/operations/violations", async (OperationalDataService operation
     Results.Ok(await operationalData.GetViolationsAsync(cancellationToken)));
 app.MapChecklistApi();
 app.MapAiChecklistApi();
+app.MapClassifierApi();
 app.MapGet("/api/knowledge/documents", async (
     RagService ragService,
     ILogger<Program> logger,
