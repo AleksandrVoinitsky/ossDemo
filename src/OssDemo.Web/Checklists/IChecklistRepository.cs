@@ -7,6 +7,7 @@ internal interface IChecklistRepository
     Task<ChecklistOperationResult<ChecklistTemplateDetails>> CopyTemplateAsync(Guid id, string name, CancellationToken cancellationToken);
     Task<bool> DeleteTemplateAsync(Guid id, CancellationToken cancellationToken);
     Task<ChecklistOperationResult<ChecklistDetails>> CreateDraftAsync(CreateChecklistRequest request, CancellationToken cancellationToken);
+    Task<ChecklistOperationResult<ChecklistDetails>> CreateAiDraftAsync(CreateAiChecklistDraftRequest request, CancellationToken cancellationToken);
     Task<ChecklistDetails?> GetChecklistAsync(Guid id, CancellationToken cancellationToken);
     Task<IReadOnlyList<ChecklistSummary>> ListDraftsAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<ChecklistSummary>> ListHistoryAsync(ChecklistHistoryFilter filter, CancellationToken cancellationToken);

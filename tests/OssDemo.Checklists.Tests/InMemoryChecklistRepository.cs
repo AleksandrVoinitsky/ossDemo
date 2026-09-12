@@ -47,6 +47,19 @@ internal sealed class InMemoryChecklistRepository : IChecklistRepository
         return Task.FromResult(ChecklistOperationResult<ChecklistDetails>.Success(Clone(checklist)));
     }
 
+    public Task<ChecklistOperationResult<ChecklistDetails>> CreateAiDraftAsync(CreateAiChecklistDraftRequest request, CancellationToken cancellationToken)
+    {
+        if (request.FacilityId == Guid.Empty || request.Items.Count == 0)
+            return Task.FromResult(FailChecklist("validation", "Нет подтверждённых пунктов."));
+        var now = DateTimeOffset.UtcNow;
+        var items = request.Items.Select((item, index) => new ChecklistItemDetails(
+            Guid.NewGuid(), index + 1, item.Section, item.Title, item.Basis, "", "", item.Note, "ai")).ToArray();
+        var checklist = new ChecklistDetails(Guid.NewGuid(), request.Name, request.FacilityId, request.FacilityName,
+            null, "ИИ · карточка объекта", "draft", null, null, now, now, null, null, items);
+        checklists[checklist.Id] = checklist;
+        return Task.FromResult(ChecklistOperationResult<ChecklistDetails>.Success(Clone(checklist)));
+    }
+
     public Task<ChecklistDetails?> GetChecklistAsync(Guid id, CancellationToken cancellationToken) =>
         Task.FromResult(checklists.GetValueOrDefault(id) is { } value ? Clone(value) : null);
 

@@ -42,6 +42,24 @@ internal static class AiChecklistAgentChecks
         AssertEqual(0, invalid.Items.Count);
     }
 
+    public static async Task RunPersistenceChecksAsync()
+    {
+        var repository = new InMemoryChecklistRepository();
+        var facilityId = Guid.NewGuid();
+        var result = await repository.CreateAiDraftAsync(new(
+            facilityId,
+            "Березниковское ЛПУМГ",
+            "ИИ-проверка",
+            [new("Атмосферный воздух", "Проверить программу ПЭК", "ФЗ-7 — Статья 67", "Источник: S1")]),
+            CancellationToken.None);
+
+        AssertTrue(result.IsSuccess, "Подтверждённые ИИ-пункты должны сохраняться как черновик.");
+        AssertEqual("draft", result.Value!.Status);
+        AssertEqual("ИИ · карточка объекта", result.Value.TemplateName);
+        AssertEqual("ai", result.Value.Items[0].Origin);
+        AssertEqual<Guid?>(null, result.Value.TemplateId);
+    }
+
     private static void AssertTrue(bool value, string message)
     {
         if (!value) throw new InvalidOperationException(message);

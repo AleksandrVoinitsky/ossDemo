@@ -130,6 +130,55 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
         return ChecklistOperationResult<ChecklistDetails>.Success((await GetChecklistAsync(id,cancellationToken))!);
     }
 
+    public async Task<ChecklistOperationResult<ChecklistDetails>> CreateAiDraftAsync(CreateAiChecklistDraftRequest request, CancellationToken cancellationToken)
+    {
+        if (request.FacilityId == Guid.Empty || request.Items.Count == 0)
+            return ChecklistOperationResult<ChecklistDetails>.Fail("validation", "ИИ не сформировал подтверждённые пункты чек-листа.");
+
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using (var facility = new NpgsqlCommand("SELECT name FROM app_facilities WHERE id=@id FOR SHARE", connection, transaction))
+        {
+            facility.Parameters.AddWithValue("id", request.FacilityId);
+            if (await facility.ExecuteScalarAsync(cancellationToken) is not string facilityName)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return ChecklistOperationResult<ChecklistDetails>.Fail("not_found", "Объект проверки не найден.");
+            }
+            if (!string.Equals(facilityName, request.FacilityName, StringComparison.Ordinal))
+                request = request with { FacilityName = facilityName };
+        }
+
+        var id = Guid.NewGuid();
+        var name = string.IsNullOrWhiteSpace(request.Name) ? $"ИИ-чек-лист — {request.FacilityName}" : request.Name.Trim();
+        await using (var insert = new NpgsqlCommand("INSERT INTO app_checklists (id,name,facility_id,facility_name,template_id,template_name,status) VALUES (@id,@name,@facilityId,@facility,NULL,@templateName,'draft')", connection, transaction))
+        {
+            insert.Parameters.AddWithValue("id", id);
+            insert.Parameters.AddWithValue("name", name);
+            insert.Parameters.AddWithValue("facilityId", request.FacilityId);
+            insert.Parameters.AddWithValue("facility", request.FacilityName);
+            insert.Parameters.AddWithValue("templateName", "ИИ · карточка объекта");
+            await insert.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        for (var index = 0; index < request.Items.Count; index++)
+        {
+            var item = request.Items[index];
+            await using var insertItem = new NpgsqlCommand("INSERT INTO app_checklist_items (id,checklist_id,position,section,title,basis,note,origin) VALUES (@id,@checklistId,@position,@section,@title,@basis,@note,'ai')", connection, transaction);
+            insertItem.Parameters.AddWithValue("id", Guid.NewGuid());
+            insertItem.Parameters.AddWithValue("checklistId", id);
+            insertItem.Parameters.AddWithValue("position", index + 1);
+            insertItem.Parameters.AddWithValue("section", item.Section);
+            insertItem.Parameters.AddWithValue("title", item.Title);
+            insertItem.Parameters.AddWithValue("basis", item.Basis);
+            insertItem.Parameters.AddWithValue("note", item.Note);
+            await insertItem.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return ChecklistOperationResult<ChecklistDetails>.Success((await GetChecklistAsync(id, cancellationToken))!);
+    }
+
     public async Task<ChecklistDetails?> GetChecklistAsync(Guid id, CancellationToken cancellationToken)
     {
         await using var connection = await OpenAsync(cancellationToken);
