@@ -56,7 +56,7 @@ internal sealed class InMemoryChecklistRepository : IChecklistRepository
             return Task.FromResult(FailChecklist("validation", "Нет подтверждённых пунктов."));
         var now = DateTimeOffset.UtcNow;
         var items = request.Items.Select((item, index) => new ChecklistItemDetails(
-            Guid.NewGuid(), index + 1, item.Section, item.Title, item.Basis, "", "", item.Note, "ai")).ToArray();
+            Guid.NewGuid(), index + 1, item.Section, item.Title, item.Basis, "", "", item.Note, "ai", item.SourceLabel ?? "ИИ + база знаний")).ToArray();
         var checklist = new ChecklistDetails(Guid.NewGuid(), request.Name, request.FacilityId, request.FacilityName,
             null, "ИИ · карточка объекта", "draft", null, null, now, now, null, null, items);
         checklists[checklist.Id] = checklist;

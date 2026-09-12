@@ -32,7 +32,7 @@ internal static class AiChecklistQueryPlanner
             : facts.Values(ruleFields);
         var query = Compact(Join(
             $"критерий {criterion.Code}", criterion.RiskText, criterion.SearchTerms,
-            string.Join(' ', criterion.SourceHints), match.MatchedValue, string.Join(' ', context)));
+            string.Join(' ', criterion.SourceHints), match.MatchedValue, match.HistoryExample, string.Join(' ', context)));
         return new(criterion.Code, $"{criterion.Code} · {match.Section.Title}", query);
     }
 

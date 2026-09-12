@@ -8,7 +8,8 @@ internal sealed class AiChecklistAgent(
     IChecklistRepository checklists,
     IAiChecklistRunStore runStore,
     ILogger<AiChecklistAgent> logger,
-    IClassifierRepository? classifierRepository = null)
+    IClassifierRepository? classifierRepository = null,
+    IAiChecklistHistoryReferenceSource? historyReferenceSource = null)
 {
     public async Task<ChecklistOperationResult<AiChecklistAnalysis>> AnalyzeAsync(string? facilitySlug, CancellationToken cancellationToken)
     {
@@ -82,7 +83,8 @@ internal sealed class AiChecklistAgent(
         if (facility is null) return ChecklistOperationResult<AiChecklistRunState>.Fail("not_found", "Объект проверки не найден.");
         var tree = classifierRepository is null ? ClassifierSeedData.Tree : await classifierRepository.GetTreeAsync(cancellationToken);
         var facts = FacilityFactNormalizer.Normalize(analysis.Value.Facility.Profile, null);
-        var applicable = ClassifierApplicabilityMatcher.Match(tree, facts, []);
+        var history = historyReferenceSource is null ? [] : await historyReferenceSource.GetAsync(facility.Name,tree,cancellationToken);
+        var applicable = ClassifierApplicabilityMatcher.Match(tree, facts, history);
         var batches = applicable.Select((match,index) =>
         {
             var query = AiChecklistQueryPlanner.Build(match,facts);
@@ -113,7 +115,13 @@ internal sealed class AiChecklistAgent(
                 var found = await knowledgeSearch.SearchAsync([new(work.Batch.CriterionCodes?.FirstOrDefault() ?? $"C{work.Batch.Index}",work.Batch.Topic,work.Batch.Query)],cancellationToken);
                 evidence = found.Select((item,index)=>item with { Id=$"C{work.Batch.Index+1}-S{index+1}" }).ToArray();
             }
-            var units = AmveraAiChecklistSynthesisClient.BuildSequentialUnits(evidence);
+            IReadOnlyList<IReadOnlyList<AiChecklistEvidence>> units;
+            if (!string.IsNullOrWhiteSpace(work.Batch.Query) && evidence.Count > 0)
+            {
+                try { _ = AmveraAiChecklistSynthesisClient.BuildContext(evidence); units = [evidence]; }
+                catch (AiChecklistGenerationException) { units = AmveraAiChecklistSynthesisClient.BuildSequentialUnits(evidence); }
+            }
+            else units = AmveraAiChecklistSynthesisClient.BuildSequentialUnits(evidence);
             for (var unitIndex = 0; unitIndex < units.Count; unitIndex++)
             {
                 logger.LogInformation("Запуск {RunId}, пакет {BatchIndex}: фрагмент {UnitNumber} из {UnitCount}.", work.RunId, work.Batch.Index, unitIndex + 1, units.Count);
@@ -154,14 +162,15 @@ internal sealed class AiChecklistAgent(
         if (!await runStore.BeginFinalizeAsync(runId, cancellationToken)) return ChecklistOperationResult<ChecklistDetails>.Fail("state_conflict", "Финализация уже выполняется.");
         try
         {
-            var items = run.Batches.SelectMany(batch => batch.Items).DistinctBy(item => item.Title.Trim(), StringComparer.OrdinalIgnoreCase).Take(100).ToArray();
-            var allEvidence = run.Evidence.Concat(run.Batches.SelectMany(batch=>batch.BatchEvidence ?? [])).DistinctBy(item=>item.Id,StringComparer.OrdinalIgnoreCase).ToArray();
-            var draftItems = ToDraftItems(items, allEvidence)
-                .Take(75)
-                .Concat(AiChecklistFallbackBuilder.Build(run.Facility))
-                .DistinctBy(item => item.Title.Trim(), StringComparer.OrdinalIgnoreCase)
-                .Take(100)
-                .ToArray();
+            var classifierItems=AiChecklistCriterionConsolidator.Consolidate(run.Batches);
+            IReadOnlyList<AiGeneratedDraftItem> draftItems;
+            if(classifierItems.Count>0) draftItems=classifierItems;
+            else
+            {
+                var items = run.Batches.SelectMany(batch => batch.Items).DistinctBy(item => item.Title.Trim(), StringComparer.OrdinalIgnoreCase).Take(100).ToArray();
+                var allEvidence = run.Evidence.Concat(run.Batches.SelectMany(batch=>batch.BatchEvidence ?? [])).DistinctBy(item=>item.Id,StringComparer.OrdinalIgnoreCase).ToArray();
+                draftItems = ToDraftItems(items, allEvidence).Take(75).Concat(AiChecklistFallbackBuilder.Build(run.Facility)).DistinctBy(item => item.Title.Trim(), StringComparer.OrdinalIgnoreCase).Take(100).ToArray();
+            }
             var result = await checklists.CreateAiDraftAsync(new(run.FacilityId, run.FacilityName, $"ИИ-чек-лист — {run.FacilityName}", draftItems, runId), cancellationToken);
             if (!result.IsSuccess) { await runStore.CancelFinalizeAsync(runId, result.Error ?? "Ошибка сохранения.", cancellationToken); return result; }
             await runStore.CompleteFinalizeAsync(runId, result.Value!.Id, cancellationToken);

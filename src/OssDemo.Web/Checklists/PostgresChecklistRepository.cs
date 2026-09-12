@@ -173,7 +173,7 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
         for (var index = 0; index < request.Items.Count; index++)
         {
             var item = request.Items[index];
-            await using var insertItem = new NpgsqlCommand("INSERT INTO app_checklist_items (id,checklist_id,position,section,title,basis,note,origin) VALUES (@id,@checklistId,@position,@section,@title,@basis,@note,'ai')", connection, transaction);
+            await using var insertItem = new NpgsqlCommand("INSERT INTO app_checklist_items (id,checklist_id,position,section,title,basis,note,origin,source_label) VALUES (@id,@checklistId,@position,@section,@title,@basis,@note,'ai',@sourceLabel)", connection, transaction);
             insertItem.Parameters.AddWithValue("id", Guid.NewGuid());
             insertItem.Parameters.AddWithValue("checklistId", id);
             insertItem.Parameters.AddWithValue("position", index + 1);
@@ -181,6 +181,7 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
             insertItem.Parameters.AddWithValue("title", item.Title);
             insertItem.Parameters.AddWithValue("basis", item.Basis);
             insertItem.Parameters.AddWithValue("note", item.Note);
+            insertItem.Parameters.AddWithValue("sourceLabel", item.SourceLabel ?? "ИИ + база знаний");
             await insertItem.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -196,9 +197,9 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
         ChecklistDetails header;
         await using (var reader=await command.ExecuteReaderAsync(cancellationToken))
         { if(!await reader.ReadAsync(cancellationToken)) return null; header=new(reader.GetGuid(0),reader.GetString(1),reader.IsDBNull(2)?null:reader.GetGuid(2),reader.GetString(3),reader.IsDBNull(4)?null:reader.GetGuid(4),reader.GetString(5),reader.GetString(6),reader.IsDBNull(7)?null:reader.GetFieldValue<DateOnly>(7),reader.IsDBNull(8)?null:reader.GetFieldValue<DateOnly>(8),reader.GetFieldValue<DateTimeOffset>(9),reader.GetFieldValue<DateTimeOffset>(10),reader.IsDBNull(11)?null:reader.GetFieldValue<DateTimeOffset>(11),reader.IsDBNull(12)?null:reader.GetString(12),[]); }
-        await using var itemsCommand=new NpgsqlCommand("SELECT id,position,section,title,basis,result,nonconformity,note,origin FROM app_checklist_items WHERE checklist_id=@id ORDER BY position",connection); itemsCommand.Parameters.AddWithValue("id",id);
+        await using var itemsCommand=new NpgsqlCommand("SELECT id,position,section,title,basis,result,nonconformity,note,origin,source_label FROM app_checklist_items WHERE checklist_id=@id ORDER BY position",connection); itemsCommand.Parameters.AddWithValue("id",id);
         await using var itemsReader=await itemsCommand.ExecuteReaderAsync(cancellationToken); var items=new List<ChecklistItemDetails>();
-        while(await itemsReader.ReadAsync(cancellationToken)) items.Add(new(itemsReader.GetGuid(0),itemsReader.GetInt32(1),itemsReader.GetString(2),itemsReader.GetString(3),itemsReader.GetString(4),itemsReader.GetString(5),itemsReader.GetString(6),itemsReader.GetString(7),itemsReader.GetString(8)));
+        while(await itemsReader.ReadAsync(cancellationToken)) items.Add(new(itemsReader.GetGuid(0),itemsReader.GetInt32(1),itemsReader.GetString(2),itemsReader.GetString(3),itemsReader.GetString(4),itemsReader.GetString(5),itemsReader.GetString(6),itemsReader.GetString(7),itemsReader.GetString(8),itemsReader.GetString(9)));
         return header with { Items=items };
     }
 

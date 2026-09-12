@@ -70,6 +70,7 @@ internal sealed class ChecklistDatabaseInitializer(
                 position INTEGER NOT NULL, section TEXT NOT NULL, title TEXT NOT NULL, basis TEXT NOT NULL,
                 result TEXT NOT NULL DEFAULT '', nonconformity TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
                 origin TEXT NOT NULL, UNIQUE(checklist_id, position));
+            ALTER TABLE app_checklist_items ADD COLUMN IF NOT EXISTS source_label TEXT NOT NULL DEFAULT '';
             CREATE INDEX IF NOT EXISTS ix_checklist_templates_updated ON app_checklist_templates(updated_at DESC);
             CREATE INDEX IF NOT EXISTS ix_checklists_status_approved ON app_checklists(status, approved_at DESC);
             CREATE INDEX IF NOT EXISTS ix_checklists_facility ON app_checklists(facility_id);

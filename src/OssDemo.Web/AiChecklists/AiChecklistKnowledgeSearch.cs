@@ -9,6 +9,7 @@ internal sealed class AiChecklistKnowledgeSearch(RagService ragService) : IAiChe
 {
     private const int MaxQueries = 8;
     private const int MaxEvidence = 32;
+    private const int MaxEvidencePerQuery = 4;
 
     public async Task<IReadOnlyList<AiChecklistEvidence>> SearchAsync(
         IReadOnlyList<AiChecklistSearchQuery> queries,
@@ -18,7 +19,7 @@ internal sealed class AiChecklistKnowledgeSearch(RagService ragService) : IAiChe
         foreach (var query in queries.Take(MaxQueries))
         {
             var result = await ragService.SearchAsync(query.Query, cancellationToken);
-            found.AddRange(result.Matches.Select(match => (query, match)));
+            found.AddRange(result.Matches.OrderByDescending(match=>match.RankingScore).Take(MaxEvidencePerQuery).Select(match => (query, match)));
         }
 
         return found

@@ -6,7 +6,8 @@ internal sealed record ApplicableClassifierCriterion(
     string Reason,
     string MatchedField,
     string MatchedValue,
-    int Priority);
+    int Priority,
+    string? HistoryExample = null);
 
 internal static class ClassifierApplicabilityMatcher
 {
@@ -33,12 +34,13 @@ internal static class ClassifierApplicabilityMatcher
             if (matched is not null)
             {
                 var historical = history.Any(item => item.CriterionCode.Equals(criterion.Code,StringComparison.OrdinalIgnoreCase));
-                result.Add(new(section,criterion,$"Поле карточки «{matched.Value.Field}» содержит признак «{matched.Value.Value}».",matched.Value.Field,matched.Value.Value,historical?90:80));
+                var historyExample=history.FirstOrDefault(item=>item.CriterionCode.Equals(criterion.Code,StringComparison.OrdinalIgnoreCase));
+                result.Add(new(section,criterion,$"Поле карточки «{matched.Value.Field}» содержит признак «{matched.Value.Value}».",matched.Value.Field,matched.Value.Value,historical?90:80,historyExample?.Title));
                 continue;
             }
             var historyItem = history.FirstOrDefault(item => item.CriterionCode.Equals(criterion.Code,StringComparison.OrdinalIgnoreCase));
             if (historyItem is not null)
-                result.Add(new(section,criterion,"Критерий применялся в релевантной истории проверок.","history",historyItem.Title,historyItem.HadNonconformity?85:70));
+                result.Add(new(section,criterion,"Критерий применялся в релевантной истории проверок.","history",historyItem.Title,historyItem.HadNonconformity?85:70,historyItem.Title));
         }
         return result.OrderBy(item=>item.Section.Position).ThenBy(item=>item.Criterion.Position).ToArray();
     }

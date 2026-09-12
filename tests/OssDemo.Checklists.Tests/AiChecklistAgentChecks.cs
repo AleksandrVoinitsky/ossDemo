@@ -81,6 +81,15 @@ internal static class AiChecklistAgentChecks
         AssertEqual(100, bounded.Items.Count);
         AssertEqual(0, AiChecklistOutputParser.Parse("[]", evidence).Items.Count);
         AssertEqual(0, AiChecklistOutputParser.Parse("{\"items\":[null,42,\"text\"]}", evidence).Items.Count);
+
+        var now = DateTimeOffset.UtcNow;
+        var consolidated = AiChecklistCriterionConsolidator.Consolidate([
+            new(0,"3.1 · Вода",[],"completed",0,null,10,now,[],["3.1"],"Есть водозабор","", "Проверить разрешение на водопользование.","Охрана водных объектов",[]),
+            new(1,"3.2 · Вода",[],"completed",0,null,10,now,[],["3.2"],"Есть договор","", "Проверить условия договора водопользования.","Охрана водных объектов",[])
+        ]);
+        AssertEqual(1, consolidated.Count);
+        AssertTrue(consolidated[0].CriterionCodes!.Order().SequenceEqual(new[] { "3.1", "3.2" }), "Совместимые критерии должны объединяться с сохранением кодов.");
+        AssertTrue(consolidated[0].Title.StartsWith("Проверить ", StringComparison.OrdinalIgnoreCase), "Итог должен быть проверочным действием.");
     }
 
     public static async Task RunPersistenceChecksAsync()
@@ -91,13 +100,14 @@ internal static class AiChecklistAgentChecks
             facilityId,
             "Березниковское ЛПУМГ",
             "ИИ-проверка",
-            [new("Атмосферный воздух", "Проверить программу ПЭК", "ФЗ-7 — Статья 67", "Источник: S1")]),
+            [new("Атмосферный воздух", "Проверить программу ПЭК", "ФЗ-7 — Статья 67", "Источник: S1", ["1.6"], "Классификатор 1.6 + база знаний")]),
             CancellationToken.None);
 
         AssertTrue(result.IsSuccess, "Подтверждённые ИИ-пункты должны сохраняться как черновик.");
         AssertEqual("draft", result.Value!.Status);
         AssertEqual("ИИ · карточка объекта", result.Value.TemplateName);
         AssertEqual("ai", result.Value.Items[0].Origin);
+        AssertEqual("Классификатор 1.6 + база знаний", result.Value.Items[0].SourceLabel);
         AssertEqual<Guid?>(null, result.Value.TemplateId);
         var runId = Guid.NewGuid();
         var idempotentRequest = new CreateAiChecklistDraftRequest(facilityId, "Березниковское ЛПУМГ", "ИИ-проверка",
@@ -146,7 +156,7 @@ internal static class AiChecklistAgentChecks
         AssertEqual("knowledge_empty", rejected.ErrorCode);
         var emptyRun = await emptyAgent.CreateRunAsync("test", CancellationToken.None);
         AssertTrue(emptyRun.IsSuccess && emptyRun.Value!.Batches.Count > 0, "Запуск должен строиться по классификатору до поиска.");
-        await emptyAgent.QueueBatchesAsync(emptyRun.Value.Id, emptyRun.Value.Batches.Select(item => item.Index).ToArray(), CancellationToken.None);
+        await emptyAgent.QueueBatchesAsync(emptyRun.Value!.Id, emptyRun.Value.Batches.Select(item => item.Index).ToArray(), CancellationToken.None);
         while (await emptyAgent.ProcessNextBatchAsync(CancellationToken.None)) { }
         var emptyFinalized = await emptyAgent.FinalizeRunAsync(emptyRun.Value!.Id, CancellationToken.None);
         AssertTrue(emptyFinalized.IsSuccess && emptyFinalized.Value!.Items.Count > 0, "Без источников должен создаваться базовый черновик по карточке объекта.");

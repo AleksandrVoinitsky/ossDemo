@@ -79,7 +79,13 @@ internal sealed record AiChecklistSearchPreview(
     IReadOnlyList<AiChecklistSearchQuery> Queries,
     IReadOnlyList<AiChecklistEvidence> Evidence);
 
-internal sealed record AiGeneratedDraftItem(string Section, string Title, string Basis, string Note);
+internal sealed record AiGeneratedDraftItem(
+    string Section,
+    string Title,
+    string Basis,
+    string Note,
+    IReadOnlyList<string>? CriterionCodes = null,
+    string? SourceLabel = null);
 
 internal sealed record CreateAiChecklistDraftRequest(
     Guid FacilityId,
