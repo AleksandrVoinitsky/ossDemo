@@ -39,6 +39,8 @@ var docx = ChecklistExportFiles.CreateDocx(exportChecklist);
 var pdf = ChecklistExportFiles.CreatePdf(exportChecklist);
 AssertTrue(xlsx.Content.Length > 100 && xlsx.FileName.EndsWith(".xlsx"), "Ожидался XLSX с данными чек-листа.");
 AssertTrue(docx.Content.Length > 100 && docx.FileName.EndsWith(".docx"), "Ожидался DOCX с данными чек-листа.");
+AssertTrue(ReadZipEntry(xlsx.Content, "xl/worksheets/sheet1.xml").Contains("Проверка объекта"), "XLSX должен содержать название чек-листа.");
+AssertTrue(ReadZipEntry(docx.Content, "word/document.xml").Contains("Проверить программу ПЭК"), "DOCX должен содержать пункты чек-листа.");
 AssertTrue(System.Text.Encoding.ASCII.GetString(pdf.Content, 0, 8).StartsWith("%PDF"), "Ожидался PDF-документ.");
 
 Console.WriteLine("Checklist domain checks passed.");
@@ -52,4 +54,12 @@ static void AssertEqual<T>(T expected, T actual)
 {
     if (!EqualityComparer<T>.Default.Equals(expected, actual))
         throw new InvalidOperationException($"Expected '{expected}', got '{actual}'.");
+}
+
+static string ReadZipEntry(byte[] content, string path)
+{
+    using var stream = new MemoryStream(content);
+    using var archive = new System.IO.Compression.ZipArchive(stream, System.IO.Compression.ZipArchiveMode.Read);
+    using var reader = new StreamReader(archive.GetEntry(path)!.Open());
+    return reader.ReadToEnd();
 }
