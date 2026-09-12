@@ -21,7 +21,7 @@ internal sealed class AmveraAiChecklistSynthesisClient(
         Используй только требования, которые прямо подтверждены переданными источниками. Не придумывай нормы.
         Каждый пункт обязан содержать citations со sourceId из переданного списка и точной подтверждающей цитатой quote из текста этого источника. Объединяй дубли.
         Верни только JSON без Markdown: {"name":"...","items":[{"section":"...","title":"...","reason":"...","confidence":0.0,"citations":[{"sourceId":"S1","quote":"точная цитата"}]}]}.
-        confidence должно быть от 0 до 1. Максимум 100 пунктов.
+        confidence должно быть от 0 до 1. Максимум 20 пунктов.
         """;
 
     public async Task<string> SynthesizeAsync(
@@ -36,8 +36,7 @@ internal sealed class AmveraAiChecklistSynthesisClient(
         if (string.IsNullOrWhiteSpace(token))
             throw new AiChecklistGenerationException("ai_unavailable", "Не настроен токен сервиса ИИ.");
 
-        var context = string.Join("\n\n", evidence.Select(item =>
-            $"[{item.Id}] Документ: {item.DocumentTitle}\nРаздел: {item.SourceLabel}\nТема поиска: {item.QueryLabel}\nТекст: {Limit(item.Text, 3500)}"));
+        var context = BuildContext(evidence);
         var profileJson = JsonSerializer.Serialize(AiChecklistSynthesisProfile.From(facility.Profile));
         var user = $"Карточка объекта:\n{profileJson}\n\nИсточники:\n{context}";
 
@@ -79,6 +78,14 @@ internal sealed class AmveraAiChecklistSynthesisClient(
     }
 
     private static string Limit(string value, int length) => value.Length <= length ? value : value[..length];
+
+    internal static string BuildContext(IReadOnlyList<AiChecklistEvidence> evidence)
+    {
+        const int maxLength = 9_000;
+        var blocks = evidence.Select(item => $"[{item.Id}] Документ: {item.DocumentTitle}\nРаздел: {item.SourceLabel}\nТема поиска: {item.QueryLabel}\nТекст: {item.Text}");
+        var context = string.Join("\n\n", blocks);
+        return Limit(context, maxLength);
+    }
 
     internal static bool TryReadContent(string payload, out string? content)
     {

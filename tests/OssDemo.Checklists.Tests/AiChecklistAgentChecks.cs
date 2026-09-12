@@ -12,6 +12,8 @@ internal static class AiChecklistAgentChecks
         AssertEqual(409, AiChecklistApi.StatusCode("state_conflict"));
         AssertTrue(AmveraAiChecklistSynthesisClient.TryReadContent("{\"choices\":[{\"message\":{\"content\":\"{}\"}}]}", out var content) && content == "{}", "Должен читаться стандартный ответ Amvera.");
         AssertTrue(!AmveraAiChecklistSynthesisClient.TryReadContent("{\"choices\":[]}", out _), "Пустой choices должен обрабатываться без исключения.");
+        var boundedContext = AmveraAiChecklistSynthesisClient.BuildContext(Enumerable.Range(1, 5).Select(index => new AiChecklistEvidence($"S{index}", "Тема", "Документ", "Раздел", new string('я', 3_000), .8)).ToArray());
+        AssertTrue(boundedContext.Length <= 9_000, "Контекст одного LLM-вызова должен быть не длиннее 9000 символов.");
         var profile = new FacilityProfile("bereznikovskoe", new FacilityProfileFields
         {
             ShortName = "Березниковское ЛПУМГ",

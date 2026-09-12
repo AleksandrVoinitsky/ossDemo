@@ -38,13 +38,15 @@
 
     <div class="wizard-panel" data-ai-step="2" hidden>
         <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 3. Результаты поиска</h2><p class="muted-note mb-0">Это реальные фрагменты, найденные гибридным поиском и reranker. Только они могут стать основаниями пунктов.</p></div><span class="badge text-bg-primary" data-ai-evidence-count>0 источников</span></div>
-        <div class="row g-4"><div class="col-lg-4"><div class="wizard-card h-100"><h3 class="h6 section-title">Поисковые темы</h3><div class="d-grid gap-2" data-ai-queries></div></div></div><div class="col-lg-8"><div class="ai-evidence-list" data-ai-evidence></div></div></div>
+        <div class="row g-4"><div class="col-lg-4"><div class="wizard-card h-100"><h3 class="h6 section-title">Тематические пакеты</h3><div class="d-grid gap-2" data-ai-queries></div></div></div><div class="col-lg-8"><div class="ai-evidence-list" data-ai-evidence></div></div></div>
         <div class="wizard-actions"><button class="btn btn-outline-primary btn-lg" type="button" data-ai-prev>Назад</button><button class="btn btn-primary btn-lg" type="button" data-ai-next>Перейти к формированию</button></div>
     </div>
 
     <div class="wizard-panel" data-ai-step="3" hidden>
         <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 4. Сформировать проект</h2><p class="muted-note mb-0">Агент повторно читает карточку и ищет источники на сервере, затем Qwen формирует только подтверждённые пункты.</p></div></div>
-        <div class="generation-stage"><div class="generation-orbit" aria-hidden="true"><span></span><span></span><span></span></div><div><strong data-ai-generation-title>Агент готов к запуску</strong><p class="muted-note mb-2" data-ai-generation-status>Черновик появится только после успешной проверки результата.</p><div class="generation-progress"><div class="generation-progress-bar" data-ai-generation-progress></div></div></div></div>
+        <div class="generation-stage"><div class="generation-orbit" aria-hidden="true"><span></span><span></span><span></span></div><div><div class="d-flex flex-wrap justify-content-between gap-2"><strong data-ai-generation-title>Агент готов к запуску</strong><span class="muted-note">Прошло: <b data-ai-elapsed>00:00</b></span></div><p class="muted-note mb-2" data-ai-generation-status>Ограничения по времени нет. Черновик появится после проверки всех пакетов.</p><div class="generation-progress"><div class="generation-progress-bar" data-ai-generation-progress></div></div></div></div>
+        <div class="ai-batch-grid mt-3" data-ai-batch-list></div>
+        <div class="wizard-card mt-3"><h3 class="h6 section-title">Операции агента</h3><ol class="ai-operation-log mb-0" data-ai-operation-log aria-live="polite"><li>Пакеты подготовлены и ожидают запуска.</li></ol></div>
         <div class="alert alert-danger mt-3 mb-0" data-ai-generation-error hidden tabindex="-1"></div>
         <div class="wizard-actions"><button class="btn btn-outline-primary btn-lg" type="button" data-ai-prev>Назад</button><button class="btn btn-primary btn-lg" type="button" data-ai-generate>Сформировать ИИ-чек-лист</button></div>
     </div>
