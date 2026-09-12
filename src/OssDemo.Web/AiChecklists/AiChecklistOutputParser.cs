@@ -19,13 +19,14 @@ internal static class AiChecklistOutputParser
         foreach (var element in itemsElement.EnumerateArray())
         {
             var title = ReadString(element, "title")?.Trim();
-            if (string.IsNullOrWhiteSpace(title) || !titles.Add(Normalize(title))) continue;
+            if (string.IsNullOrWhiteSpace(title)) continue;
 
             var sourceIds = ReadSourceIds(element)
                 .Where(knownSources.Contains)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             if (sourceIds.Length == 0) continue;
+            if (!titles.Add(Normalize(title))) continue;
 
             var section = ReadString(element, "section")?.Trim();
             var reason = ReadString(element, "reason")?.Trim() ?? string.Empty;

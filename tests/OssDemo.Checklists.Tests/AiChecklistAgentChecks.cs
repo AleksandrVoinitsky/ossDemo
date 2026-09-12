@@ -43,6 +43,14 @@ internal static class AiChecklistAgentChecks
 
         var wrapped = AiChecklistOutputParser.Parse($"<think>служебное рассуждение</think>\n```json\n{json}\n```", evidence);
         AssertEqual(1, wrapped.Items.Count);
+
+        var invalidBeforeValid = AiChecklistOutputParser.Parse("""
+            {"name":"x","items":[
+              {"title":"Проверить ПЭК","sourceIds":["S404"]},
+              {"title":"Проверить ПЭК","sourceIds":["S1"]}
+            ]}
+            """, evidence);
+        AssertEqual(1, invalidBeforeValid.Items.Count);
     }
 
     public static async Task RunPersistenceChecksAsync()
