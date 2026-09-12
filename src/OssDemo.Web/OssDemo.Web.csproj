@@ -43,6 +43,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="OssDemo.Checklists.Tests" />
     <InternalsVisibleTo Include="OssDemo.Rag.Tests" />
   </ItemGroup>
 
