@@ -23,6 +23,7 @@ artifacts/
 .vs/
 .vscode/
 .idea/
+/.worktrees/
 *.user
 *.suo
 *.userosscache
