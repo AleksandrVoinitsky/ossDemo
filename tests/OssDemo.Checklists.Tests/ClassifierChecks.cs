@@ -10,6 +10,9 @@ internal static class ClassifierChecks
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Count() == 49,
             "Коды классификатора должны быть уникальны.");
+        AssertTrue(ClassifierSeedData.Tree.Sections.SelectMany(section => section.Criteria)
+            .All(criterion => criterion.CheckText.StartsWith("Проверить ", StringComparison.OrdinalIgnoreCase) && criterion.CheckText.Length <= 220),
+            "Каждый критерий должен иметь короткую рабочую формулировку.");
 
         var invalid = ClassifierRules.Normalize(new ClassifierCriterionWrite("", "", "", [], [], true, 0));
         AssertTrue(!invalid.IsSuccess, "Пустой критерий должен отклоняться.");
