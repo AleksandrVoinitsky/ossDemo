@@ -124,6 +124,17 @@ internal static class AiChecklistAgentChecks
         AssertEqual("ai", generated.Value!.Items[0].Origin);
         AssertTrue(generated.Value.Items[0].Basis.Contains("ФЗ-7"), "Основание должно содержать найденный документ.");
 
+        var legacyEvidence = Enumerable.Range(1, 10).Select(index =>
+            new AiChecklistEvidence($"L{index}", "Большая тема", $"Документ {index}", "Раздел", index == 1 ? "Проверить программу ПЭК " + new string('x', 2_000) : new string('x', 2_000), .8)).ToArray();
+        var legacySynthesis = new FakeSynthesis("""
+            {"name":"ИИ-проверка","items":[{"section":"ПЭК","title":"Проверить программу","confidence":0.9,"citations":[{"sourceId":"L1","quote":"Проверить программу ПЭК"}]}]}
+            """);
+        var legacyAgent = new AiChecklistAgent(source, new FakeSearch(legacyEvidence), legacySynthesis, repository, new InMemoryAiChecklistRunStore(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance);
+        var legacyGenerated = await legacyAgent.GenerateAsync("test", CancellationToken.None);
+        AssertTrue(legacyGenerated.IsSuccess, "Совместимый /generate должен обрабатывать большой результат поиска одним ограниченным пакетом.");
+        AssertTrue(AmveraAiChecklistSynthesisClient.BuildContext(legacySynthesis.LastEvidence!).Length <= 9_000, "Legacy-вызов не должен превышать лимит контекста.");
+
         var emptyAgent = new AiChecklistAgent(source, new FakeSearch([]), new FakeSynthesis("{}"), repository, new InMemoryAiChecklistRunStore(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance);
         var rejected = await emptyAgent.GenerateAsync("test", CancellationToken.None);
@@ -188,7 +199,12 @@ internal static class AiChecklistAgentChecks
 
     private sealed class FakeSynthesis(string response) : IAiChecklistSynthesisClient
     {
-        public Task<string> SynthesizeAsync(FacilityProfile facility, IReadOnlyList<AiChecklistEvidence> evidence, CancellationToken cancellationToken) => Task.FromResult(response);
+        public IReadOnlyList<AiChecklistEvidence>? LastEvidence { get; private set; }
+        public Task<string> SynthesizeAsync(FacilityProfile facility, IReadOnlyList<AiChecklistEvidence> evidence, CancellationToken cancellationToken)
+        {
+            LastEvidence = evidence;
+            return Task.FromResult(response);
+        }
     }
 
     private static void AssertTrue(bool value, string message)

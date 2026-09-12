@@ -45,8 +45,11 @@ internal sealed class AiChecklistAgent(
         try
         {
             var preview = search.Value!;
-            var raw = await synthesisClient.SynthesizeAsync(preview.Facility, preview.Evidence, cancellationToken);
-            var synthesis = AiChecklistOutputParser.Parse(raw, preview.Evidence);
+            var preparedEvidence = AiChecklistBatchPlanner.PrepareEvidence(preview.Evidence);
+            var firstBatch = AiChecklistBatchPlanner.Build(preparedEvidence).First();
+            var selectedEvidence = preparedEvidence.Where(item => firstBatch.EvidenceIds.Contains(item.Id)).ToArray();
+            var raw = await synthesisClient.SynthesizeAsync(preview.Facility, selectedEvidence, cancellationToken);
+            var synthesis = AiChecklistOutputParser.Parse(raw, selectedEvidence);
             if (synthesis.Items.Count == 0)
                 return ChecklistOperationResult<ChecklistDetails>.Fail("ai_invalid_response", "ИИ не сформировал пунктов с подтверждёнными источниками.");
 
@@ -54,7 +57,7 @@ internal sealed class AiChecklistAgent(
             if (facility is null)
                 return ChecklistOperationResult<ChecklistDetails>.Fail("not_found", "Объект проверки не найден.");
 
-            var draftItems = ToDraftItems(synthesis.Items, preview.Evidence);
+            var draftItems = ToDraftItems(synthesis.Items, selectedEvidence);
 
             return await checklists.CreateAiDraftAsync(new(facility.Id, facility.Name, synthesis.Name, draftItems), cancellationToken);
         }
