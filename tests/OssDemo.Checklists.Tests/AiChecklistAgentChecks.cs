@@ -118,6 +118,18 @@ internal static class AiChecklistAgentChecks
         AssertEqual("knowledge_empty", rejected.ErrorCode);
     }
 
+    public static void RunBatchPlanningChecks()
+    {
+        var evidence = Enumerable.Range(1, 32).Select(index => new AiChecklistEvidence(
+            $"S{index}", index <= 12 ? "Атмосфера" : "Отходы", $"Документ {index}", "Раздел", new string('x', 2_000), .8)).ToArray();
+        var batches = AiChecklistBatchPlanner.Build(evidence);
+        AssertTrue(batches.Count > 1, "Большой контекст должен делиться на пакеты.");
+        AssertTrue(batches.All(batch => batch.EvidenceIds.Count <= 5), "В пакете должно быть не более пяти источников.");
+        AssertTrue(batches.All(batch => batch.ContextCharacters <= 9_000), "Контекст пакета должен быть ограничен 9000 символами.");
+        AssertEqual(32, batches.SelectMany(batch => batch.EvidenceIds).Distinct().Count());
+        AssertEqual(0, AiChecklistBatchPlanner.Build([]).Count);
+    }
+
     private sealed class FakeFacilitySource(FacilityProfile profile, OperationalFacility facility) : IAiChecklistFacilitySource
     {
         public Task<FacilityProfile?> GetProfileAsync(string slug, CancellationToken cancellationToken) => Task.FromResult<FacilityProfile?>(profile);

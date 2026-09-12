@@ -20,6 +20,12 @@ internal sealed record AiGeneratedChecklistItem(
 
 internal sealed record AiChecklistVerifiedCitation(string SourceId, string Quote);
 
+internal sealed record AiChecklistBatchPlan(
+    int Index,
+    string Topic,
+    IReadOnlyList<string> EvidenceIds,
+    int ContextCharacters);
+
 internal sealed record AiChecklistSynthesis(
     string Name,
     IReadOnlyList<AiGeneratedChecklistItem> Items);

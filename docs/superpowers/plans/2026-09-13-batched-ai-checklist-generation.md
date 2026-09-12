@@ -4,7 +4,7 @@
 
 **Goal:** Replace repeated monolithic AI generation with a persisted, retryable batched workflow and an informative operation animation.
 
-**Architecture:** PostgreSQL stores one search snapshot and independent thematic batches. Small idempotent LLM calls generate verified items, then deterministic finalization creates one ordinary checklist draft. The browser runs two batches concurrently and renders factual progress rather than model chain-of-thought.
+**Architecture:** PostgreSQL stores one search snapshot and independent thematic batches. Two hosted workers perform small idempotent LLM calls outside request lifetimes, then deterministic finalization creates one ordinary checklist draft. The browser polls persisted state and renders factual progress rather than model chain-of-thought.
 
 **Tech Stack:** ASP.NET Core Razor Pages, C#/.NET 10, PostgreSQL/Npgsql, Amvera/Qwen, vanilla JavaScript, Bootstrap.
 
@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Do not repeat RAG search during generation.
-- Persist run, evidence and batch progress in PostgreSQL for 24 hours.
+- Persist run, evidence and batch progress in PostgreSQL without an execution deadline.
 - Send at most 5 evidence fragments and 9,000 context characters per LLM call.
 - Generate at most 20 accepted items per batch and 100 per checklist.
 - Verify exact citations before storing batch items.
@@ -54,7 +54,7 @@
 - Consumes planned batches from Task 1.
 - Produces create/get/claim/complete/fail/finalize-safe store operations.
 
-- [ ] Add failing in-memory lifecycle checks for create, idempotent claim, failure retry, completion and expiry.
+- [ ] Add failing in-memory lifecycle checks for create, idempotent queue/claim, failure retry, completion and restart recovery.
 - [ ] Implement the store contract and in-memory test store until lifecycle checks pass.
 - [ ] Add DDL for runs, evidence and batches with foreign keys, status constraints and indexes.
 - [ ] Implement PostgreSQL JSON serialization, row locking and idempotent state transitions.
@@ -75,7 +75,7 @@
 
 - [ ] Add failing checks proving generation uses stored evidence, calls one batch only, accepts at most 20 items and does not search again.
 - [ ] Change synthesis input to batch evidence and include run/batch metadata in safe logs.
-- [ ] Implement batch claim, synthesis, citation validation, completion/failure and retry.
+- [ ] Implement a two-worker `BackgroundService`, batch claim, synthesis, citation validation, completion/failure and retry without a provider timeout.
 - [ ] Implement deterministic cross-batch deduplication and atomic draft creation on finalization.
 - [ ] Reduce query plan to at most five concise searches and verify distinct bounded output.
 - [ ] Run tests/build and commit orchestration.
@@ -102,10 +102,10 @@
 - Modify: `src/OssDemo.Web/wwwroot/css/site.css`
 
 **Interfaces:**
-- Creates one run after search, processes batches with concurrency 2, retries failed batches, finalizes once complete.
+- Creates one run after search, queues batches, polls two server workers, retries failed batches and finalizes once complete.
 
 - [ ] Replace the single fake 72% progress state with batch cards and an `aria-live` operation timeline.
-- [ ] Render queued/running/verification/completed/failed states from actual API responses.
+- [ ] Render queued/running/verification/completed/failed states from polling actual API responses.
 - [ ] Add elapsed timers, source/item counts and retry buttons without rendering any untrusted HTML.
 - [ ] Add pulse, shimmer and progress transitions plus a `prefers-reduced-motion` override.
 - [ ] Verify JavaScript syntax, Razor build and mobile layout, then commit.
