@@ -6,8 +6,16 @@
 }
 
 <div class="page-actions mb-3">
-    <a class="btn btn-outline-primary" asp-page="/Checklists/Archive">Архив и шаблоны</a>
+    <a class="btn btn-outline-primary" asp-page="/Checklists/Archive">Шаблоны и история</a>
 </div>
+
+<section class="soft-panel p-3 p-lg-4 mb-4" data-draft-panel>
+    <div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+        <div><h2 class="h4 section-title mb-1">Незавершённые чек-листы</h2><p class="muted-note mb-0">Продолжите ранее сохранённую проверку.</p></div>
+        <span class="badge text-bg-secondary align-self-center" data-draft-count>Загрузка…</span>
+    </div>
+    <div class="draft-checklist-list" data-draft-list><p class="muted-note mb-0">Загрузка черновиков…</p></div>
+</section>
 
 <section class="soft-panel checklist-wizard" data-checklist-wizard>
     <div class="wizard-progress-area">
@@ -97,9 +105,9 @@
         <div class="wizard-panel-header">
             <div>
                 <h2 class="h4 section-title mb-1">Шаг 3. Выбор шаблона</h2>
-                <p class="muted-note mb-0">Шаблоны загружаются из файлов данных. Выбор создаёт новый рабочий чек-лист, который сохраняется в подключённом хранилище.</p>
+                <p class="muted-note mb-0">Шаблоны загружаются из базы данных. Выбор создаёт независимый рабочий чек-лист и сохраняет его как черновик.</p>
             </div>
-            <a class="btn btn-outline-primary" asp-page="/KnowledgeBase" asp-route-space="templates">Открыть шаблоны</a>
+            <a class="btn btn-outline-primary" asp-page="/Checklists/Archive" asp-route-tab="templates">Управление шаблонами</a>
         </div>
 
         <div class="row g-4">

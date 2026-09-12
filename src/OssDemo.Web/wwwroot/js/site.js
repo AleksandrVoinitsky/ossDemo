@@ -120,7 +120,7 @@
   const appendLiveChecklistItem = (container, item) => {
     const row = document.createElement('div');
     row.className = 'live-checklist-item';
-    row.innerHTML = `<div class="live-item-number">${item.number}</div><div><strong>${item.title}</strong><div class="small text-muted">${item.note}</div><div class="small muted-note mt-1">Источник: ${item.source}</div></div><span class="badge ${item.badge}">${item.status}</span>`;
+    row.innerHTML = `<div class="live-item-number">${item.position}</div><div><strong>${item.title}</strong><div class="small text-muted">${item.note}</div><div class="small muted-note mt-1">Источник: ${item.source}</div></div><span class="badge ${item.badge}">${item.status}</span>`;
     container.appendChild(row);
   };
 
@@ -141,7 +141,11 @@
         const response = await fetch('/api/checklists', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ templateId: templateSelect.value })
+          body: JSON.stringify({
+            templateId: templateSelect.value,
+            facilityId: templateSelect.options[templateSelect.selectedIndex]?.dataset.facilityId,
+            name: templateSelect.options[templateSelect.selectedIndex]?.textContent?.split(' · ')[1] || null
+          })
         });
         if (!response.ok) throw new Error();
         checklist = await response.json();
@@ -205,7 +209,7 @@
           if (liveEmpty) liveEmpty.hidden = true;
           appendLiveChecklistItem(liveChecklist, { ...item, source: 'Выбранный шаблон', badge: 'text-bg-success', status: 'Добавлен' });
           if (liveCount) liveCount.textContent = `${index + 1} из ${checklist.items.length} пунктов`;
-          status.textContent = `Добавлен пункт №${item.number}: выбранный шаблон`;
+          status.textContent = `Добавлен пункт №${item.position}: выбранный шаблон`;
         }, 900 + index * 520);
       });
 

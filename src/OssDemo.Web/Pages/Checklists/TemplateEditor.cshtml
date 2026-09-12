@@ -1,0 +1,14 @@
+@page
+@{
+    ViewData["Title"] = "Редактор шаблона";
+    ViewData["Nav"] = "Checklist";
+    ViewData["Breadcrumb"] = "Чек-лист \\ Шаблоны \\ Редактор";
+}
+<form class="template-editor" data-template-editor novalidate>
+    <div class="page-actions mb-3"><div><h1 class="h3 section-title mb-1" data-editor-title>Новый шаблон</h1><p class="muted-note mb-0">Соберите готовую структуру проверки для выбранного объекта.</p></div><div class="d-flex gap-2"><a class="btn btn-outline-secondary" asp-page="/Checklists/Archive" asp-route-tab="templates">Отмена</a><button class="btn btn-primary" type="submit" data-save-template>Сохранить шаблон</button></div></div>
+    <div class="alert state-hidden" role="alert" tabindex="-1" data-editor-alert hidden></div>
+    <section class="soft-panel p-3 p-lg-4 mb-3"><div class="row g-3"><div class="col-lg-7"><label class="form-label" for="templateName">Название шаблона</label><input class="form-control form-control-lg" id="templateName" data-template-name /><div class="invalid-feedback" data-error-for="name"></div></div><div class="col-lg-5"><label class="form-label" for="templateFacility">Объект проверки</label><select class="form-select form-select-lg" id="templateFacility" data-template-facility><option value="">Загрузка объектов…</option></select><div class="invalid-feedback" data-error-for="facilityId"></div></div></div></section>
+    <section class="template-sections" data-template-sections aria-label="Разделы шаблона"></section>
+    <button class="btn btn-outline-primary template-add-section" type="button" data-add-section>Добавить раздел</button>
+</form>
+@section Scripts { <script src="~/js/checklist-template-editor.js" asp-append-version="true"></script> }

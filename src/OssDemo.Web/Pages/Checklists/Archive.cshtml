@@ -1,24 +1,23 @@
 @page
 @{
-    ViewData["Title"] = "Архив и шаблоны чек-листов";
+    ViewData["Title"] = "Шаблоны и история чек-листов";
     ViewData["Nav"] = "Checklist";
-    ViewData["Breadcrumb"] = "Чек-лист \\ Архив и шаблоны";
+    ViewData["Breadcrumb"] = "Чек-лист \\ Шаблоны и история";
+    var activeTab = Request.Query["tab"] == "history" ? "history" : "templates";
 }
-
-<div class="page-actions mb-3">
-    <div><h1 class="h3 section-title mb-1">Архив и шаблоны чек-листов</h1><p class="muted-note mb-0">Исторические данные читаются из CSV-файлов и не участвуют в поиске базы знаний.</p></div>
-    <a class="btn btn-primary" asp-page="/Checklists/New">Сформировать чек-лист</a>
-</div>
-
-<section class="soft-panel p-3 p-lg-4">
-    <div class="table-responsive">
-        <table class="table align-middle mb-0"><thead><tr><th>Объект</th><th>Период</th><th>Роль файла</th><th>Пунктов</th><th></th></tr></thead>
-        <tbody data-checklist-catalog><tr><td colspan="5" class="muted-note">Загрузка архива…</td></tr></tbody></table>
+<div class="page-actions mb-3"><div><h1 class="h3 section-title mb-1">Шаблоны и история чек-листов</h1><p class="muted-note mb-0">Управляйте быстрыми шаблонами и просматривайте утверждённые проверки.</p></div><a class="btn btn-primary" asp-page="/Checklists/New">Сформировать чек-лист</a></div>
+<section class="soft-panel checklist-library" data-checklist-library data-active-tab="@activeTab">
+    <nav class="checklist-tabs" aria-label="Разделы чек-листов"><a class="checklist-tab @(activeTab == "templates" ? "active" : "")" href="?tab=templates" aria-current="@(activeTab == "templates" ? "page" : null)">Шаблоны</a><a class="checklist-tab @(activeTab == "history" ? "active" : "")" href="?tab=history" aria-current="@(activeTab == "history" ? "page" : null)">История</a></nav>
+    <div class="alert state-hidden mt-3" role="alert" tabindex="-1" data-library-alert hidden></div>
+    <div class="checklist-library-pane @(activeTab != "templates" ? "d-none" : "")" data-library-pane="templates">
+        <div class="library-toolbar"><div><label class="form-label" for="templateSearch">Поиск шаблонов</label><input class="form-control" id="templateSearch" type="search" placeholder="Название или объект" data-template-search /></div><a class="btn btn-primary align-self-end" asp-page="/Checklists/TemplateEditor">Создать шаблон</a></div>
+        <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Шаблон</th><th>Объект</th><th>Состав</th><th>Изменён</th><th class="text-end">Действия</th></tr></thead><tbody data-template-list><tr><td colspan="5" class="muted-note">Загрузка шаблонов…</td></tr></tbody></table></div>
+    </div>
+    <div class="checklist-library-pane @(activeTab != "history" ? "d-none" : "")" data-library-pane="history">
+        <form class="library-toolbar library-filters" data-history-filters><div><label class="form-label" for="historySearch">Поиск</label><input class="form-control" id="historySearch" name="search" type="search" placeholder="Название или объект" /></div><div><label class="form-label" for="historyFacility">Объект</label><select class="form-select" id="historyFacility" name="facilityId"><option value="">Все объекты</option></select></div><div><label class="form-label" for="historyFrom">Утверждён с</label><input class="form-control" id="historyFrom" name="from" type="date" /></div><div><label class="form-label" for="historyTo">по</label><input class="form-control" id="historyTo" name="to" type="date" /></div><button class="btn btn-outline-primary align-self-end" type="submit">Применить</button></form>
+        <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Чек-лист</th><th>Объект</th><th>Период</th><th>Утверждён</th><th>Пунктов</th><th></th></tr></thead><tbody data-history-list><tr><td colspan="6" class="muted-note">Загрузка истории…</td></tr></tbody></table></div>
     </div>
 </section>
-
-<div class="modal fade" id="checklistSourceModal" tabindex="-1" aria-labelledby="checklistSourceTitle" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><div><h2 class="modal-title h5" id="checklistSourceTitle" data-source-title>Чек-лист</h2><p class="muted-note small mb-0" data-source-meta></p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button></div><div class="modal-body"><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>№</th><th>Раздел</th><th>Контролируемая позиция</th><th>Основание</th><th>Результат</th></tr></thead><tbody data-source-items></tbody></table></div></div></div></div>
-</div>
-
-@section Scripts { <script src="~/js/checklists.js" asp-append-version="true"></script> }
+<div class="modal fade" id="templateCopyModal" tabindex="-1" aria-labelledby="templateCopyTitle" aria-hidden="true"><div class="modal-dialog"><form class="modal-content" data-copy-form><div class="modal-header"><h2 class="modal-title h5" id="templateCopyTitle">Создать копию шаблона</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button></div><div class="modal-body"><label class="form-label" for="copyTemplateName">Название копии</label><input class="form-control" id="copyTemplateName" required data-copy-name /></div><div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Отмена</button><button class="btn btn-primary" type="submit">Создать копию</button></div></form></div></div>
+<div class="modal fade" id="templateDeleteModal" tabindex="-1" aria-labelledby="templateDeleteTitle" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h2 class="modal-title h5" id="templateDeleteTitle">Удалить шаблон?</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button></div><div class="modal-body">Шаблон <strong data-delete-name></strong> будет удалён. Созданные чек-листы сохранятся.</div><div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Отмена</button><button class="btn btn-danger" type="button" data-confirm-delete>Удалить</button></div></div></div></div>
+@section Scripts { <script src="~/js/checklist-library.js" asp-append-version="true"></script> }
