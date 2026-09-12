@@ -38,6 +38,11 @@ internal static class AiChecklistAgentChecks
         AssertTrue(queries.Any(item => item.Query.Contains("выброс", StringComparison.OrdinalIgnoreCase)), "Экологические аспекты должны попадать в поиск.");
         AssertTrue(queries.All(item => !item.Query.Contains("Не указано", StringComparison.OrdinalIgnoreCase)), "Пустые признаки не должны попадать в поиск.");
 
+        var fallback = AiChecklistFallbackBuilder.Build(profile);
+        AssertTrue(fallback.Count > 0, "Карточка объекта должна давать базовые пункты даже без результатов поиска.");
+        AssertTrue(fallback.Any(item => item.Section.Contains("атмосфер", StringComparison.OrdinalIgnoreCase)), "Источники выбросов должны включать раздел атмосферного воздуха.");
+        AssertTrue(fallback.All(item => !string.IsNullOrWhiteSpace(item.Basis)), "Базовые пункты должны сохранять основания из примеров проекта.");
+
         var evidence = new[]
         {
             new AiChecklistEvidence("S1", "Атмосферный воздух", "ФЗ-7", "Статья 67", "Проверить программу ПЭК", 0.9),
@@ -139,6 +144,10 @@ internal static class AiChecklistAgentChecks
             Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance);
         var rejected = await emptyAgent.GenerateAsync("test", CancellationToken.None);
         AssertEqual("knowledge_empty", rejected.ErrorCode);
+        var emptyRun = await emptyAgent.CreateRunAsync("test", CancellationToken.None);
+        AssertTrue(emptyRun.IsSuccess && emptyRun.Value!.Batches.Count == 0, "Пакетный сценарий должен продолжаться без результатов поиска.");
+        var emptyFinalized = await emptyAgent.FinalizeRunAsync(emptyRun.Value!.Id, CancellationToken.None);
+        AssertTrue(emptyFinalized.IsSuccess && emptyFinalized.Value!.Items.Count > 0, "Без источников должен создаваться базовый черновик по карточке объекта.");
 
         var runStore = new InMemoryAiChecklistRunStore();
         var countingSearch = new FakeSearch(evidence);
@@ -151,7 +160,18 @@ internal static class AiChecklistAgentChecks
         AssertTrue(await batchedAgent.ProcessNextBatchAsync(CancellationToken.None), "Worker должен обработать пакет из очереди.");
         var finalized = await batchedAgent.FinalizeRunAsync(createdRun.Value.Id, CancellationToken.None);
         AssertTrue(finalized.IsSuccess, "Завершённые пакеты должны создать черновик.");
+        AssertTrue(finalized.Value!.Items.Any(item => item.Basis.Contains("ФЗ-7")), "Найденные ИИ-пункты должны иметь приоритет над базовыми примерами.");
         AssertEqual(1, countingSearch.Calls);
+
+        var failedStore = new InMemoryAiChecklistRunStore();
+        var failedAgent = new AiChecklistAgent(source, new FakeSearch(evidence), new FakeSynthesis("{}"), repository, failedStore,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance);
+        var failedRun = await failedAgent.CreateRunAsync("test", CancellationToken.None);
+        await failedStore.QueueBatchAsync(failedRun.Value!.Id, 0, CancellationToken.None);
+        await failedStore.ClaimNextBatchAsync(CancellationToken.None);
+        await failedStore.FailBatchAsync(failedRun.Value.Id, 0, "Ошибка модели", 100, CancellationToken.None);
+        var partialFinalized = await failedAgent.FinalizeRunAsync(failedRun.Value.Id, CancellationToken.None);
+        AssertTrue(partialFinalized.IsSuccess && partialFinalized.Value!.Items.Count > 0, "Ошибка отдельного пакета не должна блокировать базовый черновик.");
     }
 
     public static void RunBatchPlanningChecks()

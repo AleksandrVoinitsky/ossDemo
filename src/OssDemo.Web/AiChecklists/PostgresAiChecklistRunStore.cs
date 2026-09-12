@@ -131,7 +131,7 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
             await transaction.RollbackAsync(cancellationToken);
             return false;
         }
-        await using (var incomplete = new NpgsqlCommand("SELECT 1 FROM app_ai_checklist_batches WHERE run_id=@id AND status<>'completed' LIMIT 1", connection, transaction))
+        await using (var incomplete = new NpgsqlCommand("SELECT 1 FROM app_ai_checklist_batches WHERE run_id=@id AND status NOT IN ('completed','failed') LIMIT 1", connection, transaction))
         {
             incomplete.Parameters.AddWithValue("id", runId);
             if (await incomplete.ExecuteScalarAsync(cancellationToken) is not null)

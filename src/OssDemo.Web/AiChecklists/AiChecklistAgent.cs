@@ -75,14 +75,23 @@ internal sealed class AiChecklistAgent(
     public async Task<ChecklistOperationResult<AiChecklistRunState>> CreateRunAsync(string? facilitySlug, CancellationToken cancellationToken)
     {
         var started = System.Diagnostics.Stopwatch.StartNew();
-        var search = await SearchAsync(facilitySlug, cancellationToken);
-        if (!search.IsSuccess) return ChecklistOperationResult<AiChecklistRunState>.Fail(search.ErrorCode!, search.Error!, search.Errors);
-        var preview = search.Value!;
-        var facility = await facilitySource.GetFacilityAsync(preview.Facility.Slug, cancellationToken);
+        var analysis = await AnalyzeAsync(facilitySlug, cancellationToken);
+        if (!analysis.IsSuccess) return ChecklistOperationResult<AiChecklistRunState>.Fail(analysis.ErrorCode!, analysis.Error!, analysis.Errors);
+        IReadOnlyList<AiChecklistEvidence> found;
+        try
+        {
+            found = await knowledgeSearch.SearchAsync(analysis.Value!.Queries, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception, "Поиск оснований недоступен для объекта {FacilitySlug}; будет создан базовый проект по карточке.", facilitySlug);
+            found = [];
+        }
+        var facility = await facilitySource.GetFacilityAsync(analysis.Value!.Facility.Slug, cancellationToken);
         if (facility is null) return ChecklistOperationResult<AiChecklistRunState>.Fail("not_found", "Объект проверки не найден.");
-        var evidence = AiChecklistBatchPlanner.PrepareEvidence(preview.Evidence);
+        var evidence = AiChecklistBatchPlanner.PrepareEvidence(found);
         var batches = AiChecklistBatchPlanner.Build(evidence);
-        var run = await runStore.CreateAsync(preview.Facility, facility.Id, facility.Name, evidence, batches, cancellationToken);
+        var run = await runStore.CreateAsync(analysis.Value.Facility, facility.Id, facility.Name, evidence, batches, cancellationToken);
         logger.LogInformation("Создан запуск ИИ-чек-листа {RunId}: {EvidenceCount} фрагментов источников, {BatchCount} пакетов, поиск {DurationMs} мс.", run.Id, evidence.Count, batches.Count, started.ElapsedMilliseconds);
         return ChecklistOperationResult<AiChecklistRunState>.Success(run);
     }
@@ -138,13 +147,18 @@ internal sealed class AiChecklistAgent(
             var existing = await checklists.GetChecklistAsync(checklistId, cancellationToken);
             return existing is null ? ChecklistOperationResult<ChecklistDetails>.Fail("not_found", "Созданный чек-лист не найден.") : ChecklistOperationResult<ChecklistDetails>.Success(existing);
         }
-        if (run.Batches.Any(item => item.Status != "completed")) return ChecklistOperationResult<ChecklistDetails>.Fail("state_conflict", "Дождитесь завершения всех тематических пакетов.");
+        if (run.Batches.Any(item => item.Status is not ("completed" or "failed"))) return ChecklistOperationResult<ChecklistDetails>.Fail("state_conflict", "Дождитесь завершения активных тематических пакетов.");
         if (!await runStore.BeginFinalizeAsync(runId, cancellationToken)) return ChecklistOperationResult<ChecklistDetails>.Fail("state_conflict", "Финализация уже выполняется.");
         try
         {
             var items = run.Batches.SelectMany(batch => batch.Items).DistinctBy(item => item.Title.Trim(), StringComparer.OrdinalIgnoreCase).Take(100).ToArray();
-            if (items.Length == 0) throw new AiChecklistGenerationException("ai_invalid_response", "ИИ не сформировал подтверждённых пунктов.");
-            var result = await checklists.CreateAiDraftAsync(new(run.FacilityId, run.FacilityName, $"ИИ-чек-лист — {run.FacilityName}", ToDraftItems(items, run.Evidence), runId), cancellationToken);
+            var draftItems = ToDraftItems(items, run.Evidence)
+                .Take(75)
+                .Concat(AiChecklistFallbackBuilder.Build(run.Facility))
+                .DistinctBy(item => item.Title.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Take(100)
+                .ToArray();
+            var result = await checklists.CreateAiDraftAsync(new(run.FacilityId, run.FacilityName, $"ИИ-чек-лист — {run.FacilityName}", draftItems, runId), cancellationToken);
             if (!result.IsSuccess) { await runStore.CancelFinalizeAsync(runId, result.Error ?? "Ошибка сохранения.", cancellationToken); return result; }
             await runStore.CompleteFinalizeAsync(runId, result.Value!.Id, cancellationToken);
             return result;
