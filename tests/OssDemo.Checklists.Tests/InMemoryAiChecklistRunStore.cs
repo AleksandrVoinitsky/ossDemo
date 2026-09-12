@@ -18,7 +18,7 @@ internal sealed class InMemoryAiChecklistRunStore : IAiChecklistRunStore
     {
         lock (gate)
         {
-            if (!runs.TryGetValue(runId, out var run)) return Task.FromResult(false);
+            if (!runs.TryGetValue(runId, out var run) || run.Status != "ready") return Task.FromResult(false);
             var batch = run.Batches.FirstOrDefault(item => item.Index == batchIndex);
             if (batch is null) return Task.FromResult(false);
             if (batch.Status is "queued" or "running" || batch.Status == "completed" && batch.ItemCount > 0) return Task.FromResult(true);

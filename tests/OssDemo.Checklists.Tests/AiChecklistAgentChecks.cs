@@ -165,6 +165,13 @@ internal static class AiChecklistAgentChecks
             var rendered = AmveraAiChecklistSynthesisClient.BuildContext(batchEvidence);
             AssertTrue(batchEvidence.All(item => rendered.Contains($"КОНЕЦ-{item.Id}")), "Планировщик не должен назначать в пакет источник, который затем обрежется.");
         }
+
+        var longText = new string('я', 20_000) + " КОНЕЦ";
+        var prepared = AiChecklistBatchPlanner.PrepareEvidence(
+            [new AiChecklistEvidence("LONG", "Тема", "Документ", "Раздел", longText, .7)]);
+        AssertTrue(prepared.Count > 1, "Длинный источник должен делиться на несколько сохраняемых фрагментов.");
+        AssertEqual(longText, string.Concat(prepared.Select(item => item.Text)));
+        AssertTrue(AiChecklistBatchPlanner.Build(prepared).All(batch => batch.ContextCharacters <= 9_000), "Каждый фрагмент длинного источника должен помещаться в контекст целиком.");
     }
 
     private sealed class FakeFacilitySource(FacilityProfile profile, OperationalFacility facility) : IAiChecklistFacilitySource

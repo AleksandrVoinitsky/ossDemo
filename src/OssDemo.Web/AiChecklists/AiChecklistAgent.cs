@@ -77,9 +77,10 @@ internal sealed class AiChecklistAgent(
         var preview = search.Value!;
         var facility = await facilitySource.GetFacilityAsync(preview.Facility.Slug, cancellationToken);
         if (facility is null) return ChecklistOperationResult<AiChecklistRunState>.Fail("not_found", "Объект проверки не найден.");
-        var batches = AiChecklistBatchPlanner.Build(preview.Evidence);
-        var run = await runStore.CreateAsync(preview.Facility, facility.Id, facility.Name, preview.Evidence, batches, cancellationToken);
-        logger.LogInformation("Создан запуск ИИ-чек-листа {RunId}: {EvidenceCount} источников, {BatchCount} пакетов, поиск {DurationMs} мс.", run.Id, preview.Evidence.Count, batches.Count, started.ElapsedMilliseconds);
+        var evidence = AiChecklistBatchPlanner.PrepareEvidence(preview.Evidence);
+        var batches = AiChecklistBatchPlanner.Build(evidence);
+        var run = await runStore.CreateAsync(preview.Facility, facility.Id, facility.Name, evidence, batches, cancellationToken);
+        logger.LogInformation("Создан запуск ИИ-чек-листа {RunId}: {EvidenceCount} фрагментов источников, {BatchCount} пакетов, поиск {DurationMs} мс.", run.Id, evidence.Count, batches.Count, started.ElapsedMilliseconds);
         return ChecklistOperationResult<AiChecklistRunState>.Success(run);
     }
 

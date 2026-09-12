@@ -91,9 +91,8 @@ internal sealed class AmveraAiChecklistSynthesisClient(
 
     internal static string RenderEvidence(AiChecklistEvidence item)
     {
-        const int maxLength = 9_000;
         var header = $"[{item.Id}] Документ: {item.DocumentTitle}\nРаздел: {item.SourceLabel}\nТема поиска: {item.QueryLabel}\nТекст: ";
-        return header + Limit(item.Text, Math.Max(0, maxLength - header.Length));
+        return header + item.Text;
     }
 
     internal static bool TryReadContent(string payload, out string? content)

@@ -21,6 +21,7 @@ internal static class AiChecklistRunChecks
         AssertEqual(1, completed.Batches[0].ItemCount);
         AssertTrue(await store.BeginFinalizeAsync(run.Id, CancellationToken.None));
         AssertTrue(await store.BeginFinalizeAsync(run.Id, CancellationToken.None), "Повторная финализация должна быть идемпотентно допустима.");
+        AssertTrue(!await store.QueueBatchAsync(run.Id, 0, CancellationToken.None), "Во время финализации пакет нельзя вернуть в очередь.");
 
         var emptyRun = await store.CreateAsync(profile, Guid.NewGuid(), "Объект", evidence, AiChecklistBatchPlanner.Build(evidence), CancellationToken.None);
         await store.QueueBatchAsync(emptyRun.Id, 0, CancellationToken.None);
