@@ -75,8 +75,10 @@ builder.Services.AddSingleton<OperationalDataService>();
 builder.Services.AddSingleton<FacilityProfileService>();
 builder.Services.AddSingleton<ScheduleService>();
 builder.Services.AddSingleton<ChecklistService>();
+builder.Services.AddSingleton<ChecklistDatabaseInitializer>();
 
 var app = builder.Build();
+await app.Services.GetRequiredService<ChecklistDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

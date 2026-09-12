@@ -17,6 +17,12 @@ AssertEqual(1, valid.Value.Sections[0].Position);
 AssertEqual(1, valid.Value.Sections[0].Items[0].Position);
 AssertEqual("Статья 1", valid.Value.Sections[0].Items[0].Basis);
 
+AssertEqual(3, ChecklistSeedData.Templates.Count);
+AssertEqual(3, ChecklistSeedData.History.Count);
+AssertTrue(ChecklistSeedData.History.All(item => item.Status == ChecklistStatus.Approved), "История должна быть утверждена.");
+AssertTrue(ChecklistSeedData.Templates.Select(item => item.Id).Distinct().Count() == 3, "Идентификаторы шаблонов должны быть уникальны.");
+AssertTrue(ChecklistSeedData.History.SelectMany(item => item.Items).All(item => !string.IsNullOrWhiteSpace(item.Title)), "История не должна содержать пустые пункты.");
+
 Console.WriteLine("Checklist domain checks passed.");
 
 static void AssertTrue(bool value, string message)

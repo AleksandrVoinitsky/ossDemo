@@ -15,6 +15,18 @@ internal sealed record ChecklistTemplateItemWrite(
     string? Note,
     int Position);
 
+internal enum ChecklistStatus
+{
+    Draft,
+    Approved
+}
+
+internal sealed record ChecklistSeedTemplate(Guid Id, string SourceKey, string Name, string Facility, IReadOnlyList<ChecklistSeedSection> Sections);
+internal sealed record ChecklistSeedSection(string Title, IReadOnlyList<ChecklistSeedTemplateItem> Items);
+internal sealed record ChecklistSeedTemplateItem(string Title, string Basis, string Note);
+internal sealed record ChecklistSeedHistory(Guid Id, string SourceKey, string Name, string Facility, DateOnly? StartedOn, DateOnly? FinishedOn, DateTimeOffset ApprovedAt, ChecklistStatus Status, IReadOnlyList<ChecklistSeedHistoryItem> Items);
+internal sealed record ChecklistSeedHistoryItem(string Section, string Title, string Basis, string Result, string Nonconformity, string Note);
+
 internal sealed record ChecklistOperationResult<T>(
     bool IsSuccess,
     T? Value,
