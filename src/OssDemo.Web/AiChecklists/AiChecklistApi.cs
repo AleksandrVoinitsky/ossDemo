@@ -14,6 +14,29 @@ internal static class AiChecklistApi
                 ? Results.Created($"/api/checklists/{result.Value!.Id}", result.Value)
                 : Error(result.ErrorCode, result.Error, result.Errors);
         });
+        group.MapPost("/runs", async (AiChecklistRequest request, AiChecklistAgent agent, CancellationToken ct) =>
+        {
+            var result = await agent.CreateRunAsync(request.FacilitySlug, ct);
+            return result.IsSuccess
+                ? Results.Created($"/api/ai-checklists/runs/{result.Value!.Id}", result.Value)
+                : Error(result.ErrorCode, result.Error, result.Errors);
+        });
+        group.MapGet("/runs/{runId:guid}", async (Guid runId, AiChecklistAgent agent, CancellationToken ct) =>
+        {
+            var run = await agent.GetRunAsync(runId, ct);
+            return run is null ? Results.NotFound(new { error = "Запуск ИИ-формирования не найден.", code = "not_found" }) : Results.Ok(run);
+        });
+        group.MapPost("/runs/{runId:guid}/batches/{batchIndex:int}", async (Guid runId, int batchIndex, AiChecklistAgent agent, CancellationToken ct) =>
+            await agent.QueueBatchAsync(runId, batchIndex, ct)
+                ? Results.Accepted($"/api/ai-checklists/runs/{runId}")
+                : Results.NotFound(new { error = "Пакет ИИ-формирования не найден.", code = "not_found" }));
+        group.MapPost("/runs/{runId:guid}/finalize", async (Guid runId, AiChecklistAgent agent, CancellationToken ct) =>
+        {
+            var result = await agent.FinalizeRunAsync(runId, ct);
+            return result.IsSuccess
+                ? Results.Created($"/api/checklists/{result.Value!.Id}", result.Value)
+                : Error(result.ErrorCode, result.Error, result.Errors);
+        });
     }
 
     private static IResult ToResult<T>(ChecklistOperationResult<T> result) => result.IsSuccess
@@ -28,6 +51,7 @@ internal static class AiChecklistApi
         "not_found" => StatusCodes.Status404NotFound,
         "search_unavailable" => StatusCodes.Status503ServiceUnavailable,
         "ai_unavailable" => StatusCodes.Status502BadGateway,
+        "state_conflict" => StatusCodes.Status409Conflict,
         _ => StatusCodes.Status400BadRequest
     };
 }

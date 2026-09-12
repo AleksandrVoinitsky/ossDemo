@@ -9,6 +9,7 @@ internal static class AiChecklistAgentChecks
         AssertEqual(400, AiChecklistApi.StatusCode("knowledge_empty"));
         AssertEqual(502, AiChecklistApi.StatusCode("ai_unavailable"));
         AssertEqual(503, AiChecklistApi.StatusCode("search_unavailable"));
+        AssertEqual(409, AiChecklistApi.StatusCode("state_conflict"));
         AssertTrue(AmveraAiChecklistSynthesisClient.TryReadContent("{\"choices\":[{\"message\":{\"content\":\"{}\"}}]}", out var content) && content == "{}", "Должен читаться стандартный ответ Amvera.");
         AssertTrue(!AmveraAiChecklistSynthesisClient.TryReadContent("{\"choices\":[]}", out _), "Пустой choices должен обрабатываться без исключения.");
         var profile = new FacilityProfile("bereznikovskoe", new FacilityProfileFields
