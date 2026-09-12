@@ -181,7 +181,7 @@ internal sealed class ChecklistDatabaseInitializer(
             command.Parameters.AddWithValue("templateName", "Импортированный исторический чек-лист");
             command.Parameters.AddWithValue("started", (object?)history.StartedOn ?? DBNull.Value);
             command.Parameters.AddWithValue("finished", (object?)history.FinishedOn ?? DBNull.Value);
-            command.Parameters.AddWithValue("approved", history.ApprovedAt);
+            command.Parameters.AddWithValue("approved", ToPostgresTimestamp(history.ApprovedAt));
             command.Parameters.AddWithValue("source", history.SourceKey);
             inserted = await command.ExecuteNonQueryAsync(cancellationToken) > 0;
         }
@@ -274,7 +274,7 @@ internal sealed class ChecklistDatabaseInitializer(
                 insert.Parameters.AddWithValue("name", legacy.Name.Trim());
                 insert.Parameters.AddWithValue("facilityId", facilityId);
                 insert.Parameters.AddWithValue("facility", legacy.Facility.Trim());
-                insert.Parameters.AddWithValue("created", legacy.CreatedAt == default ? DateTimeOffset.UtcNow : legacy.CreatedAt);
+                insert.Parameters.AddWithValue("created", legacy.CreatedAt == default ? DateTimeOffset.UtcNow : ToPostgresTimestamp(legacy.CreatedAt));
                 if (await insert.ExecuteNonQueryAsync(cancellationToken) == 0) continue;
 
                 var position = 0;
@@ -311,4 +311,5 @@ internal sealed class ChecklistDatabaseInitializer(
 
     private sealed record LegacyWorkingChecklist(Guid Id, string? Name, string? Facility, DateTimeOffset CreatedAt, string? Status, IReadOnlyList<LegacyWorkingChecklistItem>? Items);
     private sealed record LegacyWorkingChecklistItem(Guid Id, int Number, string? Section, string? Title, string? Basis, string? Result, string? Nonconformity, string? Note, string? Origin);
+    internal static DateTimeOffset ToPostgresTimestamp(DateTimeOffset value) => value.ToUniversalTime();
 }

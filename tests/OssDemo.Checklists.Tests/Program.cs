@@ -22,6 +22,10 @@ AssertEqual(3, ChecklistSeedData.History.Count);
 AssertTrue(ChecklistSeedData.History.All(item => item.Status == ChecklistStatus.Approved), "История должна быть утверждена.");
 AssertTrue(ChecklistSeedData.Templates.Select(item => item.Id).Distinct().Count() == 3, "Идентификаторы шаблонов должны быть уникальны.");
 AssertTrue(ChecklistSeedData.History.SelectMany(item => item.Items).All(item => !string.IsNullOrWhiteSpace(item.Title)), "История не должна содержать пустые пункты.");
+var localTimestamp = new DateTimeOffset(2026, 9, 12, 22, 18, 0, TimeSpan.FromHours(5));
+var postgresTimestamp = ChecklistDatabaseInitializer.ToPostgresTimestamp(localTimestamp);
+AssertEqual(TimeSpan.Zero, postgresTimestamp.Offset);
+AssertEqual(localTimestamp.UtcDateTime, postgresTimestamp.UtcDateTime);
 
 await ChecklistLifecycleChecks.RunAsync();
 
