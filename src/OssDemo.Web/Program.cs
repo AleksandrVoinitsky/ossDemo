@@ -76,6 +76,9 @@ builder.Services.AddSingleton<ScheduleService>();
 builder.Services.AddSingleton<IChecklistRepository, PostgresChecklistRepository>();
 builder.Services.AddSingleton<ChecklistService>();
 builder.Services.AddSingleton<ChecklistDatabaseInitializer>();
+builder.Services.AddSingleton<IAiChecklistKnowledgeSearch, AiChecklistKnowledgeSearch>();
+builder.Services.AddSingleton<IAiChecklistSynthesisClient, AmveraAiChecklistSynthesisClient>();
+builder.Services.AddSingleton<AiChecklistAgent>();
 
 var app = builder.Build();
 await app.Services.GetRequiredService<ChecklistDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);
@@ -176,6 +179,7 @@ app.MapDelete("/api/operations/schedule/{id:guid}", async (Guid id, ScheduleServ
 app.MapGet("/api/operations/violations", async (OperationalDataService operationalData, CancellationToken cancellationToken) =>
     Results.Ok(await operationalData.GetViolationsAsync(cancellationToken)));
 app.MapChecklistApi();
+app.MapAiChecklistApi();
 app.MapGet("/api/knowledge/documents", async (
     RagService ragService,
     ILogger<Program> logger,
