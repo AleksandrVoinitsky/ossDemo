@@ -24,7 +24,12 @@ internal sealed record AiChecklistBatchPlan(
     int Index,
     string Topic,
     IReadOnlyList<string> EvidenceIds,
-    int ContextCharacters);
+    int ContextCharacters,
+    IReadOnlyList<string>? CriterionCodes = null,
+    string? ApplicabilityReason = null,
+    string? Query = null,
+    string? FallbackTitle = null,
+    string? Section = null);
 
 internal sealed record AiChecklistBatchState(
     int Index,
@@ -35,7 +40,13 @@ internal sealed record AiChecklistBatchState(
     string? Error,
     long? DurationMs,
     DateTimeOffset UpdatedAt,
-    IReadOnlyList<AiGeneratedChecklistItem> Items);
+    IReadOnlyList<AiGeneratedChecklistItem> Items,
+    IReadOnlyList<string>? CriterionCodes = null,
+    string? ApplicabilityReason = null,
+    string? Query = null,
+    string? FallbackTitle = null,
+    string? Section = null,
+    IReadOnlyList<AiChecklistEvidence>? BatchEvidence = null);
 
 internal sealed record AiChecklistRunState(
     Guid Id,

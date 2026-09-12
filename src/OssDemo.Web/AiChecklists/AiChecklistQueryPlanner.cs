@@ -23,6 +23,19 @@ internal static class AiChecklistQueryPlanner
             .ToArray();
     }
 
+    public static AiChecklistSearchQuery Build(ApplicableClassifierCriterion match, FacilityFacts facts)
+    {
+        var criterion = match.Criterion;
+        var ruleFields = criterion.ApplicabilityRules.SelectMany(rule => rule.Field.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var context = ruleFields.Length == 0 || ruleFields.Contains("*")
+            ? facts.Values("type", "category", "environmentalAspects", "permits")
+            : facts.Values(ruleFields);
+        var query = Compact(Join(
+            $"критерий {criterion.Code}", criterion.RiskText, criterion.SearchTerms,
+            string.Join(' ', criterion.SourceHints), match.MatchedValue, string.Join(' ', context)));
+        return new(criterion.Code, $"{criterion.Code} · {match.Section.Title}", query);
+    }
+
     private static AiChecklistSearchQuery Create(string key, string label, params string?[] parts) =>
         new(key, label, Compact(Join(parts)));
 

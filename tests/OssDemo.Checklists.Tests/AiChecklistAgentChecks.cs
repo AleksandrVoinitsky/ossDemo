@@ -145,7 +145,9 @@ internal static class AiChecklistAgentChecks
         var rejected = await emptyAgent.GenerateAsync("test", CancellationToken.None);
         AssertEqual("knowledge_empty", rejected.ErrorCode);
         var emptyRun = await emptyAgent.CreateRunAsync("test", CancellationToken.None);
-        AssertTrue(emptyRun.IsSuccess && emptyRun.Value!.Batches.Count == 0, "Пакетный сценарий должен продолжаться без результатов поиска.");
+        AssertTrue(emptyRun.IsSuccess && emptyRun.Value!.Batches.Count > 0, "Запуск должен строиться по классификатору до поиска.");
+        await emptyAgent.QueueBatchesAsync(emptyRun.Value.Id, emptyRun.Value.Batches.Select(item => item.Index).ToArray(), CancellationToken.None);
+        while (await emptyAgent.ProcessNextBatchAsync(CancellationToken.None)) { }
         var emptyFinalized = await emptyAgent.FinalizeRunAsync(emptyRun.Value!.Id, CancellationToken.None);
         AssertTrue(emptyFinalized.IsSuccess && emptyFinalized.Value!.Items.Count > 0, "Без источников должен создаваться базовый черновик по карточке объекта.");
 
@@ -156,20 +158,21 @@ internal static class AiChecklistAgentChecks
             """), repository, runStore, Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance);
         var createdRun = await batchedAgent.CreateRunAsync("test", CancellationToken.None);
         AssertTrue(createdRun.IsSuccess, "Поиск должен создать сохраняемый запуск.");
-        await runStore.QueueBatchAsync(createdRun.Value!.Id, 0, CancellationToken.None);
-        AssertTrue(await batchedAgent.ProcessNextBatchAsync(CancellationToken.None), "Worker должен обработать пакет из очереди.");
+        await runStore.QueueBatchesAsync(createdRun.Value!.Id, createdRun.Value.Batches.Select(item => item.Index).ToArray(), CancellationToken.None);
+        while (await batchedAgent.ProcessNextBatchAsync(CancellationToken.None)) { }
         var finalized = await batchedAgent.FinalizeRunAsync(createdRun.Value.Id, CancellationToken.None);
         AssertTrue(finalized.IsSuccess, "Завершённые пакеты должны создать черновик.");
         AssertTrue(finalized.Value!.Items.Any(item => item.Basis.Contains("ФЗ-7")), "Найденные ИИ-пункты должны иметь приоритет над базовыми примерами.");
-        AssertEqual(1, countingSearch.Calls);
+        AssertEqual(createdRun.Value.Batches.Count, countingSearch.Calls);
 
         var failedStore = new InMemoryAiChecklistRunStore();
         var failedAgent = new AiChecklistAgent(source, new FakeSearch(evidence), new FakeSynthesis("{}"), repository, failedStore,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance);
         var failedRun = await failedAgent.CreateRunAsync("test", CancellationToken.None);
-        await failedStore.QueueBatchAsync(failedRun.Value!.Id, 0, CancellationToken.None);
-        await failedStore.ClaimNextBatchAsync(CancellationToken.None);
-        await failedStore.FailBatchAsync(failedRun.Value.Id, 0, "Ошибка модели", 100, CancellationToken.None);
+        await failedStore.QueueBatchesAsync(failedRun.Value!.Id, failedRun.Value.Batches.Select(item => item.Index).ToArray(), CancellationToken.None);
+        AiChecklistBatchWork? failedWork;
+        while ((failedWork = await failedStore.ClaimNextBatchAsync(CancellationToken.None)) is not null)
+            await failedStore.FailBatchAsync(failedRun.Value.Id, failedWork.Batch.Index, "Ошибка модели", 100, CancellationToken.None);
         var partialFinalized = await failedAgent.FinalizeRunAsync(failedRun.Value.Id, CancellationToken.None);
         AssertTrue(partialFinalized.IsSuccess && partialFinalized.Value!.Items.Count > 0, "Ошибка отдельного пакета не должна блокировать базовый черновик.");
     }
@@ -229,7 +232,8 @@ internal static class AiChecklistAgentChecks
         public Task<string> SynthesizeAsync(FacilityProfile facility, IReadOnlyList<AiChecklistEvidence> evidence, CancellationToken cancellationToken)
         {
             LastEvidence = evidence;
-            return Task.FromResult(response);
+            var effective = evidence.Count == 0 ? response : response.Replace("\"sourceId\":\"S1\"", $"\"sourceId\":\"{evidence[0].Id}\"", StringComparison.Ordinal);
+            return Task.FromResult(effective);
         }
     }
 

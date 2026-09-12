@@ -25,8 +25,10 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
         }
         foreach (var batch in batches)
         {
-            await using var insert = new NpgsqlCommand("INSERT INTO app_ai_checklist_batches(run_id,batch_index,topic,evidence_ids) VALUES(@runId,@index,@topic,@ids)", connection, transaction);
+            await using var insert = new NpgsqlCommand("INSERT INTO app_ai_checklist_batches(run_id,batch_index,topic,evidence_ids,criterion_codes,applicability_reason,search_query,fallback_title,classifier_section) VALUES(@runId,@index,@topic,@ids,@codes,@reason,@query,@fallback,@section)", connection, transaction);
             insert.Parameters.AddWithValue("runId", runId); insert.Parameters.AddWithValue("index", batch.Index); insert.Parameters.AddWithValue("topic", batch.Topic); insert.Parameters.AddWithValue("ids", batch.EvidenceIds.ToArray());
+            insert.Parameters.AddWithValue("codes", batch.CriterionCodes?.ToArray() ?? []); insert.Parameters.AddWithValue("reason", (object?)batch.ApplicabilityReason ?? DBNull.Value);
+            insert.Parameters.AddWithValue("query", (object?)batch.Query ?? DBNull.Value); insert.Parameters.AddWithValue("fallback", (object?)batch.FallbackTitle ?? DBNull.Value); insert.Parameters.AddWithValue("section", (object?)batch.Section ?? DBNull.Value);
             await insert.ExecuteNonQueryAsync(cancellationToken);
         }
         await transaction.CommitAsync(cancellationToken);
@@ -51,13 +53,15 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
             while (await reader.ReadAsync(cancellationToken)) evidence.Add(new(reader.GetString(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),reader.GetString(4),reader.GetDouble(5)));
         }
         var batches = new List<AiChecklistBatchState>();
-        await using (var batchCommand = new NpgsqlCommand("SELECT batch_index,topic,evidence_ids,status,items::text,error,duration_ms,updated_at FROM app_ai_checklist_batches WHERE run_id=@id ORDER BY batch_index", connection))
+        await using (var batchCommand = new NpgsqlCommand("SELECT batch_index,topic,evidence_ids,status,items::text,error,duration_ms,updated_at,criterion_codes,applicability_reason,search_query,fallback_title,classifier_section,evidence::text FROM app_ai_checklist_batches WHERE run_id=@id ORDER BY batch_index", connection))
         {
             batchCommand.Parameters.AddWithValue("id", runId); await using var reader = await batchCommand.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
                 var items = JsonSerializer.Deserialize<AiGeneratedChecklistItem[]>(reader.GetString(4), JsonOptions) ?? [];
-                batches.Add(new(reader.GetInt32(0),reader.GetString(1),reader.GetFieldValue<string[]>(2),reader.GetString(3),items.Length,reader.IsDBNull(5)?null:reader.GetString(5),reader.IsDBNull(6)?null:reader.GetInt64(6),reader.GetFieldValue<DateTimeOffset>(7),items));
+                var batchEvidence = JsonSerializer.Deserialize<AiChecklistEvidence[]>(reader.GetString(13), JsonOptions) ?? [];
+                batches.Add(new(reader.GetInt32(0),reader.GetString(1),reader.GetFieldValue<string[]>(2),reader.GetString(3),items.Length,reader.IsDBNull(5)?null:reader.GetString(5),reader.IsDBNull(6)?null:reader.GetInt64(6),reader.GetFieldValue<DateTimeOffset>(7),items,
+                    reader.GetFieldValue<string[]>(8),reader.IsDBNull(9)?null:reader.GetString(9),reader.IsDBNull(10)?null:reader.GetString(10),reader.IsDBNull(11)?null:reader.GetString(11),reader.IsDBNull(12)?null:reader.GetString(12),batchEvidence));
             }
         }
         return new(runId,profile,facilityId,facilityName,status,createdAt,updatedAt,evidence,batches,checklistId);
@@ -110,10 +114,11 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
         }
         if (runId is null) return null;
         var claimedRunId = runId.Value;
-        var run=await GetAsync(claimedRunId,cancellationToken);var batch=run!.Batches.Single(item=>item.Index==batchIndex);return new(claimedRunId,run.Facility,batch,run.Evidence.Where(item=>batch.EvidenceIds.Contains(item.Id)).ToArray());
+        var run=await GetAsync(claimedRunId,cancellationToken);var batch=run!.Batches.Single(item=>item.Index==batchIndex);var workEvidence=batch.BatchEvidence is { Count: > 0 }?batch.BatchEvidence:run.Evidence.Where(item=>batch.EvidenceIds.Contains(item.Id)).ToArray();return new(claimedRunId,run.Facility,batch,workEvidence);
     }
 
     public Task CompleteBatchAsync(Guid runId,int batchIndex,IReadOnlyList<AiGeneratedChecklistItem> items,long durationMs,CancellationToken ct)=>UpdateBatchAsync(runId,batchIndex,"completed",JsonSerializer.Serialize(items,JsonOptions),null,durationMs,ct);
+    public async Task CompleteCriterionAsync(Guid runId,int batchIndex,IReadOnlyList<AiChecklistEvidence> evidence,IReadOnlyList<AiGeneratedChecklistItem> items,long durationMs,CancellationToken ct){await using var connection=await OpenAsync(ct);await using var command=new NpgsqlCommand("UPDATE app_ai_checklist_batches SET status='completed',items=CAST(@items AS jsonb),evidence=CAST(@evidence AS jsonb),error=NULL,duration_ms=@duration,updated_at=now() WHERE run_id=@runId AND batch_index=@index",connection);command.Parameters.AddWithValue("items",JsonSerializer.Serialize(items,JsonOptions));command.Parameters.AddWithValue("evidence",JsonSerializer.Serialize(evidence,JsonOptions));command.Parameters.AddWithValue("duration",durationMs);command.Parameters.AddWithValue("runId",runId);command.Parameters.AddWithValue("index",batchIndex);await command.ExecuteNonQueryAsync(ct);}
     public Task FailBatchAsync(Guid runId,int batchIndex,string error,long durationMs,CancellationToken ct)=>UpdateBatchAsync(runId,batchIndex,"failed","[]",error,durationMs,ct);
     private async Task UpdateBatchAsync(Guid runId,int index,string status,string items,string? error,long durationMs,CancellationToken ct){await using var connection=await OpenAsync(ct);await using var command=new NpgsqlCommand("UPDATE app_ai_checklist_batches SET status=@status,items=CAST(@items AS jsonb),error=@error,duration_ms=@duration,updated_at=now() WHERE run_id=@runId AND batch_index=@index",connection);command.Parameters.AddWithValue("status",status);command.Parameters.AddWithValue("items",items);command.Parameters.AddWithValue("error",(object?)error??DBNull.Value);command.Parameters.AddWithValue("duration",durationMs);command.Parameters.AddWithValue("runId",runId);command.Parameters.AddWithValue("index",index);await command.ExecuteNonQueryAsync(ct);}
     public async Task<bool> BeginFinalizeAsync(Guid runId, CancellationToken cancellationToken)

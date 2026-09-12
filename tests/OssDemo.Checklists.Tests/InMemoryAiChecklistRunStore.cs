@@ -7,7 +7,7 @@ internal sealed class InMemoryAiChecklistRunStore : IAiChecklistRunStore
     {
         var now = DateTimeOffset.UtcNow;
         var run = new AiChecklistRunState(Guid.NewGuid(), profile, facilityId, facilityName, "ready", now, now, evidence,
-            batches.Select(item => new AiChecklistBatchState(item.Index, item.Topic, item.EvidenceIds, "pending", 0, null, null, now, [])).ToArray(), null);
+            batches.Select(item => new AiChecklistBatchState(item.Index, item.Topic, item.EvidenceIds, "pending", 0, null, null, now, [], item.CriterionCodes, item.ApplicabilityReason, item.Query, item.FallbackTitle, item.Section, [])).ToArray(), null);
         lock (gate) runs[run.Id] = run;
         return Task.FromResult(run);
     }
@@ -64,5 +64,14 @@ internal sealed class InMemoryAiChecklistRunStore : IAiChecklistRunStore
     {
         var batches = run.Batches.Select(item => item.Index == batch.Index ? batch : item).ToArray();
         runs[run.Id] = run with { Batches = batches, UpdatedAt = DateTimeOffset.UtcNow };
+    }
+    public Task CompleteCriterionAsync(Guid runId, int batchIndex, IReadOnlyList<AiChecklistEvidence> evidence, IReadOnlyList<AiGeneratedChecklistItem> items, long durationMs, CancellationToken cancellationToken)
+    {
+        lock (gate)
+        {
+            var run = runs[runId]; var batch = run.Batches.Single(item => item.Index == batchIndex);
+            Replace(run, batch with { Status = "completed", ItemCount = items.Count, Items = items.ToArray(), BatchEvidence = evidence.ToArray(), Error = null, DurationMs = durationMs, UpdatedAt = DateTimeOffset.UtcNow });
+        }
+        return Task.CompletedTask;
     }
 }

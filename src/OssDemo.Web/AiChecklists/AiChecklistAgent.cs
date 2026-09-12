@@ -7,7 +7,8 @@ internal sealed class AiChecklistAgent(
     IAiChecklistSynthesisClient synthesisClient,
     IChecklistRepository checklists,
     IAiChecklistRunStore runStore,
-    ILogger<AiChecklistAgent> logger)
+    ILogger<AiChecklistAgent> logger,
+    IClassifierRepository? classifierRepository = null)
 {
     public async Task<ChecklistOperationResult<AiChecklistAnalysis>> AnalyzeAsync(string? facilitySlug, CancellationToken cancellationToken)
     {
@@ -77,22 +78,18 @@ internal sealed class AiChecklistAgent(
         var started = System.Diagnostics.Stopwatch.StartNew();
         var analysis = await AnalyzeAsync(facilitySlug, cancellationToken);
         if (!analysis.IsSuccess) return ChecklistOperationResult<AiChecklistRunState>.Fail(analysis.ErrorCode!, analysis.Error!, analysis.Errors);
-        IReadOnlyList<AiChecklistEvidence> found;
-        try
-        {
-            found = await knowledgeSearch.SearchAsync(analysis.Value!.Queries, cancellationToken);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            logger.LogWarning(exception, "Поиск оснований недоступен для объекта {FacilitySlug}; будет создан базовый проект по карточке.", facilitySlug);
-            found = [];
-        }
         var facility = await facilitySource.GetFacilityAsync(analysis.Value!.Facility.Slug, cancellationToken);
         if (facility is null) return ChecklistOperationResult<AiChecklistRunState>.Fail("not_found", "Объект проверки не найден.");
-        var evidence = AiChecklistBatchPlanner.PrepareEvidence(found);
-        var batches = AiChecklistBatchPlanner.Build(evidence);
-        var run = await runStore.CreateAsync(analysis.Value.Facility, facility.Id, facility.Name, evidence, batches, cancellationToken);
-        logger.LogInformation("Создан запуск ИИ-чек-листа {RunId}: {EvidenceCount} фрагментов источников, {BatchCount} пакетов, поиск {DurationMs} мс.", run.Id, evidence.Count, batches.Count, started.ElapsedMilliseconds);
+        var tree = classifierRepository is null ? ClassifierSeedData.Tree : await classifierRepository.GetTreeAsync(cancellationToken);
+        var facts = FacilityFactNormalizer.Normalize(analysis.Value.Facility.Profile, null);
+        var applicable = ClassifierApplicabilityMatcher.Match(tree, facts, []);
+        var batches = applicable.Select((match,index) =>
+        {
+            var query = AiChecklistQueryPlanner.Build(match,facts);
+            return new AiChecklistBatchPlan(index,$"{match.Criterion.Code} · {match.Section.Title}",[],0,[match.Criterion.Code],match.Reason,query.Query,match.Criterion.CheckText,match.Section.Title);
+        }).ToArray();
+        var run = await runStore.CreateAsync(analysis.Value.Facility, facility.Id, facility.Name, [], batches, cancellationToken);
+        logger.LogInformation("Создан запуск ИИ-чек-листа {RunId}: {CriterionCount} критериев классификатора за {DurationMs} мс.", run.Id, batches.Length, started.ElapsedMilliseconds);
         return ChecklistOperationResult<AiChecklistRunState>.Success(run);
     }
 
@@ -110,7 +107,13 @@ internal sealed class AiChecklistAgent(
         try
         {
             var generated = new List<AiGeneratedChecklistItem>();
-            var units = AmveraAiChecklistSynthesisClient.BuildSequentialUnits(work.Evidence);
+            var evidence = work.Evidence;
+            if (!string.IsNullOrWhiteSpace(work.Batch.Query))
+            {
+                var found = await knowledgeSearch.SearchAsync([new(work.Batch.CriterionCodes?.FirstOrDefault() ?? $"C{work.Batch.Index}",work.Batch.Topic,work.Batch.Query)],cancellationToken);
+                evidence = found.Select((item,index)=>item with { Id=$"C{work.Batch.Index+1}-S{index+1}" }).ToArray();
+            }
+            var units = AmveraAiChecklistSynthesisClient.BuildSequentialUnits(evidence);
             for (var unitIndex = 0; unitIndex < units.Count; unitIndex++)
             {
                 logger.LogInformation("Запуск {RunId}, пакет {BatchIndex}: фрагмент {UnitNumber} из {UnitCount}.", work.RunId, work.Batch.Index, unitIndex + 1, units.Count);
@@ -119,7 +122,7 @@ internal sealed class AiChecklistAgent(
             }
             var items = generated.DistinctBy(item => item.Title.Trim(), StringComparer.OrdinalIgnoreCase).Take(20).ToArray();
             await PersistOutcomeAsync(
-                () => runStore.CompleteBatchAsync(work.RunId, work.Batch.Index, items, timer.ElapsedMilliseconds, cancellationToken),
+                () => runStore.CompleteCriterionAsync(work.RunId, work.Batch.Index, evidence, items, timer.ElapsedMilliseconds, cancellationToken),
                 work.RunId,
                 work.Batch.Index,
                 cancellationToken);
@@ -152,7 +155,8 @@ internal sealed class AiChecklistAgent(
         try
         {
             var items = run.Batches.SelectMany(batch => batch.Items).DistinctBy(item => item.Title.Trim(), StringComparer.OrdinalIgnoreCase).Take(100).ToArray();
-            var draftItems = ToDraftItems(items, run.Evidence)
+            var allEvidence = run.Evidence.Concat(run.Batches.SelectMany(batch=>batch.BatchEvidence ?? [])).DistinctBy(item=>item.Id,StringComparer.OrdinalIgnoreCase).ToArray();
+            var draftItems = ToDraftItems(items, allEvidence)
                 .Take(75)
                 .Concat(AiChecklistFallbackBuilder.Build(run.Facility))
                 .DistinctBy(item => item.Title.Trim(), StringComparer.OrdinalIgnoreCase)

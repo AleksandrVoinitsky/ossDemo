@@ -39,6 +39,15 @@ internal static class AiChecklistRunChecks
         AssertTrue(await store.QueueBatchesAsync(multiRun.Id, [0, 1], CancellationToken.None), "Все пакеты запуска должны ставиться в очередь одной операцией.");
         AssertTrue((await store.GetAsync(multiRun.Id, CancellationToken.None))!.Batches.All(item => item.Status == "queued"));
         AssertTrue(await store.QueueBatchesAsync(multiRun.Id, [], CancellationToken.None), "Повторный запуск без новых пакетов должен быть идемпотентным.");
+
+        var criterionPlan = new AiChecklistBatchPlan(0, "Очистные сооружения", [], 0,
+            ["3.9"], "Карточка содержит КОС", "эксплуатация очистных сооружений КОС", "Проверить эксплуатацию очистных сооружений.", "Охрана водных объектов");
+        var criterionStore = new InMemoryAiChecklistRunStore();
+        var criterionRun = await criterionStore.CreateAsync(profile, Guid.NewGuid(), "Объект", [], [criterionPlan], CancellationToken.None);
+        await criterionStore.QueueBatchAsync(criterionRun.Id, 0, CancellationToken.None);
+        var criterionWork = await criterionStore.ClaimNextBatchAsync(CancellationToken.None);
+        AssertEqual("3.9", criterionWork!.Batch.CriterionCodes![0]);
+        AssertEqual("эксплуатация очистных сооружений КОС", criterionWork.Batch.Query);
     }
 
     private static void AssertTrue(bool value, string message = "Expected true.") { if (!value) throw new InvalidOperationException(message); }

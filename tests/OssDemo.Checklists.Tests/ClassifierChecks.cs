@@ -25,6 +25,10 @@ internal static class ClassifierChecks
         AssertTrue(selected.All(item => !string.IsNullOrWhiteSpace(item.Reason)), "Причина применимости обязательна.");
         AssertTrue(selected.Any(item => item.Criterion.Code == "1.6"), "Базовые критерии должны включаться всегда.");
         AssertTrue(!selected.Any(item => item.Criterion.Code == "2.4"), "Критерии атмосферы не должны включаться без признаков выбросов.");
+
+        var water = selected.Single(item => item.Criterion.Code == "3.9");
+        var query = AiChecklistQueryPlanner.Build(water, facts);
+        AssertTrue(query.Key == "3.9" && query.Query.Contains("КОС", StringComparison.OrdinalIgnoreCase), "Запрос должен связывать критерий с совпавшим фактом карточки.");
     }
 
     private static void AssertEqual<T>(T expected, T actual)
