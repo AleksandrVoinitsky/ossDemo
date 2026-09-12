@@ -26,12 +26,9 @@ internal static class AiChecklistOutputParser
             var title = ReadString(element, "title")?.Trim();
             if (string.IsNullOrWhiteSpace(title)) continue;
 
-            var sourceIds = ReadSourceIds(element)
-                .Where(knownSources.Contains)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            if (sourceIds.Length == 0) continue;
-            if (!IsGrounded(title, sourceIds, evidence)) continue;
+            var citations = ReadCitations(element, evidence, knownSources);
+            if (citations.Count == 0) continue;
+            if (!IsGrounded(title, citations)) continue;
             if (!titles.Add(Normalize(title))) continue;
 
             var section = ReadString(element, "section")?.Trim();
@@ -42,22 +39,28 @@ internal static class AiChecklistOutputParser
                 title,
                 reason,
                 Math.Clamp(confidence, 0, 1),
-                sourceIds));
+                citations));
             if (items.Count == MaxItems) break;
         }
 
         return new AiChecklistSynthesis(name, items);
     }
 
-    private static IEnumerable<string> ReadSourceIds(JsonElement element)
+    private static IReadOnlyList<AiChecklistVerifiedCitation> ReadCitations(
+        JsonElement element,
+        IReadOnlyList<AiChecklistEvidence> evidence,
+        IReadOnlySet<string> knownSources)
     {
-        if (!element.TryGetProperty("sourceIds", out var sources) || sources.ValueKind != JsonValueKind.Array)
+        if (!element.TryGetProperty("citations", out var sources) || sources.ValueKind != JsonValueKind.Array)
             return [];
+        var evidenceById = evidence.ToDictionary(item => item.Id, StringComparer.OrdinalIgnoreCase);
         return sources.EnumerateArray()
-            .Where(item => item.ValueKind == JsonValueKind.String)
-            .Select(item => item.GetString()?.Trim())
-            .Where(item => !string.IsNullOrWhiteSpace(item))
-            .Select(item => item!);
+            .Where(item => item.ValueKind == JsonValueKind.Object)
+            .Select(item => new { SourceId = ReadString(item, "sourceId")?.Trim(), Quote = ReadString(item, "quote")?.Trim() })
+            .Where(item => !string.IsNullOrWhiteSpace(item.SourceId) && knownSources.Contains(item.SourceId!) && IsExactQuote(item.Quote, evidenceById[item.SourceId!].Text))
+            .DistinctBy(item => item.SourceId, StringComparer.OrdinalIgnoreCase)
+            .Select(item => new AiChecklistVerifiedCitation(item.SourceId!, item.Quote!))
+            .ToArray();
     }
 
     private static string? ReadString(JsonElement element, string property) =>
@@ -90,14 +93,18 @@ internal static class AiChecklistOutputParser
         (char[]?)null,
         StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
-    private static bool IsGrounded(string title, IReadOnlyList<string> sourceIds, IReadOnlyList<AiChecklistEvidence> evidence)
+    private static bool IsGrounded(string title, IReadOnlyList<AiChecklistVerifiedCitation> citations)
     {
         var titleTerms = Terms(title).ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (titleTerms.Count == 0) return false;
-        var citedText = string.Join(' ', evidence
-            .Where(item => sourceIds.Contains(item.Id, StringComparer.OrdinalIgnoreCase))
-            .Select(item => $"{item.DocumentTitle} {item.SourceLabel} {item.Text}"));
-        return Terms(citedText).Any(titleTerms.Contains);
+        var quoteTerms = citations.SelectMany(item => Terms(item.Quote)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return titleTerms.Count(term => quoteTerms.Contains(term)) * 2 >= titleTerms.Count;
+    }
+
+    private static bool IsExactQuote(string? quote, string sourceText)
+    {
+        if (string.IsNullOrWhiteSpace(quote) || quote.Trim().Length < 12) return false;
+        return Normalize(sourceText).Contains(Normalize(quote), StringComparison.OrdinalIgnoreCase);
     }
 
     private static IEnumerable<string> Terms(string value)

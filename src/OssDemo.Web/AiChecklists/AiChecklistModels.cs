@@ -13,7 +13,12 @@ internal sealed record AiGeneratedChecklistItem(
     string Title,
     string Reason,
     double Confidence,
-    IReadOnlyList<string> SourceIds);
+    IReadOnlyList<AiChecklistVerifiedCitation> Citations)
+{
+    public IReadOnlyList<string> SourceIds => Citations.Select(item => item.SourceId).ToArray();
+}
+
+internal sealed record AiChecklistVerifiedCitation(string SourceId, string Quote);
 
 internal sealed record AiChecklistSynthesis(
     string Name,

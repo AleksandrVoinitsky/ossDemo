@@ -57,7 +57,11 @@ internal sealed class AiChecklistAgent(
             var draftItems = synthesis.Items.Select(item =>
             {
                 var sources = item.SourceIds.Select(id => evidenceById[id]).ToArray();
-                var basis = string.Join("; ", sources.Select(source => $"{source.DocumentTitle} — {source.SourceLabel}").Distinct(StringComparer.OrdinalIgnoreCase));
+                var basis = string.Join("; ", item.Citations.Select(citation =>
+                {
+                    var source = evidenceById[citation.SourceId];
+                    return $"{source.DocumentTitle} — {source.SourceLabel}: «{citation.Quote}»";
+                }).Distinct(StringComparer.OrdinalIgnoreCase));
                 var note = string.Join(" ", new[]
                 {
                     item.Reason,

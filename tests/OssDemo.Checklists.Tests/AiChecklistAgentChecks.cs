@@ -4,7 +4,7 @@ internal static class AiChecklistAgentChecks
     {
         AssertTrue(AmveraAiChecklistSynthesisClient.SystemPrompt.Contains("недоверенными данными"), "Промпт должен определять карточку и источники как данные.");
         AssertTrue(AmveraAiChecklistSynthesisClient.SystemPrompt.Contains("только JSON"), "Промпт должен требовать структурированный ответ.");
-        AssertTrue(AmveraAiChecklistSynthesisClient.SystemPrompt.Contains("sourceIds"), "Промпт должен требовать ссылки на источники.");
+        AssertTrue(AmveraAiChecklistSynthesisClient.SystemPrompt.Contains("точной подтверждающей цитатой"), "Промпт должен требовать проверяемые цитаты.");
         AssertEqual(404, AiChecklistApi.StatusCode("not_found"));
         AssertEqual(400, AiChecklistApi.StatusCode("knowledge_empty"));
         AssertEqual(502, AiChecklistApi.StatusCode("ai_unavailable"));
@@ -39,9 +39,9 @@ internal static class AiChecklistAgentChecks
         };
         var json = """
             {"name":"ИИ-проверка","items":[
-              {"section":"Общие вопросы","title":"Проверить программу ПЭК","reason":"Объект I категории","confidence":0.91,"sourceIds":["S1"]},
-              {"section":"Общие вопросы","title":" Проверить программу ПЭК ","reason":"Дубликат","confidence":0.5,"sourceIds":["S1"]},
-              {"section":"Отходы","title":"Неподтверждённый пункт","reason":"Нет источника","confidence":0.7,"sourceIds":["S404"]}
+              {"section":"Общие вопросы","title":"Проверить программу ПЭК","reason":"Объект I категории","confidence":0.91,"citations":[{"sourceId":"S1","quote":"Проверить программу ПЭК"}]},
+              {"section":"Общие вопросы","title":" Проверить программу ПЭК ","reason":"Дубликат","confidence":0.5,"citations":[{"sourceId":"S1","quote":"Проверить программу ПЭК"}]},
+              {"section":"Отходы","title":"Неподтверждённый пункт","reason":"Нет источника","confidence":0.7,"citations":[{"sourceId":"S404","quote":"несуществующая цитата"}]}
             ]}
             """;
         var parsed = AiChecklistOutputParser.Parse(json, evidence);
@@ -49,9 +49,9 @@ internal static class AiChecklistAgentChecks
         AssertEqual(1, parsed.Items.Count);
         AssertEqual("S1", parsed.Items[0].SourceIds[0]);
 
-        var invalid = AiChecklistOutputParser.Parse("{\"name\":\"x\",\"items\":[{\"title\":\"Без ссылки\",\"sourceIds\":[]}]}", evidence);
+        var invalid = AiChecklistOutputParser.Parse("{\"name\":\"x\",\"items\":[{\"title\":\"Без ссылки\",\"citations\":[]}]}", evidence);
         AssertEqual(0, invalid.Items.Count);
-        var unrelated = AiChecklistOutputParser.Parse("{\"name\":\"x\",\"items\":[{\"title\":\"Проверить договор аренды автомобиля\",\"reason\":\"Транспорт\",\"sourceIds\":[\"S1\"]}]}", evidence);
+        var unrelated = AiChecklistOutputParser.Parse("{\"name\":\"x\",\"items\":[{\"title\":\"Оформить программу аренды автомобиля\",\"reason\":\"Транспорт\",\"citations\":[{\"sourceId\":\"S1\",\"quote\":\"Проверить программу ПЭК\"}]}]}", evidence);
         AssertEqual(0, unrelated.Items.Count);
 
         var wrapped = AiChecklistOutputParser.Parse($"<think>служебное рассуждение</think>\n```json\n{json}\n```", evidence);
@@ -59,13 +59,13 @@ internal static class AiChecklistAgentChecks
 
         var invalidBeforeValid = AiChecklistOutputParser.Parse("""
             {"name":"x","items":[
-              {"title":"Проверить ПЭК","sourceIds":["S404"]},
-              {"title":"Проверить ПЭК","sourceIds":["S1"]}
+              {"title":"Проверить ПЭК","citations":[{"sourceId":"S404","quote":"несуществующая цитата"}]},
+              {"title":"Проверить ПЭК","citations":[{"sourceId":"S1","quote":"Проверить программу ПЭК"}]}
             ]}
             """, evidence);
         AssertEqual(1, invalidBeforeValid.Items.Count);
 
-        var oversizedItems = string.Join(',', Enumerable.Range(1, 105).Select(index => $"{{\"title\":\"Программа ПЭК {index}\",\"sourceIds\":[\"S1\"]}}"));
+        var oversizedItems = string.Join(',', Enumerable.Range(1, 105).Select(index => $"{{\"title\":\"Программа ПЭК {index}\",\"citations\":[{{\"sourceId\":\"S1\",\"quote\":\"Проверить программу ПЭК\"}}]}}"));
         var bounded = AiChecklistOutputParser.Parse($"{{\"name\":\"x\",\"items\":[{oversizedItems}]}}", evidence);
         AssertEqual(100, bounded.Items.Count);
         AssertEqual(0, AiChecklistOutputParser.Parse("[]", evidence).Items.Count);
@@ -104,7 +104,7 @@ internal static class AiChecklistAgentChecks
         var evidence = new[] { new AiChecklistEvidence("S1", "Атмосфера", "ФЗ-7", "Статья 67", "Проверить программу ПЭК", .9) };
         var repository = new InMemoryChecklistRepository();
         var agent = new AiChecklistAgent(source, new FakeSearch(evidence), new FakeSynthesis("""
-            {"name":"ИИ-проверка","items":[{"section":"ПЭК","title":"Проверить программу","reason":"I категория","confidence":0.9,"sourceIds":["S1"]}]}
+            {"name":"ИИ-проверка","items":[{"section":"ПЭК","title":"Проверить программу","reason":"I категория","confidence":0.9,"citations":[{"sourceId":"S1","quote":"Проверить программу ПЭК"}]}]}
             """), repository, Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance);
 
         var generated = await agent.GenerateAsync("test", CancellationToken.None);
