@@ -74,6 +74,11 @@ internal sealed class ChecklistDatabaseInitializer(
     private static async Task SeedAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
     {
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using (var migrationLock = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext(@key))", connection, transaction))
+        {
+            migrationLock.Parameters.AddWithValue("key", MigrationKey);
+            await migrationLock.ExecuteNonQueryAsync(cancellationToken);
+        }
         await using (var check = new NpgsqlCommand("SELECT EXISTS(SELECT 1 FROM app_data_migrations WHERE key=@key)", connection, transaction))
         {
             check.Parameters.AddWithValue("key", MigrationKey);
@@ -114,6 +119,7 @@ internal sealed class ChecklistDatabaseInitializer(
     private static async Task InsertTemplateAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, ChecklistSeedTemplate template, CancellationToken cancellationToken)
     {
         var facilityId = await GetFacilityIdAsync(connection, transaction, template.Facility, cancellationToken);
+        var inserted = false;
         await using (var command = new NpgsqlCommand("""
             INSERT INTO app_checklist_templates (id, name, facility_id)
             VALUES (@id, @name, @facilityId) ON CONFLICT (id) DO NOTHING
@@ -122,8 +128,9 @@ internal sealed class ChecklistDatabaseInitializer(
             command.Parameters.AddWithValue("id", template.Id);
             command.Parameters.AddWithValue("name", template.Name);
             command.Parameters.AddWithValue("facilityId", facilityId);
-            await command.ExecuteNonQueryAsync(cancellationToken);
+            inserted = await command.ExecuteNonQueryAsync(cancellationToken) > 0;
         }
+        if (!inserted) return;
         var sectionPosition = 0;
         foreach (var section in template.Sections)
         {
@@ -154,6 +161,7 @@ internal sealed class ChecklistDatabaseInitializer(
     private static async Task InsertHistoryAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, ChecklistSeedHistory history, CancellationToken cancellationToken)
     {
         var facilityId = await GetFacilityIdAsync(connection, transaction, history.Facility, cancellationToken);
+        var inserted = false;
         await using (var command = new NpgsqlCommand("""
             INSERT INTO app_checklists (id,name,facility_id,facility_name,template_name,inspection_started_on,inspection_finished_on,status,created_at,updated_at,approved_at,approved_by,legacy_source_key)
             VALUES (@id,@name,@facilityId,@facility,@templateName,@started,@finished,'approved',@approved,@approved,@approved,'legacy-import',@source)
@@ -169,8 +177,9 @@ internal sealed class ChecklistDatabaseInitializer(
             command.Parameters.AddWithValue("finished", (object?)history.FinishedOn ?? DBNull.Value);
             command.Parameters.AddWithValue("approved", history.ApprovedAt);
             command.Parameters.AddWithValue("source", history.SourceKey);
-            await command.ExecuteNonQueryAsync(cancellationToken);
+            inserted = await command.ExecuteNonQueryAsync(cancellationToken) > 0;
         }
+        if (!inserted) return;
         var position = 0;
         foreach (var item in history.Items)
         {
