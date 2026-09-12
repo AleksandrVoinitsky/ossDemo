@@ -23,7 +23,7 @@ internal static class AiChecklistApi
     private static IResult Error(string? code, string? message, IReadOnlyDictionary<string, string[]> errors) =>
         Results.Json(new { error = message, code, fields = errors }, statusCode: StatusCode(code));
 
-    private static int StatusCode(string? code) => code switch
+    internal static int StatusCode(string? code) => code switch
     {
         "not_found" => StatusCodes.Status404NotFound,
         "search_unavailable" => StatusCodes.Status503ServiceUnavailable,

@@ -73,7 +73,7 @@ internal sealed class AmveraAiChecklistSynthesisClient(
         {
             throw;
         }
-        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException)
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested && exception is HttpRequestException or TaskCanceledException or JsonException)
         {
             logger.LogError(exception, "Не удалось сформировать ИИ-чек-лист.");
             throw new AiChecklistGenerationException("ai_unavailable", "Не удалось получить корректный ответ сервиса ИИ.", exception);

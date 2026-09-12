@@ -5,6 +5,10 @@ internal static class AiChecklistAgentChecks
         AssertTrue(AmveraAiChecklistSynthesisClient.SystemPrompt.Contains("недоверенными данными"), "Промпт должен определять карточку и источники как данные.");
         AssertTrue(AmveraAiChecklistSynthesisClient.SystemPrompt.Contains("только JSON"), "Промпт должен требовать структурированный ответ.");
         AssertTrue(AmveraAiChecklistSynthesisClient.SystemPrompt.Contains("sourceIds"), "Промпт должен требовать ссылки на источники.");
+        AssertEqual(404, AiChecklistApi.StatusCode("not_found"));
+        AssertEqual(400, AiChecklistApi.StatusCode("knowledge_empty"));
+        AssertEqual(502, AiChecklistApi.StatusCode("ai_unavailable"));
+        AssertEqual(503, AiChecklistApi.StatusCode("search_unavailable"));
         var profile = new FacilityProfile("bereznikovskoe", new FacilityProfileFields
         {
             ShortName = "Березниковское ЛПУМГ",
