@@ -26,6 +26,35 @@ internal sealed record AiChecklistBatchPlan(
     IReadOnlyList<string> EvidenceIds,
     int ContextCharacters);
 
+internal sealed record AiChecklistBatchState(
+    int Index,
+    string Topic,
+    IReadOnlyList<string> EvidenceIds,
+    string Status,
+    int ItemCount,
+    string? Error,
+    long? DurationMs,
+    DateTimeOffset UpdatedAt,
+    IReadOnlyList<AiGeneratedChecklistItem> Items);
+
+internal sealed record AiChecklistRunState(
+    Guid Id,
+    FacilityProfile Facility,
+    Guid FacilityId,
+    string FacilityName,
+    string Status,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    IReadOnlyList<AiChecklistEvidence> Evidence,
+    IReadOnlyList<AiChecklistBatchState> Batches,
+    Guid? ChecklistId);
+
+internal sealed record AiChecklistBatchWork(
+    Guid RunId,
+    FacilityProfile Facility,
+    AiChecklistBatchState Batch,
+    IReadOnlyList<AiChecklistEvidence> Evidence);
+
 internal sealed record AiChecklistSynthesis(
     string Name,
     IReadOnlyList<AiGeneratedChecklistItem> Items);

@@ -80,9 +80,12 @@ builder.Services.AddSingleton<IAiChecklistKnowledgeSearch, AiChecklistKnowledgeS
 builder.Services.AddSingleton<IAiChecklistSynthesisClient, AmveraAiChecklistSynthesisClient>();
 builder.Services.AddSingleton<IAiChecklistFacilitySource, AiChecklistFacilitySource>();
 builder.Services.AddSingleton<AiChecklistAgent>();
+builder.Services.AddSingleton<IAiChecklistRunStore, PostgresAiChecklistRunStore>();
+builder.Services.AddSingleton<AiChecklistDatabaseInitializer>();
 
 var app = builder.Build();
 await app.Services.GetRequiredService<ChecklistDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);
+await app.Services.GetRequiredService<AiChecklistDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
