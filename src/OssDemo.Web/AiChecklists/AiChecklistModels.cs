@@ -36,6 +36,32 @@ internal sealed record CreateAiChecklistDraftRequest(
     string Name,
     IReadOnlyList<AiGeneratedDraftItem> Items);
 
+internal sealed record AiChecklistSynthesisProfile(
+    string ShortName,
+    string FullName,
+    string Type,
+    string Category,
+    string Region,
+    string SpecialZones,
+    string Zones,
+    string EnvironmentalAspects,
+    string Equipment,
+    string GasTreatment,
+    string TreatmentFacilities,
+    string WaterSupply,
+    string EmissionSources,
+    string Permits,
+    string PecProgram,
+    string WasteStandard,
+    string SanitaryZoneProject)
+{
+    public static AiChecklistSynthesisProfile From(FacilityProfileFields profile) => new(
+        profile.ShortName, profile.FullName, profile.Type, profile.Category, profile.Region,
+        profile.SpecialZones, profile.Zones, profile.EnvironmentalAspects, profile.Equipment,
+        profile.GasTreatment, profile.TreatmentFacilities, profile.WaterSupply, profile.EmissionSources,
+        profile.Permits, profile.PecProgram, profile.WasteStandard, profile.SanitaryZoneProject);
+}
+
 internal sealed class AiChecklistGenerationException(string code, string message, Exception? innerException = null)
     : Exception(message, innerException)
 {

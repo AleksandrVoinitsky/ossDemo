@@ -21,7 +21,7 @@
   };
   const setBusy = (button, busy, label) => { button.disabled = busy; button.textContent = busy ? label : button.dataset.idleLabel; };
   const showError = (selector, error) => { const node = root.querySelector(selector); node.textContent = error.message; node.hidden = false; node.focus(); };
-  const profileLabels = { fullName: 'Полное название', type: 'Тип объекта', category: 'Категория НВОС', region: 'Регион', environmentalAspects: 'Экологические аспекты', equipment: 'Оборудование', emissionSources: 'Источники выбросов', permits: 'Разрешения', pecProgram: 'Программа ПЭК', wasteStandard: 'Нормативы отходов', treatmentFacilities: 'Очистные сооружения', waterSupply: 'Водоснабжение' };
+  const profileLabels = { shortName: 'Краткое название', fullName: 'Полное название', type: 'Тип объекта', category: 'Категория НВОС', region: 'Регион', specialZones: 'Специальные зоны', zones: 'Зоны объекта', environmentalAspects: 'Экологические аспекты', equipment: 'Оборудование', gasTreatment: 'Газоочистка', treatmentFacilities: 'Очистные сооружения', waterSupply: 'Водоснабжение', emissionSources: 'Источники выбросов', permits: 'Разрешения', pecProgram: 'Программа ПЭК', wasteStandard: 'Нормативы отходов', sanitaryZoneProject: 'Проект СЗЗ' };
   const renderProfile = (data) => {
     const profile = data.facility.profile;
     root.querySelector('[data-ai-profile]').innerHTML = Object.entries(profileLabels).filter(([key]) => profile[key] && profile[key] !== 'Не указано').map(([key, label]) => `<div class="col-md-6"><div class="wizard-card h-100"><div class="small text-muted mb-1">${escapeHtml(label)}</div><strong class="ai-profile-value">${escapeHtml(profile[key])}</strong></div></div>`).join('');

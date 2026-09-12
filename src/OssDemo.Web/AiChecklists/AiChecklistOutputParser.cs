@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 internal static class AiChecklistOutputParser
 {
@@ -30,6 +31,7 @@ internal static class AiChecklistOutputParser
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             if (sourceIds.Length == 0) continue;
+            if (!IsGrounded(title, sourceIds, evidence)) continue;
             if (!titles.Add(Normalize(title))) continue;
 
             var section = ReadString(element, "section")?.Trim();
@@ -87,4 +89,29 @@ internal static class AiChecklistOutputParser
     private static string Normalize(string value) => string.Join(' ', value.Split(
         (char[]?)null,
         StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+    private static bool IsGrounded(string title, IReadOnlyList<string> sourceIds, IReadOnlyList<AiChecklistEvidence> evidence)
+    {
+        var titleTerms = Terms(title).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (titleTerms.Count == 0) return false;
+        var citedText = string.Join(' ', evidence
+            .Where(item => sourceIds.Contains(item.Id, StringComparer.OrdinalIgnoreCase))
+            .Select(item => $"{item.DocumentTitle} {item.SourceLabel} {item.Text}"));
+        return Terms(citedText).Any(titleTerms.Contains);
+    }
+
+    private static IEnumerable<string> Terms(string value)
+    {
+        var generic = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "провер", "наличи", "требов", "соотве", "докуме", "объект", "контро", "пункт"
+        };
+        foreach (Match match in Regex.Matches(value, @"[\p{L}\p{Nd}]+"))
+        {
+            var word = match.Value.ToLowerInvariant();
+            if (word.Length < 3) continue;
+            var root = word[..Math.Min(6, word.Length)];
+            if (!generic.Contains(root)) yield return root;
+        }
+    }
 }

@@ -9,6 +9,8 @@ internal static class AiChecklistAgentChecks
         AssertEqual(400, AiChecklistApi.StatusCode("knowledge_empty"));
         AssertEqual(502, AiChecklistApi.StatusCode("ai_unavailable"));
         AssertEqual(503, AiChecklistApi.StatusCode("search_unavailable"));
+        AssertTrue(AmveraAiChecklistSynthesisClient.TryReadContent("{\"choices\":[{\"message\":{\"content\":\"{}\"}}]}", out var content) && content == "{}", "Должен читаться стандартный ответ Amvera.");
+        AssertTrue(!AmveraAiChecklistSynthesisClient.TryReadContent("{\"choices\":[]}", out _), "Пустой choices должен обрабатываться без исключения.");
         var profile = new FacilityProfile("bereznikovskoe", new FacilityProfileFields
         {
             ShortName = "Березниковское ЛПУМГ",
@@ -21,6 +23,8 @@ internal static class AiChecklistAgentChecks
             EmissionSources = "Газотурбинная установка",
             Permits = "Комплексное экологическое разрешение"
         }, null, null);
+        var outboundProfile = System.Text.Json.JsonSerializer.Serialize(AiChecklistSynthesisProfile.From(profile.Profile));
+        AssertTrue(!outboundProfile.Contains("Responsible") && !outboundProfile.Contains("Phone") && !outboundProfile.Contains("Email") && !outboundProfile.Contains("Address"), "Контакты и адрес не должны отправляться во внешний сервис ИИ.");
 
         var queries = AiChecklistQueryPlanner.Build(profile);
         AssertTrue(queries.Count is > 3 and <= 8, "Планировщик должен создавать ограниченный набор запросов.");
@@ -47,6 +51,8 @@ internal static class AiChecklistAgentChecks
 
         var invalid = AiChecklistOutputParser.Parse("{\"name\":\"x\",\"items\":[{\"title\":\"Без ссылки\",\"sourceIds\":[]}]}", evidence);
         AssertEqual(0, invalid.Items.Count);
+        var unrelated = AiChecklistOutputParser.Parse("{\"name\":\"x\",\"items\":[{\"title\":\"Проверить договор аренды автомобиля\",\"reason\":\"Транспорт\",\"sourceIds\":[\"S1\"]}]}", evidence);
+        AssertEqual(0, unrelated.Items.Count);
 
         var wrapped = AiChecklistOutputParser.Parse($"<think>служебное рассуждение</think>\n```json\n{json}\n```", evidence);
         AssertEqual(1, wrapped.Items.Count);
@@ -59,7 +65,7 @@ internal static class AiChecklistAgentChecks
             """, evidence);
         AssertEqual(1, invalidBeforeValid.Items.Count);
 
-        var oversizedItems = string.Join(',', Enumerable.Range(1, 105).Select(index => $"{{\"title\":\"Пункт {index}\",\"sourceIds\":[\"S1\"]}}"));
+        var oversizedItems = string.Join(',', Enumerable.Range(1, 105).Select(index => $"{{\"title\":\"Программа ПЭК {index}\",\"sourceIds\":[\"S1\"]}}"));
         var bounded = AiChecklistOutputParser.Parse($"{{\"name\":\"x\",\"items\":[{oversizedItems}]}}", evidence);
         AssertEqual(100, bounded.Items.Count);
         AssertEqual(0, AiChecklistOutputParser.Parse("[]", evidence).Items.Count);
@@ -95,7 +101,7 @@ internal static class AiChecklistAgentChecks
             EnvironmentalAspects = "Выбросы"
         }, null, null);
         var source = new FakeFacilitySource(profile, new OperationalFacility(facilityId, "Тестовый объект", "Адрес", "I", null, null, "test"));
-        var evidence = new[] { new AiChecklistEvidence("S1", "Атмосфера", "ФЗ-7", "Статья 67", "Контроль ПЭК", .9) };
+        var evidence = new[] { new AiChecklistEvidence("S1", "Атмосфера", "ФЗ-7", "Статья 67", "Проверить программу ПЭК", .9) };
         var repository = new InMemoryChecklistRepository();
         var agent = new AiChecklistAgent(source, new FakeSearch(evidence), new FakeSynthesis("""
             {"name":"ИИ-проверка","items":[{"section":"ПЭК","title":"Проверить программу","reason":"I категория","confidence":0.9,"sourceIds":["S1"]}]}

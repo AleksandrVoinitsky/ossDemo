@@ -38,7 +38,7 @@ internal sealed class AmveraAiChecklistSynthesisClient(
 
         var context = string.Join("\n\n", evidence.Select(item =>
             $"[{item.Id}] Документ: {item.DocumentTitle}\nРаздел: {item.SourceLabel}\nТема поиска: {item.QueryLabel}\nТекст: {Limit(item.Text, 3500)}"));
-        var profileJson = JsonSerializer.Serialize(facility.Profile);
+        var profileJson = JsonSerializer.Serialize(AiChecklistSynthesisProfile.From(facility.Profile));
         var user = $"Карточка объекта:\n{profileJson}\n\nИсточники:\n{context}";
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "chat/completions")
@@ -63,11 +63,9 @@ internal sealed class AmveraAiChecklistSynthesisClient(
                 throw new AiChecklistGenerationException("ai_unavailable", $"Сервис ИИ вернул HTTP {(int)response.StatusCode}.");
             }
 
-            using var document = JsonDocument.Parse(payload);
-            var content = document.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
-            return !string.IsNullOrWhiteSpace(content)
-                ? content
-                : throw new AiChecklistGenerationException("ai_invalid_response", "Сервис ИИ вернул пустой результат.");
+            return TryReadContent(payload, out var content)
+                ? content!
+                : throw new AiChecklistGenerationException("ai_invalid_response", "Сервис ИИ вернул некорректный результат.");
         }
         catch (AiChecklistGenerationException)
         {
@@ -81,4 +79,26 @@ internal sealed class AmveraAiChecklistSynthesisClient(
     }
 
     private static string Limit(string value, int length) => value.Length <= length ? value : value[..length];
+
+    internal static bool TryReadContent(string payload, out string? content)
+    {
+        using var document = JsonDocument.Parse(payload);
+        var root = document.RootElement;
+        if (root.ValueKind == JsonValueKind.Object
+            && root.TryGetProperty("choices", out var choices)
+            && choices.ValueKind == JsonValueKind.Array
+            && choices.GetArrayLength() > 0
+            && choices[0].ValueKind == JsonValueKind.Object
+            && choices[0].TryGetProperty("message", out var message)
+            && message.ValueKind == JsonValueKind.Object
+            && message.TryGetProperty("content", out var value)
+            && value.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(value.GetString()))
+        {
+            content = value.GetString();
+            return true;
+        }
+        content = null;
+        return false;
+    }
 }
