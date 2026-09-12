@@ -11,6 +11,11 @@
         <div class="col-md-6"><div class="feature-card card h-100"><div class="card-body"><h2 class="h5">Основные возможности</h2><ul class="mb-0"><li>профили объектов и классификатор;</li><li>подбор требований из базы знаний и истории;</li><li>реестры объектов и нарушений;</li><li>статусы, источники и экспорт результатов.</li></ul></div></div></div>
         <div class="col-md-6"><div class="feature-card card h-100"><div class="card-body"><h2 class="h5">Принципы работы</h2><ul class="mb-0"><li>чек-лист формируется с учётом профиля объекта и источников требований;</li><li>ответ ИИ-консультанта сопровождается источниками из базы знаний;</li><li>действия с рабочими реестрами фиксируются в журнале.</li></ul></div></div></div>
     </div>
+    <a class="experiment-entry mt-4" asp-page="/Checklists/AiNew">
+        <span class="experiment-entry-icon" aria-hidden="true">✦</span>
+        <span><small>Эксперимент</small><strong>Сформировать чек-лист по карточке объекта</strong><em>Классификатор определит применимые критерии, а ИИ найдёт актуальные основания в базе знаний.</em></span>
+        <span class="experiment-entry-arrow" aria-hidden="true">→</span>
+    </a>
     <section class="mt-5" aria-labelledby="commandsTitle">
         <h2 id="commandsTitle" class="h4 section-title mb-2">Команды ИИ-консультанта</h2>
         <p class="muted-note">Команды вводятся в поле сообщения ИИ-консультанта. Операции добавления требуют настроенной переменной <code>ConnectionStrings__OssDatabase</code>.</p>
