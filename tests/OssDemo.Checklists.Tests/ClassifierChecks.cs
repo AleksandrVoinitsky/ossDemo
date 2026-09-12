@@ -13,6 +13,18 @@ internal static class ClassifierChecks
 
         var invalid = ClassifierRules.Normalize(new ClassifierCriterionWrite("", "", "", [], [], true, 0));
         AssertTrue(!invalid.IsSuccess, "Пустой критерий должен отклоняться.");
+
+        var facts = FacilityFactNormalizer.Normalize(new FacilityProfileFields
+        {
+            TreatmentFacilities = "Да (локальные очистные сооружения)",
+            Zones = "КОС/ЛОС",
+            EnvironmentalAspects = "Сбросы в водные объекты"
+        }, null);
+        var selected = ClassifierApplicabilityMatcher.Match(ClassifierSeedData.Tree, facts, []);
+        AssertTrue(selected.Any(item => item.Criterion.Code == "3.9"), "Очистные сооружения должны включать критерий 3.9.");
+        AssertTrue(selected.All(item => !string.IsNullOrWhiteSpace(item.Reason)), "Причина применимости обязательна.");
+        AssertTrue(selected.Any(item => item.Criterion.Code == "1.6"), "Базовые критерии должны включаться всегда.");
+        AssertTrue(!selected.Any(item => item.Criterion.Code == "2.4"), "Критерии атмосферы не должны включаться без признаков выбросов.");
     }
 
     private static void AssertEqual<T>(T expected, T actual)
