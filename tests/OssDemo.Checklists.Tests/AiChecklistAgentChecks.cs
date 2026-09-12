@@ -12,7 +12,9 @@ internal static class AiChecklistAgentChecks
         AssertEqual(409, AiChecklistApi.StatusCode("state_conflict"));
         AssertTrue(AmveraAiChecklistSynthesisClient.TryReadContent("{\"choices\":[{\"message\":{\"content\":\"{}\"}}]}", out var content) && content == "{}", "Должен читаться стандартный ответ Amvera.");
         AssertTrue(!AmveraAiChecklistSynthesisClient.TryReadContent("{\"choices\":[]}", out _), "Пустой choices должен обрабатываться без исключения.");
-        var boundedContext = AmveraAiChecklistSynthesisClient.BuildContext(Enumerable.Range(1, 5).Select(index => new AiChecklistEvidence($"S{index}", "Тема", "Документ", "Раздел", new string('я', 3_000), .8)).ToArray());
+        var contextEvidence = Enumerable.Range(1, 5).Select(index => new AiChecklistEvidence($"S{index}", "Тема", "Документ", "Раздел", new string('я', 3_000), .8)).ToArray();
+        var firstContextBatch = AiChecklistBatchPlanner.Build(contextEvidence)[0];
+        var boundedContext = AmveraAiChecklistSynthesisClient.BuildContext(contextEvidence.Where(item => firstContextBatch.EvidenceIds.Contains(item.Id)).ToArray());
         AssertTrue(boundedContext.Length <= 9_000, "Контекст одного LLM-вызова должен быть не длиннее 9000 символов.");
         var profile = new FacilityProfile("bereznikovskoe", new FacilityProfileFields
         {
@@ -151,6 +153,18 @@ internal static class AiChecklistAgentChecks
         AssertTrue(batches.All(batch => batch.ContextCharacters <= 9_000), "Контекст пакета должен быть ограничен 9000 символами.");
         AssertEqual(32, batches.SelectMany(batch => batch.EvidenceIds).Distinct().Count());
         AssertEqual(0, AiChecklistBatchPlanner.Build([]).Count);
+
+        var boundaryEvidence = new[]
+        {
+            new AiChecklistEvidence("S1", "Одна тема", "Документ 1", "Раздел", new string('а', 8_800) + " КОНЕЦ-S1", .9),
+            new AiChecklistEvidence("S2", "Одна тема", "Документ 2", "Раздел", new string('б', 100) + " КОНЕЦ-S2", .8)
+        };
+        foreach (var batch in AiChecklistBatchPlanner.Build(boundaryEvidence))
+        {
+            var batchEvidence = boundaryEvidence.Where(item => batch.EvidenceIds.Contains(item.Id)).ToArray();
+            var rendered = AmveraAiChecklistSynthesisClient.BuildContext(batchEvidence);
+            AssertTrue(batchEvidence.All(item => rendered.Contains($"КОНЕЦ-{item.Id}")), "Планировщик не должен назначать в пакет источник, который затем обрежется.");
+        }
     }
 
     private sealed class FakeFacilitySource(FacilityProfile profile, OperationalFacility facility) : IAiChecklistFacilitySource

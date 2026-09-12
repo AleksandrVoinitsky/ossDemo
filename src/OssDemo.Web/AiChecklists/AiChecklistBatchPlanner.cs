@@ -12,15 +12,16 @@ internal static class AiChecklistBatchPlanner
             var characters = 0;
             foreach (var item in group)
             {
-                var itemCharacters = Math.Min(item.Text.Length, MaxContextCharacters);
-                if (ids.Count > 0 && (ids.Count == MaxEvidencePerBatch || characters + itemCharacters > MaxContextCharacters))
+                var itemCharacters = Math.Min(AmveraAiChecklistSynthesisClient.RenderEvidence(item).Length, MaxContextCharacters);
+                var separatorCharacters = ids.Count == 0 ? 0 : 2;
+                if (ids.Count > 0 && (ids.Count == MaxEvidencePerBatch || characters + separatorCharacters + itemCharacters > MaxContextCharacters))
                 {
                     batches.Add(new(batches.Count, group.Key, ids.ToArray(), characters));
                     ids.Clear();
                     characters = 0;
                 }
                 ids.Add(item.Id);
-                characters += itemCharacters;
+                characters += (ids.Count == 1 ? 0 : 2) + itemCharacters;
             }
             if (ids.Count > 0) batches.Add(new(batches.Count, group.Key, ids.ToArray(), characters));
         }

@@ -20,7 +20,14 @@ internal static class AiChecklistRunChecks
         AssertEqual("completed", completed!.Batches[0].Status);
         AssertEqual(1, completed.Batches[0].ItemCount);
         AssertTrue(await store.BeginFinalizeAsync(run.Id, CancellationToken.None));
-        AssertTrue(!await store.BeginFinalizeAsync(run.Id, CancellationToken.None), "Финализация должна захватываться один раз.");
+        AssertTrue(await store.BeginFinalizeAsync(run.Id, CancellationToken.None), "Повторная финализация должна быть идемпотентно допустима.");
+
+        var emptyRun = await store.CreateAsync(profile, Guid.NewGuid(), "Объект", evidence, AiChecklistBatchPlanner.Build(evidence), CancellationToken.None);
+        await store.QueueBatchAsync(emptyRun.Id, 0, CancellationToken.None);
+        await store.ClaimNextBatchAsync(CancellationToken.None);
+        await store.CompleteBatchAsync(emptyRun.Id, 0, [], 500, CancellationToken.None);
+        AssertTrue(await store.QueueBatchAsync(emptyRun.Id, 0, CancellationToken.None), "Пакет без принятых пунктов можно поставить на повтор.");
+        AssertEqual("queued", (await store.GetAsync(emptyRun.Id, CancellationToken.None))!.Batches[0].Status);
     }
 
     private static void AssertTrue(bool value, string message = "Expected true.") { if (!value) throw new InvalidOperationException(message); }

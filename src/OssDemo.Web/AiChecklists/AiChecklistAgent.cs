@@ -98,13 +98,21 @@ internal sealed class AiChecklistAgent(
             var raw = await synthesisClient.SynthesizeAsync(work.Facility, work.Evidence, cancellationToken);
             var parsed = AiChecklistOutputParser.Parse(raw, work.Evidence);
             var items = parsed.Items.Take(20).ToArray();
-            await runStore.CompleteBatchAsync(work.RunId, work.Batch.Index, items, timer.ElapsedMilliseconds, cancellationToken);
+            await PersistOutcomeAsync(
+                () => runStore.CompleteBatchAsync(work.RunId, work.Batch.Index, items, timer.ElapsedMilliseconds, cancellationToken),
+                work.RunId,
+                work.Batch.Index,
+                cancellationToken);
             logger.LogInformation("Запуск {RunId}, пакет {BatchIndex}: принято {ItemCount} пунктов за {DurationMs} мс.", work.RunId, work.Batch.Index, items.Length, timer.ElapsedMilliseconds);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             var message = exception is AiChecklistGenerationException generation ? generation.Message : "Не удалось обработать пакет.";
-            await runStore.FailBatchAsync(work.RunId, work.Batch.Index, message, timer.ElapsedMilliseconds, cancellationToken);
+            await PersistOutcomeAsync(
+                () => runStore.FailBatchAsync(work.RunId, work.Batch.Index, message, timer.ElapsedMilliseconds, cancellationToken),
+                work.RunId,
+                work.Batch.Index,
+                cancellationToken);
             logger.LogError(exception, "Запуск {RunId}, пакет {BatchIndex} завершился ошибкой за {DurationMs} мс.", work.RunId, work.Batch.Index, timer.ElapsedMilliseconds);
         }
         return true;
@@ -135,6 +143,12 @@ internal sealed class AiChecklistAgent(
             await runStore.CancelFinalizeAsync(runId, exception.Message, cancellationToken);
             return ChecklistOperationResult<ChecklistDetails>.Fail(exception.Code, exception.Message);
         }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogError(exception, "Не удалось финализировать запуск ИИ-чек-листа {RunId}.", runId);
+            await runStore.CancelFinalizeAsync(runId, "Ошибка сохранения черновика.", cancellationToken);
+            return ChecklistOperationResult<ChecklistDetails>.Fail("storage_unavailable", "Не удалось сохранить черновик. Повторите финализацию.");
+        }
     }
 
     private static IReadOnlyList<AiGeneratedDraftItem> ToDraftItems(IReadOnlyList<AiGeneratedChecklistItem> items, IReadOnlyList<AiChecklistEvidence> evidence)
@@ -146,6 +160,20 @@ internal sealed class AiChecklistAgent(
             var note = string.Join(" ", new[] { item.Reason, $"Уверенность ИИ: {item.Confidence.ToString("P0", CultureInfo.GetCultureInfo("ru-RU"))}. Источники: {string.Join(", ", item.SourceIds)}." }.Where(value => !string.IsNullOrWhiteSpace(value)));
             return new AiGeneratedDraftItem(item.Section, item.Title, basis, note);
         }).ToArray();
+    }
+
+    private async Task PersistOutcomeAsync(Func<Task> persist, Guid runId, int batchIndex, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            try { await persist(); return; }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception, "Запуск {RunId}, пакет {BatchIndex}: БД недоступна, сохранение результата будет повторено.", runId, batchIndex);
+                await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+            }
+        }
     }
 
     private async Task<FacilityProfile?> LoadFacilityAsync(string? slug, CancellationToken cancellationToken) =>

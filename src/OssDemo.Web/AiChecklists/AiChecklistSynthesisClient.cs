@@ -82,9 +82,18 @@ internal sealed class AmveraAiChecklistSynthesisClient(
     internal static string BuildContext(IReadOnlyList<AiChecklistEvidence> evidence)
     {
         const int maxLength = 9_000;
-        var blocks = evidence.Select(item => $"[{item.Id}] Документ: {item.DocumentTitle}\nРаздел: {item.SourceLabel}\nТема поиска: {item.QueryLabel}\nТекст: {item.Text}");
+        var blocks = evidence.Select(RenderEvidence);
         var context = string.Join("\n\n", blocks);
-        return Limit(context, maxLength);
+        if (context.Length > maxLength)
+            throw new AiChecklistGenerationException("ai_context_too_large", "Тематический пакет превышает допустимый объём контекста.");
+        return context;
+    }
+
+    internal static string RenderEvidence(AiChecklistEvidence item)
+    {
+        const int maxLength = 9_000;
+        var header = $"[{item.Id}] Документ: {item.DocumentTitle}\nРаздел: {item.SourceLabel}\nТема поиска: {item.QueryLabel}\nТекст: ";
+        return header + Limit(item.Text, Math.Max(0, maxLength - header.Length));
     }
 
     internal static bool TryReadContent(string payload, out string? content)

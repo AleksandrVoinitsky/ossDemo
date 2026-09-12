@@ -50,6 +50,7 @@ internal static class AiChecklistApi
     {
         "not_found" => StatusCodes.Status404NotFound,
         "search_unavailable" => StatusCodes.Status503ServiceUnavailable,
+        "storage_unavailable" => StatusCodes.Status503ServiceUnavailable,
         "ai_unavailable" => StatusCodes.Status502BadGateway,
         "state_conflict" => StatusCodes.Status409Conflict,
         _ => StatusCodes.Status400BadRequest
