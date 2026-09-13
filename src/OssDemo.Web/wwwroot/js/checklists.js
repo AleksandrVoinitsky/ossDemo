@@ -150,23 +150,28 @@
       const result = resultPresentation(item.result, item.origin);
       const origin = originPresentation(item.origin);
       const sourceLabel = item.sourceLabel || origin.label;
-      return `<tr class="checklist-result-row ${result.rowClass}" data-checklist-item="${escapeHtml(item.id)}">
-        <td><span class="checklist-item-number">${item.position}</span></td>
-        <td><span class="classifier-chip">${escapeHtml(item.section || 'Без раздела')}</span></td>
-        <td class="checklist-item-title"><strong>${escapeHtml(item.title)}</strong></td>
-        <td class="checklist-item-basis">${escapeHtml(item.basis)}</td>
-        ${approved
-          ? `<td><span class="badge ${result.badgeClass}">${escapeHtml(result.label)}</span></td><td>${escapeHtml(item.nonconformity || '—')}</td><td>${escapeHtml(item.note || '—')}</td>`
-          : `<td><select class="form-select form-select-sm checklist-result-select" aria-label="Результат пункта ${item.position}" data-item-result><option value="">Выберите</option>${resultOptions(item.result)}</select></td><td><input class="form-control form-control-sm" value="${escapeHtml(item.nonconformity)}" aria-label="Несоответствие пункта ${item.position}" data-item-nonconformity /></td><td><input class="form-control form-control-sm" value="${escapeHtml(item.note)}" aria-label="Примечание пункта ${item.position}" data-item-note /></td>`}
-        <td><span class="checklist-origin ${origin.className}">${escapeHtml(sourceLabel)}</span></td>
-        <td>${approved ? '' : `<div class="checklist-item-actions"><span class="checklist-autosave-status is-saved" data-item-save-status>Сохранено</span><button class="btn btn-sm btn-outline-secondary" type="button" data-edit-item="${escapeHtml(item.id)}">Изменить</button><button class="btn btn-sm btn-outline-danger" type="button" data-delete-item="${escapeHtml(item.id)}">Удалить</button></div>`}</td>
-      </tr>`;
-    }).join('') : '<tr><td colspan="9" class="muted-note">В чек-листе пока нет пунктов.</td></tr>';
+      return `<article class="checklist-result-item ${result.rowClass}" data-checklist-item="${escapeHtml(item.id)}">
+        <header class="checklist-item-topline">
+          <div class="checklist-item-identity"><span class="checklist-item-number">${item.position}</span><div class="checklist-top-field"><span class="checklist-field-label">Раздел</span><span class="classifier-chip">${escapeHtml(item.section || 'Без раздела')}</span></div></div>
+          <div class="checklist-item-controls">
+            <div class="checklist-top-field checklist-result-control"><span class="checklist-field-label">Результат</span>${approved ? `<span class="badge ${result.badgeClass}">${escapeHtml(result.label)}</span>` : `<select class="form-select form-select-sm checklist-result-select" aria-label="Результат пункта ${item.position}" data-item-result><option value="">Выберите</option>${resultOptions(item.result)}</select>`}</div>
+            <div class="checklist-top-field checklist-source-field"><span class="checklist-field-label">Источник</span><span class="checklist-origin ${origin.className}">${escapeHtml(sourceLabel)}</span></div>
+            ${approved ? '' : `<div class="checklist-item-actions"><span class="checklist-autosave-status is-saved" data-item-save-status>Сохранено</span><button class="btn btn-sm btn-outline-secondary" type="button" data-edit-item="${escapeHtml(item.id)}">Изменить</button><button class="btn btn-sm btn-outline-danger" type="button" data-delete-item="${escapeHtml(item.id)}">Удалить</button></div>`}
+          </div>
+        </header>
+        <div class="checklist-item-content">
+          <section class="checklist-content-field checklist-content-main"><span class="checklist-field-label">Что проверить</span><strong>${escapeHtml(item.title)}</strong></section>
+          <section class="checklist-content-field"><span class="checklist-field-label">Основание</span><div>${escapeHtml(item.basis || '—')}</div></section>
+          <section class="checklist-content-field"><span class="checklist-field-label">Несоответствие</span>${approved ? `<div>${escapeHtml(item.nonconformity || '—')}</div>` : `<input class="form-control form-control-sm" value="${escapeHtml(item.nonconformity)}" aria-label="Несоответствие пункта ${item.position}" data-item-nonconformity />`}</section>
+          <section class="checklist-content-field"><span class="checklist-field-label">Примечание</span>${approved ? `<div>${escapeHtml(item.note || '—')}</div>` : `<input class="form-control form-control-sm" value="${escapeHtml(item.note)}" aria-label="Примечание пункта ${item.position}" data-item-note />`}</section>
+        </div>
+      </article>`;
+    }).join('') : '<div class="checklist-result-empty muted-note">В чек-листе пока нет пунктов.</div>';
   };
 
-  const loadChecklist = () => request(`/api/checklists/${encodeURIComponent(checklistId)}`).then(renderWorkingChecklist).catch((error) => { workingBody.innerHTML = '<tr><td colspan="9" class="text-danger">Чек-лист не найден.</td></tr>'; showError(error.message); });
+  const loadChecklist = () => request(`/api/checklists/${encodeURIComponent(checklistId)}`).then(renderWorkingChecklist).catch((error) => { workingBody.innerHTML = '<div class="checklist-result-empty text-danger">Чек-лист не найден.</div>'; showError(error.message); });
   if (workingBody) {
-    if (!checklistId) { workingBody.innerHTML = '<tr><td colspan="9" class="text-danger">Не указан чек-лист.</td></tr>'; showError('Откройте черновик или исторический чек-лист из соответствующего списка.'); }
+    if (!checklistId) { workingBody.innerHTML = '<div class="checklist-result-empty text-danger">Не указан чек-лист.</div>'; showError('Откройте черновик или исторический чек-лист из соответствующего списка.'); }
     else loadChecklist();
   }
 
