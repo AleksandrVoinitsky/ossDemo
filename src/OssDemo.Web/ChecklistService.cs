@@ -57,8 +57,19 @@ internal sealed class ChecklistService(IChecklistRepository repository)
         return repository.AddDraftItemAsync(id, request with { Title = title, Basis = basis, Section = request.Section?.Trim(), Note = request.Note?.Trim() }, cancellationToken);
     }
 
-    public Task<ChecklistOperationResult<ChecklistDetails>> ApproveAsync(Guid id, string approvedBy, CancellationToken cancellationToken) =>
-        repository.ApproveAsync(id, approvedBy, cancellationToken);
+    public async Task<ChecklistOperationResult<ChecklistDetails>> ApproveAsync(Guid id, string approvedBy, CancellationToken cancellationToken)
+    {
+        var checklist = await repository.GetChecklistAsync(id, cancellationToken);
+        if (checklist is null)
+            return ChecklistOperationResult<ChecklistDetails>.Fail("not_found", "Чек-лист не найден.");
+        if (!string.Equals(checklist.Status, "draft", StringComparison.OrdinalIgnoreCase))
+            return ChecklistOperationResult<ChecklistDetails>.Fail("state_conflict", "Чек-лист уже утверждён.");
+        if (checklist.Items.Count == 0)
+            return ChecklistOperationResult<ChecklistDetails>.Fail("state_conflict", "Добавьте хотя бы один пункт перед утверждением.");
+        if (checklist.Items.Any(item => item.NeedsBasisReview))
+            return ChecklistOperationResult<ChecklistDetails>.Fail("state_conflict", "Проверьте красные пункты: у них не найдено подтверждённое основание.");
+        return await repository.ApproveAsync(id, approvedBy, cancellationToken);
+    }
 
     public Task<ChecklistOperationResult<ChecklistDetails>> EditItemAsync(Guid id, Guid itemId, EditChecklistItemRequest request, CancellationToken cancellationToken)
     {
@@ -67,7 +78,7 @@ internal sealed class ChecklistService(IChecklistRepository repository)
         var section = request.Section?.Trim() ?? string.Empty;
         if (title.Length == 0 || basis.Length == 0 || section.Length == 0)
             return Task.FromResult(ChecklistOperationResult<ChecklistDetails>.Fail("validation", "Укажите раздел, наименование и основание пункта."));
-        return repository.EditDraftItemAsync(id, itemId, request with { Title = title, Basis = basis, Section = section }, cancellationToken);
+        return repository.EditDraftItemAsync(id, itemId, request with { Title = title, Basis = basis, Section = section, Note = request.Note?.Trim() }, cancellationToken);
     }
 
     public Task<ChecklistOperationResult<ChecklistDetails>> DeleteItemAsync(Guid id, Guid itemId, CancellationToken cancellationToken) =>

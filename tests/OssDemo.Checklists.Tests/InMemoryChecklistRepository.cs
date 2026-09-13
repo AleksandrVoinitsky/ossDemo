@@ -107,7 +107,7 @@ internal sealed class InMemoryChecklistRepository : IChecklistRepository
         if (!checklists.TryGetValue(id, out var checklist)) return Task.FromResult(FailChecklist("not_found", "Чек-лист не найден."));
         if (checklist.Status != "draft") return Task.FromResult(FailChecklist("state_conflict", "Утверждённый чек-лист нельзя изменять."));
         if (!checklist.Items.Any(item => item.Id == itemId)) return Task.FromResult(FailChecklist("not_found", "Пункт не найден."));
-        var items = checklist.Items.Select(item => item.Id == itemId ? item with { Title = request.Title!, Basis = request.Basis!, Section = request.Section! } : item).ToArray();
+        var items = checklist.Items.Select(item => item.Id == itemId ? item with { Title = request.Title!, Basis = request.Basis!, Section = request.Section!, Note = request.Note ?? "" } : item).ToArray();
         checklist = checklist with { Items = items, UpdatedAt = DateTimeOffset.UtcNow };
         checklists[id] = checklist;
         return Task.FromResult(ChecklistOperationResult<ChecklistDetails>.Success(Clone(checklist)));
@@ -128,8 +128,8 @@ internal sealed class InMemoryChecklistRepository : IChecklistRepository
     {
         if (!checklists.TryGetValue(id, out var checklist)) return Task.FromResult(FailChecklist("not_found", "Чек-лист не найден."));
         if (checklist.Status != "draft") return Task.FromResult(FailChecklist("state_conflict", "Чек-лист уже утверждён."));
-        if (checklist.Items.Count == 0 || checklist.Items.Any(item => string.IsNullOrWhiteSpace(item.Result)))
-            return Task.FromResult(FailChecklist("state_conflict", "Заполните результаты всех пунктов перед утверждением."));
+        if (checklist.Items.Count == 0)
+            return Task.FromResult(FailChecklist("state_conflict", "Добавьте хотя бы один пункт перед утверждением."));
         var now = DateTimeOffset.UtcNow;
         checklist = checklist with { Status = "approved", ApprovedAt = now, ApprovedBy = approvedBy, UpdatedAt = now };
         checklists[id] = checklist;

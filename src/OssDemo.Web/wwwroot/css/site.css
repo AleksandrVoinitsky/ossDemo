@@ -3285,11 +3285,6 @@ a {
   background: #e9eef1;
 }
 
-.checklist-result-control .form-select {
-  width: 9.5rem;
-  max-width: 100%;
-}
-
 .checklist-result-item .form-control,
 .checklist-result-item .form-select {
   min-width: 0;
@@ -3304,22 +3299,9 @@ a {
   gap: .35rem;
 }
 
-.checklist-autosave-status {
-  display: block;
-  min-height: 1.1rem;
-  color: var(--ink-muted);
-  font-size: .7rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.checklist-autosave-status.is-saving { color: var(--info); }
-.checklist-autosave-status.is-saved { color: var(--success); }
-.checklist-autosave-status.is-error { color: var(--danger); }
-
 .checklist-item-content {
   display: grid;
-  grid-template-columns: minmax(0, 1.65fr) repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
   gap: .55rem;
   min-width: 0;
   padding: .65rem .75rem .75rem;

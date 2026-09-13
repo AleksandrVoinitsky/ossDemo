@@ -1,5 +1,17 @@
 internal static class ChecklistRules
 {
+    private static readonly string[] UnverifiedBasisMarkers =
+    [
+        "требует проверки",
+        "не найден",
+        "не найдено",
+        "заполнить вручную",
+        "уточнить основание"
+    ];
+
+    public static bool RequiresBasisReview(string? basis) =>
+        string.IsNullOrWhiteSpace(basis) || UnverifiedBasisMarkers.Any(marker => basis.Contains(marker, StringComparison.OrdinalIgnoreCase));
+
     public static ChecklistOperationResult<ChecklistTemplateWriteRequest> NormalizeTemplate(ChecklistTemplateWriteRequest request)
     {
         var errors = new Dictionary<string, string[]>();

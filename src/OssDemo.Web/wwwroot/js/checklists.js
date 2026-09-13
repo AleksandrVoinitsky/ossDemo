@@ -59,75 +59,15 @@
   const alert = document.querySelector('[data-working-alert]');
   let currentChecklist = null;
   let selectedChecklistItem = null;
-  const autosaveTimers = new Map();
-  const autosaveQueues = new Map();
-  const resultOptions = (value) => ['Да', 'Нет', 'Не применяется', 'Не проверено'].map((option) => `<option ${value === option ? 'selected' : ''}>${option}</option>`).join('');
-  const resultPresentation = (value, origin) => {
-    if (value === 'Да') return { rowClass: 'checklist-row-success', badgeClass: 'text-bg-success', label: 'Да' };
-    if (value === 'Нет') return { rowClass: 'checklist-row-critical', badgeClass: 'text-bg-danger', label: 'Нет' };
-    if (value === 'Не применяется') return { rowClass: 'checklist-row-neutral', badgeClass: 'text-bg-secondary', label: 'Не применяется' };
-    if (origin === 'manual') return { rowClass: 'checklist-row-manual', badgeClass: 'text-bg-secondary', label: value || 'Не проверено' };
-    return { rowClass: 'checklist-row-control', badgeClass: 'text-bg-info', label: value || 'Не проверено' };
-  };
+  const basisPresentation = (item) => item.needsBasisReview
+    ? { rowClass: 'checklist-row-critical', badgeClass: 'text-bg-danger', label: 'Требует основания' }
+    : { rowClass: 'checklist-row-success', badgeClass: 'text-bg-success', label: 'Основание найдено' };
   const originPresentation = (origin) => {
     if (origin === 'ai') return { className: 'origin-ai', label: 'ИИ + база знаний' };
     if (origin === 'manual') return { className: 'origin-manual', label: 'Добавлено инспектором' };
     return { className: 'origin-template', label: 'Шаблон' };
   };
   const showError = (message) => { if (!alert) return; alert.textContent = message; alert.className = 'alert alert-danger mb-3'; alert.hidden = false; alert.focus(); };
-  const setAutosaveStatus = (row, text, state = '') => {
-    const status = row?.querySelector('[data-item-save-status]');
-    if (!status) return;
-    status.textContent = text;
-    status.className = `checklist-autosave-status ${state}`.trim();
-  };
-  const persistRow = async (row) => {
-    if (!row?.isConnected || !checklistId) return currentChecklist;
-    setAutosaveStatus(row, 'Сохранение…', 'is-saving');
-    try {
-      const checklist = await request(`/api/checklists/${encodeURIComponent(checklistId)}/items/${encodeURIComponent(row.dataset.checklistItem)}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-          result: row.querySelector('[data-item-result]').value,
-          nonconformity: row.querySelector('[data-item-nonconformity]').value,
-          note: row.querySelector('[data-item-note]').value
-        })
-      });
-      currentChecklist = checklist;
-      setAutosaveStatus(row, 'Сохранено', 'is-saved');
-      return checklist;
-    } catch (error) {
-      setAutosaveStatus(row, 'Ошибка сохранения', 'is-error');
-      showError(error.message);
-      throw error;
-    }
-  };
-  const enqueueRowSave = (row) => {
-    const itemId = row.dataset.checklistItem;
-    const previous = autosaveQueues.get(itemId) || Promise.resolve();
-    const operation = previous.catch(() => {}).then(() => persistRow(row));
-    autosaveQueues.set(itemId, operation);
-    operation.catch(() => {});
-    return operation;
-  };
-  const scheduleRowSave = (row, delay) => {
-    const itemId = row.dataset.checklistItem;
-    if (autosaveTimers.has(itemId)) window.clearTimeout(autosaveTimers.get(itemId).timer);
-    setAutosaveStatus(row, 'Сохранение…', 'is-saving');
-    const timer = window.setTimeout(() => {
-      autosaveTimers.delete(itemId);
-      enqueueRowSave(row);
-    }, delay);
-    autosaveTimers.set(itemId, { timer, row });
-  };
-  const flushAutosaves = async () => {
-    for (const [itemId, pending] of autosaveTimers) {
-      window.clearTimeout(pending.timer);
-      autosaveTimers.delete(itemId);
-      enqueueRowSave(pending.row);
-    }
-    const results = await Promise.allSettled([...autosaveQueues.values()]);
-    return results.every((result) => result.status === 'fulfilled');
-  };
   const renderWorkingChecklist = (checklist) => {
     currentChecklist = checklist;
     if (!workingBody) return;
@@ -147,23 +87,21 @@
     document.querySelector('[data-export-docx]')?.setAttribute('href', `/exports/checklists/${checklist.id}.docx`);
     document.querySelector('[data-export-pdf]')?.setAttribute('href', `/exports/checklists/${checklist.id}.pdf`);
     workingBody.innerHTML = checklist.items.length ? checklist.items.map((item) => {
-      const result = resultPresentation(item.result, item.origin);
+      const basisState = basisPresentation(item);
       const origin = originPresentation(item.origin);
       const sourceLabel = item.sourceLabel || origin.label;
-      return `<article class="checklist-result-item ${result.rowClass}" data-checklist-item="${escapeHtml(item.id)}">
+      return `<article class="checklist-result-item ${basisState.rowClass}" data-checklist-item="${escapeHtml(item.id)}">
         <header class="checklist-item-topline">
           <div class="checklist-item-identity"><span class="checklist-item-number">${item.position}</span><div class="checklist-top-field"><span class="checklist-field-label">Раздел</span><span class="classifier-chip">${escapeHtml(item.section || 'Без раздела')}</span></div></div>
           <div class="checklist-item-controls">
-            <div class="checklist-top-field checklist-result-control"><span class="checklist-field-label">Результат</span>${approved ? `<span class="badge ${result.badgeClass}">${escapeHtml(result.label)}</span>` : `<select class="form-select form-select-sm checklist-result-select" aria-label="Результат пункта ${item.position}" data-item-result><option value="">Выберите</option>${resultOptions(item.result)}</select>`}</div>
+            <div class="checklist-top-field"><span class="checklist-field-label">Проверка основания</span><span class="badge ${basisState.badgeClass}">${escapeHtml(basisState.label)}</span></div>
             <div class="checklist-top-field checklist-source-field"><span class="checklist-field-label">Источник</span><span class="checklist-origin ${origin.className}">${escapeHtml(sourceLabel)}</span></div>
-            ${approved ? '' : `<div class="checklist-item-actions"><span class="checklist-autosave-status is-saved" data-item-save-status>Сохранено</span><button class="btn btn-sm btn-outline-secondary" type="button" data-edit-item="${escapeHtml(item.id)}">Изменить</button><button class="btn btn-sm btn-outline-danger" type="button" data-delete-item="${escapeHtml(item.id)}">Удалить</button></div>`}
+            ${approved ? '' : `<div class="checklist-item-actions"><button class="btn btn-sm btn-outline-secondary" type="button" data-edit-item="${escapeHtml(item.id)}">Изменить</button><button class="btn btn-sm btn-outline-danger" type="button" data-delete-item="${escapeHtml(item.id)}">Удалить</button></div>`}
           </div>
         </header>
         <div class="checklist-item-content">
           <section class="checklist-content-field checklist-content-main"><span class="checklist-field-label">Что проверить</span><strong>${escapeHtml(item.title)}</strong></section>
-          <section class="checklist-content-field"><span class="checklist-field-label">Основание</span><div>${escapeHtml(item.basis || '—')}</div></section>
-          <section class="checklist-content-field"><span class="checklist-field-label">Несоответствие</span>${approved ? `<div>${escapeHtml(item.nonconformity || '—')}</div>` : `<input class="form-control form-control-sm" value="${escapeHtml(item.nonconformity)}" aria-label="Несоответствие пункта ${item.position}" data-item-nonconformity />`}</section>
-          <section class="checklist-content-field"><span class="checklist-field-label">Примечание</span>${approved ? `<div>${escapeHtml(item.note || '—')}</div>` : `<input class="form-control form-control-sm" value="${escapeHtml(item.note)}" aria-label="Примечание пункта ${item.position}" data-item-note />`}</section>
+          <section class="checklist-content-field"><span class="checklist-field-label">Основание</span><div>${escapeHtml(item.basis || 'Основание не заполнено')}</div></section>
         </div>
       </article>`;
     }).join('') : '<div class="checklist-result-empty muted-note">В чек-листе пока нет пунктов.</div>';
@@ -183,6 +121,7 @@
       document.querySelector('[data-edit-item-title]').value = selectedChecklistItem.title;
       document.querySelector('[data-edit-item-section]').value = selectedChecklistItem.section;
       document.querySelector('[data-edit-item-basis]').value = selectedChecklistItem.basis;
+      document.querySelector('[data-edit-item-note]').value = selectedChecklistItem.note;
       bootstrap.Modal.getOrCreateInstance(document.getElementById('checklistItemEditModal')).show();
       return;
     }
@@ -195,31 +134,20 @@
       return;
     }
   });
-  workingBody?.addEventListener('input', (event) => {
-    const row = event.target.closest('[data-checklist-item]');
-    if (!row || !event.target.matches('[data-item-result], [data-item-nonconformity], [data-item-note]')) return;
-    if (event.target.matches('[data-item-result]')) {
-      const presentation = resultPresentation(event.target.value, currentChecklist?.items.find((item) => item.id === row.dataset.checklistItem)?.origin);
-      row.classList.remove('checklist-row-success', 'checklist-row-critical', 'checklist-row-neutral', 'checklist-row-manual', 'checklist-row-control');
-      row.classList.add(presentation.rowClass);
-    }
-    scheduleRowSave(row, event.target.matches('[data-item-result]') ? 0 : 650);
-  });
-
   document.querySelector('[data-edit-item-form]')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!selectedChecklistItem || !checklistId) return;
     const submit = event.currentTarget.querySelector('[type="submit"]');
     submit.disabled = true;
     try {
-      if (!await flushAutosaves()) throw new Error('Не все изменения пункта удалось сохранить. Повторите попытку.');
       const checklist = await request(`/api/checklists/${encodeURIComponent(checklistId)}/items/${encodeURIComponent(selectedChecklistItem.id)}/content`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: document.querySelector('[data-edit-item-title]').value,
           section: document.querySelector('[data-edit-item-section]').value,
-          basis: document.querySelector('[data-edit-item-basis]').value
+          basis: document.querySelector('[data-edit-item-basis]').value,
+          note: document.querySelector('[data-edit-item-note]').value
         })
       });
       bootstrap.Modal.getOrCreateInstance(document.getElementById('checklistItemEditModal')).hide();
@@ -233,7 +161,6 @@
     if (!selectedChecklistItem || !checklistId) return;
     event.currentTarget.disabled = true;
     try {
-      await flushAutosaves();
       const checklist = await request(`/api/checklists/${encodeURIComponent(checklistId)}/items/${encodeURIComponent(selectedChecklistItem.id)}`, { method: 'DELETE' });
       bootstrap.Modal.getOrCreateInstance(document.getElementById('checklistItemDeleteModal')).hide();
       selectedChecklistItem = null;
@@ -248,7 +175,6 @@
     if (!title || !basis) { showError('Заполните наименование и основание нового пункта.'); return; }
     event.currentTarget.disabled = true;
     try {
-      if (!await flushAutosaves()) throw new Error('Не все изменения пунктов удалось сохранить. Повторите попытку.');
       const checklist = await request(`/api/checklists/${encodeURIComponent(checklistId)}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, basis, section: document.querySelector('[data-manual-section]').value, note: document.querySelector('[data-manual-note]').value }) });
       renderWorkingChecklist(checklist);
       document.querySelector('[data-manual-title]').value = '';
@@ -263,10 +189,6 @@
     if (!currentChecklist || !checklistId) return;
     event.currentTarget.disabled = true;
     try {
-      const saved = await flushAutosaves();
-      if (!saved) throw new Error('Не все изменения удалось сохранить. Проверьте отмеченные строки и повторите попытку.');
-      if ([...workingBody.querySelectorAll('[data-item-result]')].some((select) => !select.value))
-        throw new Error('Выберите результат проверки для каждого пункта перед утверждением.');
       const checklist = await request(`/api/checklists/${encodeURIComponent(checklistId)}/approve`, { method: 'POST' });
       bootstrap.Modal.getOrCreateInstance(document.getElementById('checklistApprovalModal')).hide();
       renderWorkingChecklist(checklist);
