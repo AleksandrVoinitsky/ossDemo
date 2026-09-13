@@ -59,6 +59,19 @@ internal sealed class ChecklistService(IChecklistRepository repository)
     public Task<ChecklistOperationResult<ChecklistDetails>> ApproveAsync(Guid id, string approvedBy, CancellationToken cancellationToken) =>
         repository.ApproveAsync(id, approvedBy, cancellationToken);
 
+    public Task<ChecklistOperationResult<ChecklistDetails>> EditItemAsync(Guid id, Guid itemId, EditChecklistItemRequest request, CancellationToken cancellationToken)
+    {
+        var title = request.Title?.Trim() ?? string.Empty;
+        var basis = request.Basis?.Trim() ?? string.Empty;
+        var section = request.Section?.Trim() ?? string.Empty;
+        if (title.Length == 0 || basis.Length == 0 || section.Length == 0)
+            return Task.FromResult(ChecklistOperationResult<ChecklistDetails>.Fail("validation", "Укажите раздел, наименование и основание пункта."));
+        return repository.EditDraftItemAsync(id, itemId, request with { Title = title, Basis = basis, Section = section }, cancellationToken);
+    }
+
+    public Task<ChecklistOperationResult<ChecklistDetails>> DeleteItemAsync(Guid id, Guid itemId, CancellationToken cancellationToken) =>
+        repository.DeleteDraftItemAsync(id, itemId, cancellationToken);
+
     public Task<ChecklistOperationResult<ChecklistDetails>> UpdateItemAsync(Guid id, Guid itemId, UpdateChecklistItemRequest request, CancellationToken cancellationToken)
     {
         var result = request.Result?.Trim() ?? string.Empty;

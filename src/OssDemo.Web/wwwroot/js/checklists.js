@@ -31,6 +31,7 @@
   const workingBody = document.querySelector('[data-working-checklist-body]');
   const alert = document.querySelector('[data-working-alert]');
   let currentChecklist = null;
+  let selectedChecklistItem = null;
   const resultOptions = (value) => ['Да', 'Нет', 'Не применяется', 'Не проверено'].map((option) => `<option ${value === option ? 'selected' : ''}>${option}</option>`).join('');
   const resultPresentation = (value, origin) => {
     if (value === 'Да') return { rowClass: 'checklist-row-success', badgeClass: 'text-bg-success', label: 'Да' };
@@ -76,7 +77,7 @@
           ? `<td><span class="badge ${result.badgeClass}">${escapeHtml(result.label)}</span></td><td>${escapeHtml(item.nonconformity || '—')}</td><td>${escapeHtml(item.note || '—')}</td>`
           : `<td><select class="form-select form-select-sm checklist-result-select" aria-label="Результат пункта ${item.position}" data-item-result><option value="">Выберите</option>${resultOptions(item.result)}</select></td><td><input class="form-control form-control-sm" value="${escapeHtml(item.nonconformity)}" aria-label="Несоответствие пункта ${item.position}" data-item-nonconformity /></td><td><input class="form-control form-control-sm" value="${escapeHtml(item.note)}" aria-label="Примечание пункта ${item.position}" data-item-note /></td>`}
         <td><span class="checklist-origin ${origin.className}">${escapeHtml(sourceLabel)}</span></td>
-        <td>${approved ? '' : '<button class="btn btn-sm btn-outline-primary" type="button" data-save-item>Сохранить</button>'}</td>
+        <td>${approved ? '' : `<div class="checklist-item-actions"><button class="btn btn-sm btn-outline-primary" type="button" data-save-item>Сохранить</button><button class="btn btn-sm btn-outline-secondary" type="button" data-edit-item="${escapeHtml(item.id)}">Изменить</button><button class="btn btn-sm btn-outline-danger" type="button" data-delete-item="${escapeHtml(item.id)}">Удалить</button></div>`}</td>
       </tr>`;
     }).join('') : '<tr><td colspan="9" class="muted-note">В чек-листе пока нет пунктов.</td></tr>';
   };
@@ -88,6 +89,24 @@
   }
 
   workingBody?.addEventListener('click', async (event) => {
+    const editButton = event.target.closest('[data-edit-item]');
+    if (editButton) {
+      selectedChecklistItem = currentChecklist?.items.find((item) => item.id === editButton.dataset.editItem) || null;
+      if (!selectedChecklistItem) return;
+      document.querySelector('[data-edit-item-title]').value = selectedChecklistItem.title;
+      document.querySelector('[data-edit-item-section]').value = selectedChecklistItem.section;
+      document.querySelector('[data-edit-item-basis]').value = selectedChecklistItem.basis;
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('checklistItemEditModal')).show();
+      return;
+    }
+    const deleteButton = event.target.closest('[data-delete-item]');
+    if (deleteButton) {
+      selectedChecklistItem = currentChecklist?.items.find((item) => item.id === deleteButton.dataset.deleteItem) || null;
+      if (!selectedChecklistItem) return;
+      document.querySelector('[data-delete-item-name]').textContent = `«${selectedChecklistItem.title}»`;
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('checklistItemDeleteModal')).show();
+      return;
+    }
     const button = event.target.closest('[data-save-item]');
     if (!button) return;
     const row = button.closest('[data-checklist-item]');
@@ -118,6 +137,40 @@
       row.classList.remove('checklist-row-success', 'checklist-row-critical', 'checklist-row-neutral', 'checklist-row-manual', 'checklist-row-control');
       row.classList.add(presentation.rowClass);
     }
+  });
+
+  document.querySelector('[data-edit-item-form]')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!selectedChecklistItem || !checklistId) return;
+    const submit = event.currentTarget.querySelector('[type="submit"]');
+    submit.disabled = true;
+    try {
+      const checklist = await request(`/api/checklists/${encodeURIComponent(checklistId)}/items/${encodeURIComponent(selectedChecklistItem.id)}/content`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: document.querySelector('[data-edit-item-title]').value,
+          section: document.querySelector('[data-edit-item-section]').value,
+          basis: document.querySelector('[data-edit-item-basis]').value
+        })
+      });
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('checklistItemEditModal')).hide();
+      selectedChecklistItem = null;
+      renderWorkingChecklist(checklist);
+    } catch (error) { showError(error.message); }
+    finally { submit.disabled = false; }
+  });
+
+  document.querySelector('[data-confirm-item-delete]')?.addEventListener('click', async (event) => {
+    if (!selectedChecklistItem || !checklistId) return;
+    event.currentTarget.disabled = true;
+    try {
+      const checklist = await request(`/api/checklists/${encodeURIComponent(checklistId)}/items/${encodeURIComponent(selectedChecklistItem.id)}`, { method: 'DELETE' });
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('checklistItemDeleteModal')).hide();
+      selectedChecklistItem = null;
+      renderWorkingChecklist(checklist);
+    } catch (error) { showError(error.message); }
+    finally { event.currentTarget.disabled = false; }
   });
 
   document.querySelector('[data-save-manual-item]')?.addEventListener('click', async (event) => {

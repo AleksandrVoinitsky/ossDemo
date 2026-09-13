@@ -28,6 +28,10 @@ internal static class ChecklistApi
             ChecklistApiResponses.ToResult(await service.AddItemAsync(id, request, ct)));
         app.MapPut("/api/checklists/{id:guid}/items/{itemId:guid}", async (Guid id, Guid itemId, UpdateChecklistItemRequest request, ChecklistService service, CancellationToken ct) =>
             ChecklistApiResponses.ToResult(await service.UpdateItemAsync(id, itemId, request, ct)));
+        app.MapPut("/api/checklists/{id:guid}/items/{itemId:guid}/content", async (Guid id, Guid itemId, EditChecklistItemRequest request, ChecklistService service, CancellationToken ct) =>
+            ChecklistApiResponses.ToResult(await service.EditItemAsync(id, itemId, request, ct)));
+        app.MapDelete("/api/checklists/{id:guid}/items/{itemId:guid}", async (Guid id, Guid itemId, ChecklistService service, CancellationToken ct) =>
+            ChecklistApiResponses.ToResult(await service.DeleteItemAsync(id, itemId, ct)));
         app.MapPost("/api/checklists/{id:guid}/approve", async (Guid id, ChecklistService service, CancellationToken ct) =>
             ChecklistApiResponses.ToResult(await service.ApproveAsync(id, OssDemo.Web.Pages.LoginModel.UserName, ct)));
 

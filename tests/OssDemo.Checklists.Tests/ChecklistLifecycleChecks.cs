@@ -32,6 +32,24 @@ internal static class ChecklistLifecycleChecks
         var invalidResult = await service.UpdateItemAsync(draft.Id, draft.Items[0].Id, new UpdateChecklistItemRequest("произвольный", "", ""), CancellationToken.None);
         AssertEqual("validation", invalidResult.ErrorCode);
 
+        var editedItem = await service.EditItemAsync(draft.Id, draft.Items[0].Id,
+            new EditChecklistItemRequest("Обновлённый пункт", "Статья 2", "Новый раздел"), CancellationToken.None);
+        AssertTrue(editedItem.IsSuccess, "Содержание пункта черновика должно редактироваться.");
+        AssertEqual("Обновлённый пункт", editedItem.Value!.Items[0].Title);
+        AssertEqual("Статья 2", editedItem.Value.Items[0].Basis);
+        AssertEqual("Новый раздел", editedItem.Value.Items[0].Section);
+        var invalidEdit = await service.EditItemAsync(draft.Id, draft.Items[0].Id,
+            new EditChecklistItemRequest(" ", "Статья 2", "Раздел"), CancellationToken.None);
+        AssertEqual("validation", invalidEdit.ErrorCode);
+
+        var addedItem = await service.AddItemAsync(draft.Id, new AddChecklistItemRequest("Временный пункт", "Основание", "Раздел", ""), CancellationToken.None);
+        AssertTrue(addedItem.IsSuccess && addedItem.Value!.Items.Count == 2, "Пункт должен добавляться перед проверкой удаления.");
+        var addedChecklist = addedItem.Value!;
+        var deletedItem = await service.DeleteItemAsync(draft.Id, addedChecklist.Items[1].Id, CancellationToken.None);
+        AssertTrue(deletedItem.IsSuccess && deletedItem.Value!.Items.Count == 1, "Пункт черновика должен удаляться.");
+        var checklistAfterDelete = deletedItem.Value!;
+        AssertEqual(1, checklistAfterDelete.Items[0].Position);
+
         AssertTrue((await service.DeleteTemplateAsync(template.Id, CancellationToken.None)).IsSuccess, "Использованный шаблон должен удаляться.");
         AssertTrue(await service.GetChecklistAsync(draft.Id, CancellationToken.None) is not null, "Черновик должен сохраниться после удаления шаблона.");
         AssertTrue((await service.ApproveAsync(draft.Id, "inspector", CancellationToken.None)).IsSuccess, "Черновик должен утверждаться.");
@@ -41,6 +59,10 @@ internal static class ChecklistLifecycleChecks
         AssertEqual("state_conflict", rejected.ErrorCode);
         var rejectedUpdate = await service.UpdateItemAsync(draft.Id, draft.Items[0].Id, new UpdateChecklistItemRequest("Нет", "Нарушение", ""), CancellationToken.None);
         AssertEqual("state_conflict", rejectedUpdate.ErrorCode);
+        var rejectedEdit = await service.EditItemAsync(draft.Id, draft.Items[0].Id, new EditChecklistItemRequest("Пункт", "Основание", "Раздел"), CancellationToken.None);
+        AssertEqual("state_conflict", rejectedEdit.ErrorCode);
+        var rejectedDelete = await service.DeleteItemAsync(draft.Id, draft.Items[0].Id, CancellationToken.None);
+        AssertEqual("state_conflict", rejectedDelete.ErrorCode);
     }
 
     private static void AssertTrue(bool value, string message)

@@ -247,6 +247,66 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
         return ChecklistOperationResult<ChecklistDetails>.Success((await GetChecklistAsync(id, cancellationToken))!);
     }
 
+    public async Task<ChecklistOperationResult<ChecklistDetails>> EditDraftItemAsync(Guid id, Guid itemId, EditChecklistItemRequest request, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using var status = new NpgsqlCommand("SELECT status FROM app_checklists WHERE id=@id FOR UPDATE", connection, transaction);
+        status.Parameters.AddWithValue("id", id);
+        var value = await status.ExecuteScalarAsync(cancellationToken);
+        if (value is null) { await transaction.RollbackAsync(cancellationToken); return ChecklistOperationResult<ChecklistDetails>.Fail("not_found", "Чек-лист не найден."); }
+        if ((string)value != "draft") { await transaction.RollbackAsync(cancellationToken); return ChecklistOperationResult<ChecklistDetails>.Fail("state_conflict", "Утверждённый чек-лист нельзя изменять."); }
+        await using var update = new NpgsqlCommand("UPDATE app_checklist_items SET section=@section,title=@title,basis=@basis WHERE id=@itemId AND checklist_id=@id", connection, transaction);
+        update.Parameters.AddWithValue("id", id);
+        update.Parameters.AddWithValue("itemId", itemId);
+        update.Parameters.AddWithValue("section", request.Section!);
+        update.Parameters.AddWithValue("title", request.Title!);
+        update.Parameters.AddWithValue("basis", request.Basis!);
+        if (await update.ExecuteNonQueryAsync(cancellationToken) == 0)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return ChecklistOperationResult<ChecklistDetails>.Fail("not_found", "Пункт чек-листа не найден.");
+        }
+        await using (var touch = new NpgsqlCommand("UPDATE app_checklists SET updated_at=now() WHERE id=@id", connection, transaction))
+        {
+            touch.Parameters.AddWithValue("id", id);
+            await touch.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
+        return ChecklistOperationResult<ChecklistDetails>.Success((await GetChecklistAsync(id, cancellationToken))!);
+    }
+
+    public async Task<ChecklistOperationResult<ChecklistDetails>> DeleteDraftItemAsync(Guid id, Guid itemId, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using var status = new NpgsqlCommand("SELECT status FROM app_checklists WHERE id=@id FOR UPDATE", connection, transaction);
+        status.Parameters.AddWithValue("id", id);
+        var value = await status.ExecuteScalarAsync(cancellationToken);
+        if (value is null) { await transaction.RollbackAsync(cancellationToken); return ChecklistOperationResult<ChecklistDetails>.Fail("not_found", "Чек-лист не найден."); }
+        if ((string)value != "draft") { await transaction.RollbackAsync(cancellationToken); return ChecklistOperationResult<ChecklistDetails>.Fail("state_conflict", "Утверждённый чек-лист нельзя изменять."); }
+        await using var delete = new NpgsqlCommand("DELETE FROM app_checklist_items WHERE id=@itemId AND checklist_id=@id", connection, transaction);
+        delete.Parameters.AddWithValue("id", id);
+        delete.Parameters.AddWithValue("itemId", itemId);
+        if (await delete.ExecuteNonQueryAsync(cancellationToken) == 0)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return ChecklistOperationResult<ChecklistDetails>.Fail("not_found", "Пункт чек-листа не найден.");
+        }
+        await using (var reorder = new NpgsqlCommand("WITH ordered AS (SELECT id,row_number() OVER (ORDER BY position,id)::int AS new_position FROM app_checklist_items WHERE checklist_id=@id) UPDATE app_checklist_items i SET position=o.new_position FROM ordered o WHERE i.id=o.id", connection, transaction))
+        {
+            reorder.Parameters.AddWithValue("id", id);
+            await reorder.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await using (var touch = new NpgsqlCommand("UPDATE app_checklists SET updated_at=now() WHERE id=@id", connection, transaction))
+        {
+            touch.Parameters.AddWithValue("id", id);
+            await touch.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
+        return ChecklistOperationResult<ChecklistDetails>.Success((await GetChecklistAsync(id, cancellationToken))!);
+    }
+
     public async Task<ChecklistOperationResult<ChecklistDetails>> ApproveAsync(Guid id, string approvedBy, CancellationToken cancellationToken)
     {
         await using var connection=await OpenAsync(cancellationToken);

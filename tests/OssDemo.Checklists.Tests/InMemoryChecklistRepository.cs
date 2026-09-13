@@ -94,6 +94,28 @@ internal sealed class InMemoryChecklistRepository : IChecklistRepository
         return Task.FromResult(ChecklistOperationResult<ChecklistDetails>.Success(Clone(checklist)));
     }
 
+    public Task<ChecklistOperationResult<ChecklistDetails>> EditDraftItemAsync(Guid id, Guid itemId, EditChecklistItemRequest request, CancellationToken cancellationToken)
+    {
+        if (!checklists.TryGetValue(id, out var checklist)) return Task.FromResult(FailChecklist("not_found", "Чек-лист не найден."));
+        if (checklist.Status != "draft") return Task.FromResult(FailChecklist("state_conflict", "Утверждённый чек-лист нельзя изменять."));
+        if (!checklist.Items.Any(item => item.Id == itemId)) return Task.FromResult(FailChecklist("not_found", "Пункт не найден."));
+        var items = checklist.Items.Select(item => item.Id == itemId ? item with { Title = request.Title!, Basis = request.Basis!, Section = request.Section! } : item).ToArray();
+        checklist = checklist with { Items = items, UpdatedAt = DateTimeOffset.UtcNow };
+        checklists[id] = checklist;
+        return Task.FromResult(ChecklistOperationResult<ChecklistDetails>.Success(Clone(checklist)));
+    }
+
+    public Task<ChecklistOperationResult<ChecklistDetails>> DeleteDraftItemAsync(Guid id, Guid itemId, CancellationToken cancellationToken)
+    {
+        if (!checklists.TryGetValue(id, out var checklist)) return Task.FromResult(FailChecklist("not_found", "Чек-лист не найден."));
+        if (checklist.Status != "draft") return Task.FromResult(FailChecklist("state_conflict", "Утверждённый чек-лист нельзя изменять."));
+        if (!checklist.Items.Any(item => item.Id == itemId)) return Task.FromResult(FailChecklist("not_found", "Пункт не найден."));
+        var items = checklist.Items.Where(item => item.Id != itemId).Select((item, index) => item with { Position = index + 1 }).ToArray();
+        checklist = checklist with { Items = items, UpdatedAt = DateTimeOffset.UtcNow };
+        checklists[id] = checklist;
+        return Task.FromResult(ChecklistOperationResult<ChecklistDetails>.Success(Clone(checklist)));
+    }
+
     public Task<ChecklistOperationResult<ChecklistDetails>> ApproveAsync(Guid id, string approvedBy, CancellationToken cancellationToken)
     {
         if (!checklists.TryGetValue(id, out var checklist)) return Task.FromResult(FailChecklist("not_found", "Чек-лист не найден."));

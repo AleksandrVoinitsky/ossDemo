@@ -12,6 +12,8 @@ internal interface IChecklistRepository
     Task<IReadOnlyList<ChecklistSummary>> ListDraftsAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<ChecklistSummary>> ListHistoryAsync(ChecklistHistoryFilter filter, CancellationToken cancellationToken);
     Task<ChecklistOperationResult<ChecklistDetails>> AddDraftItemAsync(Guid id, AddChecklistItemRequest request, CancellationToken cancellationToken);
+    Task<ChecklistOperationResult<ChecklistDetails>> EditDraftItemAsync(Guid id, Guid itemId, EditChecklistItemRequest request, CancellationToken cancellationToken);
+    Task<ChecklistOperationResult<ChecklistDetails>> DeleteDraftItemAsync(Guid id, Guid itemId, CancellationToken cancellationToken);
     Task<ChecklistOperationResult<ChecklistDetails>> UpdateDraftItemAsync(Guid id, Guid itemId, UpdateChecklistItemRequest request, CancellationToken cancellationToken);
     Task<ChecklistOperationResult<ChecklistDetails>> ApproveAsync(Guid id, string approvedBy, CancellationToken cancellationToken);
 }

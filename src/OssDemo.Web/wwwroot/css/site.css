@@ -3297,6 +3297,12 @@ a {
   background-color: rgba(255, 255, 255, .88);
 }
 
+.checklist-item-actions {
+  display: grid;
+  min-width: 7.4rem;
+  gap: .35rem;
+}
+
 .form-floating > .form-control-plaintext::placeholder,
 .form-floating > .form-control::placeholder {
   color: var(--bs-secondary-color);
