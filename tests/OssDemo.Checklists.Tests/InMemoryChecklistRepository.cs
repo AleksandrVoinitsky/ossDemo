@@ -73,6 +73,14 @@ internal sealed class InMemoryChecklistRepository : IChecklistRepository
     public Task<IReadOnlyList<ChecklistSummary>> ListHistoryAsync(ChecklistHistoryFilter filter, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<ChecklistSummary>>(checklists.Values.Where(item => item.Status == "approved").Select(ToSummary).ToArray());
 
+    public Task<ChecklistOperationResult<bool>> DeleteDraftAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (!checklists.TryGetValue(id, out var checklist)) return Task.FromResult(ChecklistOperationResult<bool>.Fail("not_found", "Чек-лист не найден."));
+        if (checklist.Status != "draft") return Task.FromResult(ChecklistOperationResult<bool>.Fail("state_conflict", "Утверждённый чек-лист нельзя удалить."));
+        checklists.Remove(id);
+        return Task.FromResult(ChecklistOperationResult<bool>.Success(true));
+    }
+
     public Task<ChecklistOperationResult<ChecklistDetails>> AddDraftItemAsync(Guid id, AddChecklistItemRequest request, CancellationToken cancellationToken)
     {
         if (!checklists.TryGetValue(id, out var checklist)) return Task.FromResult(FailChecklist("not_found", "Чек-лист не найден."));

@@ -18,6 +18,11 @@ internal static class ChecklistApi
         });
 
         app.MapGet("/api/checklists/drafts", async (ChecklistService service, CancellationToken ct) => Results.Ok(await service.ListDraftsAsync(ct)));
+        app.MapDelete("/api/checklists/{id:guid}", async (Guid id, ChecklistService service, CancellationToken ct) =>
+        {
+            var result = await service.DeleteDraftAsync(id, ct);
+            return result.IsSuccess ? Results.NoContent() : ChecklistApiResponses.ToResult(result);
+        });
         app.MapGet("/api/checklists/history", async (string? search, Guid? facilityId, DateOnly? from, DateOnly? to, ChecklistService service, CancellationToken ct) =>
             Results.Ok(await service.ListHistoryAsync(new(search, facilityId, from, to), ct)));
         app.MapPost("/api/checklists", async (CreateChecklistRequest request, ChecklistService service, CancellationToken ct) =>

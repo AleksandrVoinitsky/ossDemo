@@ -6,6 +6,7 @@ internal sealed class ChecklistService(IChecklistRepository repository)
     public Task<ChecklistDetails?> GetChecklistAsync(Guid id, CancellationToken cancellationToken) => repository.GetChecklistAsync(id, cancellationToken);
     public Task<IReadOnlyList<ChecklistSummary>> ListDraftsAsync(CancellationToken cancellationToken) => repository.ListDraftsAsync(cancellationToken);
     public Task<IReadOnlyList<ChecklistSummary>> ListHistoryAsync(ChecklistHistoryFilter filter, CancellationToken cancellationToken) => repository.ListHistoryAsync(filter, cancellationToken);
+    public Task<ChecklistOperationResult<bool>> DeleteDraftAsync(Guid id, CancellationToken cancellationToken) => repository.DeleteDraftAsync(id, cancellationToken);
 
     public async Task<ChecklistOperationResult<ChecklistTemplateDetails>> CreateTemplateAsync(ChecklistTemplateWriteRequest request, CancellationToken cancellationToken)
     {
@@ -75,7 +76,7 @@ internal sealed class ChecklistService(IChecklistRepository repository)
     public Task<ChecklistOperationResult<ChecklistDetails>> UpdateItemAsync(Guid id, Guid itemId, UpdateChecklistItemRequest request, CancellationToken cancellationToken)
     {
         var result = request.Result?.Trim() ?? string.Empty;
-        if (!AllowedResults.Contains(result))
+        if (result.Length > 0 && !AllowedResults.Contains(result))
             return Task.FromResult(ChecklistOperationResult<ChecklistDetails>.Fail("validation", "Выберите допустимый результат проверки пункта."));
         return repository.UpdateDraftItemAsync(id, itemId, request with
         {

@@ -206,6 +206,27 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
     public Task<IReadOnlyList<ChecklistSummary>> ListDraftsAsync(CancellationToken cancellationToken) => ListAsync(new ChecklistHistoryFilter(null,null,null,null),"draft",cancellationToken);
     public Task<IReadOnlyList<ChecklistSummary>> ListHistoryAsync(ChecklistHistoryFilter filter, CancellationToken cancellationToken) => ListAsync(filter,"approved",cancellationToken);
 
+    public async Task<ChecklistOperationResult<bool>> DeleteDraftAsync(Guid id, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using var status = new NpgsqlCommand("SELECT status FROM app_checklists WHERE id=@id FOR UPDATE", connection, transaction);
+        status.Parameters.AddWithValue("id", id);
+        var value = await status.ExecuteScalarAsync(cancellationToken);
+        if (value is null) { await transaction.RollbackAsync(cancellationToken); return ChecklistOperationResult<bool>.Fail("not_found", "Чек-лист не найден."); }
+        if ((string)value != "draft") { await transaction.RollbackAsync(cancellationToken); return ChecklistOperationResult<bool>.Fail("state_conflict", "Утверждённый чек-лист нельзя удалить."); }
+        await using (var detachRun = new NpgsqlCommand("UPDATE app_ai_checklist_runs SET checklist_id=NULL WHERE checklist_id=@id", connection, transaction))
+        {
+            detachRun.Parameters.AddWithValue("id", id);
+            await detachRun.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await using var delete = new NpgsqlCommand("DELETE FROM app_checklists WHERE id=@id", connection, transaction);
+        delete.Parameters.AddWithValue("id", id);
+        await delete.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return ChecklistOperationResult<bool>.Success(true);
+    }
+
     public async Task<ChecklistOperationResult<ChecklistDetails>> AddDraftItemAsync(Guid id, AddChecklistItemRequest request, CancellationToken cancellationToken)
     {
         await using var connection=await OpenAsync(cancellationToken); await using var transaction=await connection.BeginTransactionAsync(cancellationToken);

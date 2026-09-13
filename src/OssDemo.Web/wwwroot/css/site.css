@@ -1019,6 +1019,12 @@ a {
   background: rgba(247, 250, 255, .68);
 }
 
+.draft-checklist-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
 .template-editor button,
 .checklist-library button,
 .working-actions .btn,
@@ -3302,6 +3308,19 @@ a {
   min-width: 7.4rem;
   gap: .35rem;
 }
+
+.checklist-autosave-status {
+  display: block;
+  min-height: 1.1rem;
+  color: var(--ink-muted);
+  font-size: .7rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.checklist-autosave-status.is-saving { color: var(--info); }
+.checklist-autosave-status.is-saved { color: var(--success); }
+.checklist-autosave-status.is-error { color: var(--danger); }
 
 .form-floating > .form-control-plaintext::placeholder,
 .form-floating > .form-control::placeholder {
