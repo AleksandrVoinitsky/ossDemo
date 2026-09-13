@@ -32,6 +32,18 @@
   const alert = document.querySelector('[data-working-alert]');
   let currentChecklist = null;
   const resultOptions = (value) => ['Да', 'Нет', 'Не применяется', 'Не проверено'].map((option) => `<option ${value === option ? 'selected' : ''}>${option}</option>`).join('');
+  const resultPresentation = (value, origin) => {
+    if (value === 'Да') return { rowClass: 'checklist-row-success', badgeClass: 'text-bg-success', label: 'Да' };
+    if (value === 'Нет') return { rowClass: 'checklist-row-critical', badgeClass: 'text-bg-danger', label: 'Нет' };
+    if (value === 'Не применяется') return { rowClass: 'checklist-row-neutral', badgeClass: 'text-bg-secondary', label: 'Не применяется' };
+    if (origin === 'manual') return { rowClass: 'checklist-row-manual', badgeClass: 'text-bg-secondary', label: value || 'Не проверено' };
+    return { rowClass: 'checklist-row-control', badgeClass: 'text-bg-info', label: value || 'Не проверено' };
+  };
+  const originPresentation = (origin) => {
+    if (origin === 'ai') return { className: 'origin-ai', label: 'ИИ + база знаний' };
+    if (origin === 'manual') return { className: 'origin-manual', label: 'Добавлено инспектором' };
+    return { className: 'origin-template', label: 'Шаблон' };
+  };
   const showError = (message) => { if (!alert) return; alert.textContent = message; alert.className = 'alert alert-danger mb-3'; alert.hidden = false; alert.focus(); };
   const renderWorkingChecklist = (checklist) => {
     currentChecklist = checklist;
@@ -51,7 +63,22 @@
     document.querySelector('[data-export-xlsx]')?.setAttribute('href', `/exports/checklists/${checklist.id}.xlsx`);
     document.querySelector('[data-export-docx]')?.setAttribute('href', `/exports/checklists/${checklist.id}.docx`);
     document.querySelector('[data-export-pdf]')?.setAttribute('href', `/exports/checklists/${checklist.id}.pdf`);
-    workingBody.innerHTML = checklist.items.length ? checklist.items.map((item) => `<tr class="${item.origin === 'manual' ? 'checklist-row-manual' : ''}" data-checklist-item="${escapeHtml(item.id)}"><td>${item.position}</td><td>${escapeHtml(item.section)}</td><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.basis)}</td>${approved ? `<td>${escapeHtml(item.result || '—')}</td><td>${escapeHtml(item.nonconformity || '—')}</td><td>${escapeHtml(item.note || '—')}</td>` : `<td><select class="form-select form-select-sm" aria-label="Результат пункта ${item.position}" data-item-result><option value="">Выберите</option>${resultOptions(item.result)}</select></td><td><input class="form-control form-control-sm" value="${escapeHtml(item.nonconformity)}" aria-label="Несоответствие пункта ${item.position}" data-item-nonconformity /></td><td><input class="form-control form-control-sm" value="${escapeHtml(item.note)}" aria-label="Примечание пункта ${item.position}" data-item-note /></td>`}<td>${escapeHtml(item.sourceLabel || (item.origin === 'manual' ? 'Добавлено инспектором' : item.origin === 'ai' ? 'ИИ + база знаний' : 'Шаблон'))}</td><td>${approved ? '' : '<button class="btn btn-sm btn-outline-primary" type="button" data-save-item>Сохранить</button>'}</td></tr>`).join('') : '<tr><td colspan="9" class="muted-note">В чек-листе пока нет пунктов.</td></tr>';
+    workingBody.innerHTML = checklist.items.length ? checklist.items.map((item) => {
+      const result = resultPresentation(item.result, item.origin);
+      const origin = originPresentation(item.origin);
+      const sourceLabel = item.sourceLabel || origin.label;
+      return `<tr class="checklist-result-row ${result.rowClass}" data-checklist-item="${escapeHtml(item.id)}">
+        <td><span class="checklist-item-number">${item.position}</span></td>
+        <td><span class="classifier-chip">${escapeHtml(item.section || 'Без раздела')}</span></td>
+        <td class="checklist-item-title"><strong>${escapeHtml(item.title)}</strong></td>
+        <td class="checklist-item-basis">${escapeHtml(item.basis)}</td>
+        ${approved
+          ? `<td><span class="badge ${result.badgeClass}">${escapeHtml(result.label)}</span></td><td>${escapeHtml(item.nonconformity || '—')}</td><td>${escapeHtml(item.note || '—')}</td>`
+          : `<td><select class="form-select form-select-sm checklist-result-select" aria-label="Результат пункта ${item.position}" data-item-result><option value="">Выберите</option>${resultOptions(item.result)}</select></td><td><input class="form-control form-control-sm" value="${escapeHtml(item.nonconformity)}" aria-label="Несоответствие пункта ${item.position}" data-item-nonconformity /></td><td><input class="form-control form-control-sm" value="${escapeHtml(item.note)}" aria-label="Примечание пункта ${item.position}" data-item-note /></td>`}
+        <td><span class="checklist-origin ${origin.className}">${escapeHtml(sourceLabel)}</span></td>
+        <td>${approved ? '' : '<button class="btn btn-sm btn-outline-primary" type="button" data-save-item>Сохранить</button>'}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="9" class="muted-note">В чек-листе пока нет пунктов.</td></tr>';
   };
 
   const loadChecklist = () => request(`/api/checklists/${encodeURIComponent(checklistId)}`).then(renderWorkingChecklist).catch((error) => { workingBody.innerHTML = '<tr><td colspan="9" class="text-danger">Чек-лист не найден.</td></tr>'; showError(error.message); });
@@ -80,11 +107,17 @@
     } catch (error) { showError(error.message); button.disabled = false; }
   });
   workingBody?.addEventListener('input', (event) => {
-    const button = event.target.closest('[data-checklist-item]')?.querySelector('[data-save-item]');
+    const row = event.target.closest('[data-checklist-item]');
+    const button = row?.querySelector('[data-save-item]');
     if (!button) return;
     button.textContent = 'Сохранить';
     button.classList.remove('btn-outline-success');
     button.classList.add('btn-outline-primary');
+    if (event.target.matches('[data-item-result]')) {
+      const presentation = resultPresentation(event.target.value, currentChecklist?.items.find((item) => item.id === row.dataset.checklistItem)?.origin);
+      row.classList.remove('checklist-row-success', 'checklist-row-critical', 'checklist-row-neutral', 'checklist-row-manual', 'checklist-row-control');
+      row.classList.add(presentation.rowClass);
+    }
   });
 
   document.querySelector('[data-save-manual-item]')?.addEventListener('click', async (event) => {

@@ -3118,6 +3118,10 @@ a {
   background: var(--danger-soft);
 }
 
+.checklist-row-success td {
+  background: #edf8f1;
+}
+
 .checklist-row-decision td {
   background: var(--warning-soft);
 }
@@ -3128,6 +3132,169 @@ a {
 
 .checklist-row-manual td {
   background: #f1f4f8;
+}
+
+.checklist-row-neutral td {
+  background: #f4f6f7;
+}
+
+.checklist-result-panel {
+  overflow: hidden;
+}
+
+.checklist-result-kicker {
+  display: block;
+  margin-bottom: .25rem;
+  color: var(--primary);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.checklist-result-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  padding: .75rem;
+  border: 1px solid var(--border-soft);
+  border-radius: .75rem;
+  background: rgba(242, 249, 248, .72);
+}
+
+.result-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: .38rem;
+  padding: .3rem .55rem;
+  border-radius: 2rem;
+  color: var(--ink-muted);
+  background: rgba(255, 255, 255, .82);
+  font-size: .78rem;
+  font-weight: 650;
+}
+
+.result-legend-item i {
+  width: .62rem;
+  height: .62rem;
+  border-radius: 50%;
+  background: var(--info);
+}
+
+.result-legend-success i { background: var(--success); }
+.result-legend-danger i { background: var(--danger); }
+.result-legend-neutral i { background: #7b8790; }
+
+.checklist-result-scroll {
+  margin: 0 -.3rem -.5rem;
+  padding: 0 .3rem .5rem;
+}
+
+.checklist-result-table {
+  min-width: 1040px;
+  border-collapse: separate;
+  border-spacing: 0 .62rem;
+}
+
+.checklist-result-table thead th {
+  border: 0;
+  background: transparent;
+}
+
+.checklist-result-table tbody td {
+  padding: .85rem .7rem;
+  border-top: 1px solid rgba(31, 95, 139, .1);
+  border-bottom: 1px solid rgba(31, 95, 139, .1);
+}
+
+.checklist-result-table tbody td:first-child {
+  border-left: .28rem solid var(--info);
+  border-radius: .7rem 0 0 .7rem;
+}
+
+.checklist-result-table tbody td:last-child {
+  border-right: 1px solid rgba(31, 95, 139, .1);
+  border-radius: 0 .7rem .7rem 0;
+}
+
+.checklist-result-table .checklist-row-success td:first-child { border-left-color: var(--success); }
+.checklist-result-table .checklist-row-critical td:first-child { border-left-color: var(--danger); }
+.checklist-result-table .checklist-row-neutral td:first-child,
+.checklist-result-table .checklist-row-manual td:first-child { border-left-color: #7b8790; }
+
+.checklist-result-row {
+  filter: drop-shadow(0 .3rem .45rem rgba(20, 67, 75, .055));
+}
+
+.checklist-result-row:hover td {
+  filter: brightness(.985);
+}
+
+.checklist-item-number {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--info);
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+.checklist-row-success .checklist-item-number { background: var(--success); }
+.checklist-row-critical .checklist-item-number { background: var(--danger); }
+.checklist-row-neutral .checklist-item-number,
+.checklist-row-manual .checklist-item-number { background: #7b8790; }
+
+.checklist-item-title {
+  min-width: 17rem;
+  line-height: 1.4;
+}
+
+.checklist-item-basis {
+  min-width: 11rem;
+  color: var(--ink-muted);
+  font-size: .84rem;
+}
+
+.checklist-result-table .classifier-chip {
+  border-color: rgba(22, 124, 160, .22);
+  color: #12637e;
+  background: rgba(229, 245, 248, .86);
+  font-weight: 750;
+}
+
+.checklist-origin {
+  display: inline-flex;
+  max-width: 13rem;
+  padding: .34rem .55rem;
+  border: 1px solid rgba(5, 122, 120, .18);
+  border-radius: .5rem;
+  color: var(--primary-dark);
+  background: rgba(223, 243, 238, .82);
+  font-size: .76rem;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.checklist-origin.origin-ai {
+  border-color: rgba(102, 87, 173, .2);
+  color: #514291;
+  background: #efedfa;
+}
+
+.checklist-origin.origin-manual {
+  border-color: rgba(90, 115, 122, .2);
+  color: var(--ink-muted);
+  background: #e9eef1;
+}
+
+.checklist-result-table .form-control,
+.checklist-result-table .form-select {
+  min-width: 9rem;
+  border-color: rgba(31, 95, 139, .2);
+  background-color: rgba(255, 255, 255, .88);
 }
 
 .form-floating > .form-control-plaintext::placeholder,
