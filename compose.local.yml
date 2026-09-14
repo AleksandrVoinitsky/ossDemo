@@ -1,0 +1,43 @@
+name: ossdemo-local
+
+services:
+  database:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: ${OSSD_DB_NAME:-ossdemo}
+      POSTGRES_USER: ${OSSD_DB_USER:-ossdemo}
+      POSTGRES_PASSWORD: ${OSSD_DB_PASSWORD:?Set OSSD_DB_PASSWORD in .env.local}
+    ports:
+      - "127.0.0.1:${OSSD_DB_PORT:-15432}:5432"
+    volumes:
+      - ossdemo-db-data:/var/lib/postgresql/data
+      - ./docker/initdb/001-vector.sql:/docker-entrypoint-initdb.d/001-vector.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${OSSD_DB_USER:-ossdemo} -d ${OSSD_DB_NAME:-ossdemo}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  application:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: 8080
+      ConnectionStrings__OssDatabase: "Host=database;Port=5432;Database=${OSSD_DB_NAME:-ossdemo};Username=${OSSD_DB_USER:-ossdemo};Password=${OSSD_DB_PASSWORD};SSL Mode=Disable"
+      Embeddings__CacheDirectory: /data/ragify-model
+      KnowledgeImport__Directory: /data/inbox
+      AI__ApiToken: ${AI__ApiToken:-}
+    ports:
+      - "127.0.0.1:${OSSD_APP_PORT:-18080}:8080"
+    volumes:
+      - ossdemo-app-data:/data
+
+volumes:
+  ossdemo-db-data:
+  ossdemo-app-data:

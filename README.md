@@ -40,6 +40,8 @@ dotnet run --project tests/OssDemo.Checklists.Tests/OssDemo.Checklists.Tests.csp
 dotnet run --project tests/OssDemo.Rag.Tests/OssDemo.Rag.Tests.csproj --configuration Release --no-build
 ```
 
+Полный изолированный стенд приложения и PostgreSQL описан в [руководстве по локальному Docker](docs/development/local-docker.md).
+
 ## Данные
 
 Нормализованные документы из `data/knowledge-base/` включаются в publish как `knowledge-base/`. По команде `!check` или `!reindex` приложение индексирует их вместе с Markdown из persistent-каталога `/data/inbox` в PostgreSQL/pgvector. Встроенная ONNX-модель при первом запуске загружается в `/data/ragify-model` и затем переиспользуется.

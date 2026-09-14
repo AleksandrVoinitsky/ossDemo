@@ -28,6 +28,7 @@ appsettings.*.Local.json
 secrets.json
 .env.*
 !.env.example
+!.env.local.example
 
 # Logs and temporary files
 *.log

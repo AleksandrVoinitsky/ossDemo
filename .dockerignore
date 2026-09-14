@@ -1,5 +1,7 @@
 .git/
 .github/
+.env
+.env.*
 .vs/
 .vscode/
 .idea/
@@ -8,6 +10,7 @@
 **/obj/
 artifacts/
 publish/
+.verify-publish*/
 TestResults/
 coverage/
 coverage.*
