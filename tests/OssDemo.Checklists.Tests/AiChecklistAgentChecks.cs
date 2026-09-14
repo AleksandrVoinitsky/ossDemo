@@ -265,8 +265,11 @@ internal static class AiChecklistAgentChecks
         await catalogAgent.QueueBatchesAsync(catalogRunValue.Id, catalogRunValue.Batches.Select(batch => batch.Index).ToArray(), CancellationToken.None);
         while (await catalogAgent.ProcessNextBatchAsync(CancellationToken.None)) { }
         var catalogChecklist = await catalogAgent.FinalizeRunAsync(catalogRunValue.Id, CancellationToken.None);
-        AssertTrue(catalogChecklist.IsSuccess && catalogChecklist.Value!.Items.Count > 100,
+        var catalogChecklistValue = catalogChecklist.Value ?? throw new InvalidOperationException("Большой нормативный чек-лист не сформирован.");
+        AssertTrue(catalogChecklist.IsSuccess && catalogChecklistValue.Items.Count > 100,
             "Большой нормативный чек-лист не должен обрезаться лимитом ответа LLM.");
+        var repeatedCatalogChecklist = await catalogAgent.FinalizeRunAsync(catalogRunValue.Id, CancellationToken.None);
+        AssertEqual(catalogChecklistValue.Id, repeatedCatalogChecklist.Value!.Id);
         AssertEqual(0, catalogSearch.Calls);
         AssertEqual(0, catalogSynthesis.Calls);
 

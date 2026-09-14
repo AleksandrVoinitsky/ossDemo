@@ -12,6 +12,7 @@ internal static class AiChecklistRunChecks
         var work = await store.ClaimNextBatchAsync(CancellationToken.None);
         AssertEqual(run.Id, work!.RunId);
         AssertEqual(1, work.Evidence.Count);
+        AssertTrue(await store.ClaimNextBatchAsync(CancellationToken.None) is null, "Один пакет нельзя захватить двумя обработчиками.");
         await store.FailBatchAsync(run.Id, 0, "Ошибка", 1200, CancellationToken.None);
         AssertTrue(await store.QueueBatchAsync(run.Id, 0, CancellationToken.None), "Упавший пакет можно повторить.");
         work = await store.ClaimNextBatchAsync(CancellationToken.None);
@@ -22,6 +23,12 @@ internal static class AiChecklistRunChecks
         AssertTrue(await store.BeginFinalizeAsync(run.Id, CancellationToken.None));
         AssertTrue(await store.BeginFinalizeAsync(run.Id, CancellationToken.None), "Повторная финализация должна быть идемпотентно допустима.");
         AssertTrue(!await store.QueueBatchAsync(run.Id, 0, CancellationToken.None), "Во время финализации пакет нельзя вернуть в очередь.");
+        var finalizedChecklistId = Guid.NewGuid();
+        await store.CompleteFinalizeAsync(run.Id, finalizedChecklistId, CancellationToken.None);
+        AssertEqual("completed", (await store.GetAsync(run.Id, CancellationToken.None))!.Status);
+        AssertTrue(!await store.QueueBatchAsync(run.Id, 0, CancellationToken.None), "Завершённый запуск нельзя вернуть в очередь.");
+        AssertTrue(!await store.StopAsync(run.Id, CancellationToken.None), "Завершённый запуск нельзя остановить повторно.");
+        AssertTrue(!await store.BeginFinalizeAsync(run.Id, CancellationToken.None), "Завершённый запуск нельзя финализировать заново на уровне хранилища.");
 
         var emptyRun = await store.CreateAsync(profile, Guid.NewGuid(), "Объект", evidence, AiChecklistBatchPlanner.Build(evidence), CancellationToken.None);
         await store.QueueBatchAsync(emptyRun.Id, 0, CancellationToken.None);
@@ -73,6 +80,16 @@ internal static class AiChecklistRunChecks
         AssertEqual("generating", progress.Stage);
         AssertEqual(3, progress.FoundSourceCount);
         AssertTrue(progress.DraftOutput.Contains("Проверить"), "Черновой поток модели должен сохраняться для интерфейса.");
+
+        var restartStore = new InMemoryAiChecklistRunStore();
+        var restartRun = await restartStore.CreateAsync(profile, Guid.NewGuid(), "После перезапуска", evidence, AiChecklistBatchPlanner.Build(evidence), CancellationToken.None);
+        await restartStore.QueueBatchAsync(restartRun.Id, 0, CancellationToken.None);
+        await restartStore.ClaimNextBatchAsync(CancellationToken.None);
+        await restartStore.ResetInterruptedAsync(CancellationToken.None);
+        var resumed = await restartStore.GetAsync(restartRun.Id, CancellationToken.None);
+        AssertEqual("ready", resumed!.Status);
+        AssertEqual("queued", resumed.Batches[0].Status);
+        AssertEqual(restartRun.Id, (await restartStore.ClaimNextBatchAsync(CancellationToken.None))!.RunId);
 
         var fairStore = new InMemoryAiChecklistRunStore();
         var firstRun = await fairStore.CreateAsync(profile, Guid.NewGuid(), "Первый", twoEvidence, AiChecklistBatchPlanner.Build(twoEvidence), CancellationToken.None);
