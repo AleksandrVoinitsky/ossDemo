@@ -249,6 +249,17 @@ internal static class AiChecklistAgentChecks
         AssertTrue(catalogRunValue.Snapshot.ItemTraces.All(item => item.RequirementIds.Count > 0 && item.ClassifierCodes.Count > 0),
             "Для каждого пункта снимок должен хранить цепочку классификатор → требование.");
         AssertTrue(catalogRunValue.Batches.All(batch => batch.RequirementIds is { Count: > 0 }), "Каждый детерминированный пакет должен содержать требования.");
+        var firstTracePage = await catalogAgent.GetTracePageAsync(catalogRunValue.Id, 0, 50, CancellationToken.None);
+        var secondTracePage = await catalogAgent.GetTracePageAsync(catalogRunValue.Id, 50, 50, CancellationToken.None);
+        var clampedTracePage = await catalogAgent.GetTracePageAsync(catalogRunValue.Id, 0, 500, CancellationToken.None);
+        AssertEqual(50, firstTracePage!.Items.Count);
+        AssertEqual(catalogRunValue.Snapshot.ItemTraces.Count, firstTracePage.Total);
+        AssertEqual(catalogRunValue.Snapshot.ItemTraces[50].Id, secondTracePage!.Items[0].Id);
+        AssertEqual(100, clampedTracePage!.Limit);
+        var compactRun = AiChecklistRunResponse.From(catalogRunValue);
+        var compactJson = System.Text.Json.JsonSerializer.Serialize(compactRun, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        AssertTrue(!compactJson.Contains("itemTraces", StringComparison.OrdinalIgnoreCase), "Основной API-ответ не должен содержать тяжёлую коллекцию трасс.");
+        AssertTrue(!compactJson.Contains("\"evidence\"", StringComparison.OrdinalIgnoreCase), "Основной API-ответ не должен дублировать внутренние доказательства запуска.");
         AssertTrue(catalogRunValue.Batches.All(batch => batch.Query is null && batch.EvidenceIds.All(id => id.StartsWith("CAT-", StringComparison.Ordinal))),
             "Полностью покрытый профиль должен использовать только детерминированный каталог.");
         await catalogAgent.QueueBatchesAsync(catalogRunValue.Id, catalogRunValue.Batches.Select(batch => batch.Index).ToArray(), CancellationToken.None);

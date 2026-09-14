@@ -18,13 +18,18 @@ internal static class AiChecklistApi
         {
             var result = await agent.CreateRunAsync(request.FacilitySlug, ct);
             return result.IsSuccess
-                ? Results.Created($"/api/ai-checklists/runs/{result.Value!.Id}", result.Value)
+                ? Results.Created($"/api/ai-checklists/runs/{result.Value!.Id}", AiChecklistRunResponse.From(result.Value))
                 : Error(result.ErrorCode, result.Error, result.Errors);
         });
         group.MapGet("/runs/{runId:guid}", async (Guid runId, AiChecklistAgent agent, CancellationToken ct) =>
         {
             var run = await agent.GetRunAsync(runId, ct);
-            return run is null ? Results.NotFound(new { error = "Запуск ИИ-формирования не найден.", code = "not_found" }) : Results.Ok(run);
+            return run is null ? Results.NotFound(new { error = "Запуск ИИ-формирования не найден.", code = "not_found" }) : Results.Ok(AiChecklistRunResponse.From(run));
+        });
+        group.MapGet("/runs/{runId:guid}/traces", async (Guid runId, int offset, int limit, AiChecklistAgent agent, CancellationToken ct) =>
+        {
+            var page = await agent.GetTracePageAsync(runId, offset, limit == 0 ? 50 : limit, ct);
+            return page is null ? Results.NotFound(new { error = "Запуск ИИ-формирования не найден.", code = "not_found" }) : Results.Ok(page);
         });
         group.MapPost("/runs/{runId:guid}/batches/{batchIndex:int}", async (Guid runId, int batchIndex, AiChecklistAgent agent, CancellationToken ct) =>
         {

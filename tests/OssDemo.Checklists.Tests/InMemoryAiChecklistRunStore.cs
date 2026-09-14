@@ -14,6 +14,16 @@ internal sealed class InMemoryAiChecklistRunStore : IAiChecklistRunStore
 
     public Task<AiChecklistRunState?> GetAsync(Guid runId, CancellationToken cancellationToken) { lock (gate) return Task.FromResult(runs.GetValueOrDefault(runId)); }
 
+    public Task<AiChecklistTracePage?> GetTracePageAsync(Guid runId, int offset, int limit, CancellationToken cancellationToken)
+    {
+        lock (gate)
+        {
+            if (!runs.TryGetValue(runId, out var run)) return Task.FromResult<AiChecklistTracePage?>(null);
+            var traces = run.Snapshot?.ItemTraces ?? [];
+            return Task.FromResult<AiChecklistTracePage?>(new(traces.Skip(offset).Take(limit).ToArray(), traces.Count, offset, limit));
+        }
+    }
+
     public Task<bool> QueueBatchAsync(Guid runId, int batchIndex, CancellationToken cancellationToken)
     {
         lock (gate)

@@ -90,6 +90,26 @@ internal sealed record AiChecklistRunSnapshot(
     public int ExpectedItemCount => SelectedItemIds.Count;
 }
 
+internal sealed record AiChecklistRunSnapshotResponse(
+    int ProfileSchemaVersion,
+    string ProfileVerificationStatus,
+    IReadOnlyList<AiChecklistClassifierDecisionSnapshot> ClassifierDecisions,
+    IReadOnlyList<string> SelectedRequirementIds,
+    IReadOnlyList<string> SelectedItemIds,
+    IReadOnlyList<AiChecklistCoverageGapSnapshot> CoverageGaps,
+    IReadOnlyDictionary<string, string> CatalogHashes)
+{
+    public int IncludedCriterionCount => ClassifierDecisions.Count(item => item.Outcome == "included");
+    public int ExcludedCriterionCount => ClassifierDecisions.Count(item => item.Outcome == "excluded");
+    public int BlockedCriterionCount => ClassifierDecisions.Count(item => item.Outcome == "blocked_unknown");
+    public int SelectedRequirementCount => SelectedRequirementIds.Count;
+    public int ExpectedItemCount => SelectedItemIds.Count;
+
+    public static AiChecklistRunSnapshotResponse From(AiChecklistRunSnapshot snapshot) => new(
+        snapshot.ProfileSchemaVersion, snapshot.ProfileVerificationStatus, snapshot.ClassifierDecisions,
+        snapshot.SelectedRequirementIds, snapshot.SelectedItemIds, snapshot.CoverageGaps, snapshot.CatalogHashes);
+}
+
 internal sealed record AiChecklistRunState(
     Guid Id,
     FacilityProfile Facility,
@@ -102,6 +122,30 @@ internal sealed record AiChecklistRunState(
     IReadOnlyList<AiChecklistBatchState> Batches,
     Guid? ChecklistId,
     AiChecklistRunSnapshot? Snapshot = null);
+
+internal sealed record AiChecklistRunResponse(
+    Guid Id,
+    FacilityProfile Facility,
+    Guid FacilityId,
+    string FacilityName,
+    string Status,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    IReadOnlyList<AiChecklistBatchState> Batches,
+    Guid? ChecklistId,
+    AiChecklistRunSnapshotResponse? Snapshot)
+{
+    public static AiChecklistRunResponse From(AiChecklistRunState run) => new(
+        run.Id, run.Facility, run.FacilityId, run.FacilityName, run.Status, run.CreatedAt, run.UpdatedAt,
+        run.Batches, run.ChecklistId,
+        run.Snapshot is null ? null : AiChecklistRunSnapshotResponse.From(run.Snapshot));
+}
+
+internal sealed record AiChecklistTracePage(
+    IReadOnlyList<AiChecklistItemTraceSnapshot> Items,
+    int Total,
+    int Offset,
+    int Limit);
 
 internal sealed record AiChecklistBatchWork(
     Guid RunId,

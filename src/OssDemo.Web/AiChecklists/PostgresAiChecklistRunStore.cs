@@ -73,6 +73,31 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
         return new(runId,profile,facilityId,facilityName,status,createdAt,updatedAt,evidence,batches,checklistId,snapshot);
     }
 
+    public async Task<AiChecklistTracePage?> GetTracePageAsync(Guid runId, int offset, int limit, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT
+                jsonb_array_length(COALESCE(composition_snapshot -> 'itemTraces', '[]'::jsonb)),
+                COALESCE((
+                    SELECT jsonb_agg(item.value ORDER BY item.ordinality)
+                    FROM jsonb_array_elements(COALESCE(composition_snapshot -> 'itemTraces', '[]'::jsonb))
+                        WITH ORDINALITY AS item(value, ordinality)
+                    WHERE item.ordinality > @offset AND item.ordinality <= @offset + @limit
+                ), '[]'::jsonb)::text
+            FROM app_ai_checklist_runs
+            WHERE id = @runId
+            """, connection);
+        command.Parameters.AddWithValue("runId", runId);
+        command.Parameters.AddWithValue("offset", offset);
+        command.Parameters.AddWithValue("limit", limit);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken)) return null;
+        var total = reader.GetInt32(0);
+        var items = JsonSerializer.Deserialize<AiChecklistItemTraceSnapshot[]>(reader.GetString(1), JsonOptions) ?? [];
+        return new(items, total, offset, limit);
+    }
+
     public async Task<bool> QueueBatchAsync(Guid runId, int batchIndex, CancellationToken cancellationToken)
         => await QueueBatchesAsync(runId, [batchIndex], cancellationToken);
 

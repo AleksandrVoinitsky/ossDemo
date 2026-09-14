@@ -164,6 +164,14 @@ internal sealed class AiChecklistAgent(
     }
 
     public Task<AiChecklistRunState?> GetRunAsync(Guid runId, CancellationToken cancellationToken) => runStore.GetAsync(runId, cancellationToken);
+
+    public async Task<AiChecklistTracePage?> GetTracePageAsync(Guid runId, int offset, int limit, CancellationToken cancellationToken)
+    {
+        var normalizedOffset = Math.Max(0, offset);
+        var normalizedLimit = Math.Clamp(limit, 1, 100);
+        return await runStore.GetTracePageAsync(runId, normalizedOffset, normalizedLimit, cancellationToken);
+    }
+
     public Task<bool> QueueBatchAsync(Guid runId, int batchIndex, CancellationToken cancellationToken) => runStore.QueueBatchAsync(runId, batchIndex, cancellationToken);
     public Task<bool> QueueBatchesAsync(Guid runId, IReadOnlyList<int> batchIndexes, CancellationToken cancellationToken) => runStore.QueueBatchesAsync(runId, batchIndexes, cancellationToken);
     public Task<bool> StopAsync(Guid runId, CancellationToken cancellationToken) => runStore.StopAsync(runId, cancellationToken);

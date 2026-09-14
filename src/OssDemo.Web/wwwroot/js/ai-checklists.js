@@ -21,6 +21,11 @@
   let currentRun = null;
   let pollTimer = null;
   let finalizing = false;
+  let traceRunId = null;
+  let traceOffset = 0;
+  let traceTotal = 0;
+  let traceDecisionsByCode = {};
+  const tracePageSize = 50;
 
   const showStep = (next) => {
     step = next;
@@ -42,6 +47,34 @@
       ? '<strong>Готовность карточки:</strong> карточка подтверждена, обязательные признаки заполнены.'
       : `<strong>Готовность карточки:</strong> ${escapeHtml((facility.readiness?.reasons || ['Карточка требует проверки.']).join(' '))} <a class="alert-link" href="/Facilities/Edit/${encodeURIComponent(facility.slug)}">Открыть карточку объекта</a>`;
   };
+  const renderTraceItems = (items, startIndex) => items.map((item, index) => {
+    const facts = item.classifierCodes.flatMap((code) => traceDecisionsByCode[code]?.facts || []).filter((fact, factIndex, all) => all.findIndex((other) => other.code === fact.code) === factIndex);
+    const factText = facts.length ? facts.map((fact) => `${fact.code} = ${fact.state}${fact.details ? ` (${fact.details})` : ''}`).join('; ') : 'идентификационные данные или базовый критерий';
+    return `<details class="ai-trace"><summary><span>${startIndex + index + 1}</span><strong>${escapeHtml(item.title)}</strong></summary><ol><li><b>Факт:</b> ${escapeHtml(factText)}</li><li><b>Критерий:</b> ${escapeHtml(item.classifierCodes.join(', '))}</li><li><b>Требование:</b> ${escapeHtml(item.requirementIds.join(', '))}</li><li><b>Проверка и основание:</b> ${escapeHtml(item.basis)}</li></ol><p>${escapeHtml(item.explanation)} · ${escapeHtml(item.provenance)}</p></details>`;
+  }).join('');
+  const loadTracePage = async (reset = false) => {
+    if (!traceRunId) return;
+    const button = root.querySelector('[data-ai-load-traces]');
+    const status = root.querySelector('[data-ai-traces-status]');
+    button.disabled = true;
+    status.textContent = 'Загружаем происхождение пунктов…';
+    try {
+      const offset = reset ? 0 : traceOffset;
+      const page = await request(`/api/ai-checklists/runs/${encodeURIComponent(traceRunId)}/traces?offset=${offset}&limit=${tracePageSize}`);
+      const container = root.querySelector('[data-ai-item-traces]');
+      if (reset) container.innerHTML = '';
+      container.insertAdjacentHTML('beforeend', renderTraceItems(page.items || [], offset));
+      traceOffset = offset + (page.items || []).length;
+      traceTotal = page.total || 0;
+      button.hidden = traceOffset >= traceTotal;
+      status.textContent = traceTotal ? `Показано ${traceOffset} из ${traceTotal} пунктов.` : 'Трассировка для запуска отсутствует.';
+    } catch (error) {
+      button.hidden = false;
+      status.textContent = `Не удалось загрузить трассировку: ${error.message}`;
+    } finally {
+      button.disabled = false;
+    }
+  };
   const renderSearch = (run) => {
     root.querySelector('[data-ai-queries]').innerHTML = '';
     const snapshot = run.snapshot;
@@ -50,6 +83,8 @@
       root.querySelector('[data-ai-coverage-gaps]').innerHTML = '';
       root.querySelector('[data-ai-excluded-list]').innerHTML = '<p class="muted-note mb-0">Для старого запуска подробная трассировка не сохранялась.</p>';
       root.querySelector('[data-ai-item-traces]').innerHTML = '';
+      root.querySelector('[data-ai-load-traces]').hidden = true;
+      root.querySelector('[data-ai-traces-status]').textContent = '';
       root.querySelector('[data-ai-evidence-count]').textContent = `${run.batches.length} пакетов`;
       root.querySelector('[data-ai-evidence]').innerHTML = run.batches.map((item) => `<article class="ai-criterion-preview"><span class="ai-criterion-code">${escapeHtml((item.criterionCodes || []).join(', '))}</span><div><strong>${escapeHtml(item.fallbackTitle || item.topic)}</strong><p>${escapeHtml(item.applicabilityReason || 'Базовый критерий классификатора.')}</p></div></article>`).join('');
       return;
@@ -70,12 +105,13 @@
       : '<strong>Разрывы покрытия: 0.</strong> Каждое выбранное требование имеет проверочный пункт.';
     root.querySelector('[data-ai-evidence]').innerHTML = included.map((item) => `<article class="ai-criterion-preview"><span class="ai-criterion-code">${escapeHtml(item.code)}</span><div><strong>${escapeHtml(item.reason)}</strong><p>${escapeHtml((item.facts || []).map((fact) => `${fact.code}: ${fact.state}`).join(' · ') || 'Базовый или идентификационный критерий')}</p></div></article>`).join('');
     root.querySelector('[data-ai-excluded-list]').innerHTML = excluded.map((item) => `<div class="ai-excluded-row"><span class="ai-criterion-code">${escapeHtml(item.code)}</span><div><strong>${item.outcome === 'blocked_unknown' ? 'Нужно уточнить' : 'Не применяется'}</strong><p>${escapeHtml(item.reason)}</p></div></div>`).join('') || '<p class="muted-note mb-0">Нет исключённых критериев.</p>';
-    const decisionsByCode = Object.fromEntries(decisions.map((item) => [item.code, item]));
-    root.querySelector('[data-ai-item-traces]').innerHTML = (snapshot.itemTraces || []).map((item, index) => {
-      const facts = item.classifierCodes.flatMap((code) => decisionsByCode[code]?.facts || []).filter((fact, factIndex, all) => all.findIndex((other) => other.code === fact.code) === factIndex);
-      const factText = facts.length ? facts.map((fact) => `${fact.code} = ${fact.state}${fact.details ? ` (${fact.details})` : ''}`).join('; ') : 'идентификационные данные или базовый критерий';
-      return `<details class="ai-trace"><summary><span>${index + 1}</span><strong>${escapeHtml(item.title)}</strong></summary><ol><li><b>Факт:</b> ${escapeHtml(factText)}</li><li><b>Критерий:</b> ${escapeHtml(item.classifierCodes.join(', '))}</li><li><b>Требование:</b> ${escapeHtml(item.requirementIds.join(', '))}</li><li><b>Проверка и основание:</b> ${escapeHtml(item.basis)}</li></ol><p>${escapeHtml(item.explanation)} · ${escapeHtml(item.provenance)}</p></details>`;
-    }).join('');
+    traceRunId = run.id;
+    traceOffset = 0;
+    traceTotal = snapshot.expectedItemCount || 0;
+    traceDecisionsByCode = Object.fromEntries(decisions.map((item) => [item.code, item]));
+    root.querySelector('[data-ai-item-traces]').innerHTML = '';
+    root.querySelector('[data-ai-load-traces]').hidden = true;
+    loadTracePage(true);
   };
   const formatElapsed = (from) => {
     const seconds = Math.max(0, Math.floor((Date.now() - new Date(from).getTime()) / 1000));
@@ -207,6 +243,7 @@
     } finally { setBusy(button, false, ''); }
   });
   root.querySelector('[data-ai-next]').addEventListener('click', () => { renderRun(currentRun); showStep(3); });
+  root.querySelector('[data-ai-load-traces]').addEventListener('click', () => loadTracePage());
   root.querySelectorAll('[data-ai-prev]').forEach((button) => button.addEventListener('click', () => showStep(Math.max(0, step - 1))));
   root.querySelector('[data-ai-generate]').addEventListener('click', async (event) => {
     const button = event.currentTarget; button.dataset.idleLabel = button.textContent; setBusy(button, true, 'Критерии поставлены в очередь');

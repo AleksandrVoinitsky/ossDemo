@@ -126,7 +126,7 @@ if ($facilityEditPage.Content -notmatch 'data-facility-readiness' -or $facilityE
     throw 'The facility editor does not expose structured readiness controls.'
 }
 $aiChecklistPage = Invoke-WebRequest -Uri 'http://127.0.0.1:18080/Checklists/AiNew' -Headers @{ Cookie = 'oss.auth=true' } -UseBasicParsing -TimeoutSec 10
-foreach ($marker in @('data-ai-profile-readiness', 'data-ai-composition-summary', 'data-ai-coverage-gaps', 'data-ai-item-traces')) {
+foreach ($marker in @('data-ai-profile-readiness', 'data-ai-composition-summary', 'data-ai-coverage-gaps', 'data-ai-item-traces', 'data-ai-load-traces')) {
     if ($aiChecklistPage.Content -notmatch $marker) {
         throw "The automated checklist page is missing explainability marker '$marker'."
     }
@@ -201,8 +201,21 @@ try {
         Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:18080/api/operations/facility-profiles/$($created.slug)/confirm" `
             -Headers @{ Cookie = 'oss.auth=true' } -TimeoutSec 30 | Out-Null
         $runBody = @{ facilitySlug = [string]$created.slug } | ConvertTo-Json -Compress
-        Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:18080/api/ai-checklists/runs' -Headers @{ Cookie = 'oss.auth=true' } `
+        $runResponse = Invoke-WebRequest -Method Post -Uri 'http://127.0.0.1:18080/api/ai-checklists/runs' -Headers @{ Cookie = 'oss.auth=true' } `
             -ContentType 'application/json; charset=utf-8' -Body $runBody -TimeoutSec 60
+        if ($runResponse.RawContentLength -gt 524288) {
+            throw "The compact checklist run response exceeds 512 KiB: $($runResponse.RawContentLength) bytes."
+        }
+        $run = $runResponse.Content | ConvertFrom-Json
+        if ($run.snapshot.PSObject.Properties.Name -contains 'itemTraces') {
+            throw 'The compact checklist run response embeds provenance traces.'
+        }
+        $tracePage = Invoke-RestMethod -Uri "http://127.0.0.1:18080/api/ai-checklists/runs/$($run.id)/traces?offset=0&limit=50" `
+            -Headers @{ Cookie = 'oss.auth=true' } -TimeoutSec 30
+        if (@($tracePage.items).Count -ne 50 -or [int]$tracePage.total -ne [int]$run.snapshot.expectedItemCount) {
+            throw 'The first checklist provenance page is incomplete or inconsistent with the snapshot.'
+        }
+        $run
     }
 
     $officeIds = @($probeRuns[0].snapshot.selectedItemIds | Sort-Object)
