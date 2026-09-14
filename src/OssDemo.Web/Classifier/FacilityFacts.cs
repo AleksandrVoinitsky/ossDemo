@@ -2,11 +2,17 @@ using System.Text.RegularExpressions;
 
 internal sealed record FacilityFacts(
     IReadOnlyDictionary<string, IReadOnlyList<string>> Fields,
-    IReadOnlySet<string> ScheduleCriterionCodes)
+    IReadOnlySet<string> ScheduleCriterionCodes,
+    IReadOnlyDictionary<string, FacilityFeatureFact> Features,
+    bool HasStructuredProfile)
 {
     public IReadOnlyList<string> Values(params string[] names) => names
         .SelectMany(name => Fields.TryGetValue(name, out var values) ? values : [])
         .ToArray();
+
+    public FacilityFeatureFact Feature(string code) => Features.TryGetValue(code, out var fact)
+        ? fact
+        : new(FacilityFactState.Unknown);
 }
 
 internal static partial class FacilityFactNormalizer
@@ -24,7 +30,9 @@ internal static partial class FacilityFactNormalizer
         Add(nameof(profile.SanitaryZoneProject), profile.SanitaryZoneProject);
         var scheduleCodes = CriterionCodeRegex().Matches(scheduleCriteria ?? string.Empty)
             .Select(match => match.Value.TrimEnd('.')).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return new(fields, scheduleCodes);
+        var features = profile.StructuredProfile?.Features
+            ?? new Dictionary<string, FacilityFeatureFact>(StringComparer.OrdinalIgnoreCase);
+        return new(fields, scheduleCodes, features, profile.StructuredProfile is not null);
 
         void Add(string name, string? value) => fields[char.ToLowerInvariant(name[0]) + name[1..]] = Split(value);
     }

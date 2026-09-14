@@ -85,7 +85,11 @@ internal sealed class AiChecklistAgent(
         var tree = classifierRepository is null ? ClassifierSeedData.Tree : await classifierRepository.GetTreeAsync(cancellationToken);
         var facts = FacilityFactNormalizer.Normalize(analysis.Value.Facility.Profile, null);
         var history = historyReferenceSource is null ? [] : await historyReferenceSource.GetAsync(facility.Name,tree,cancellationToken);
-        var applicable = ClassifierApplicabilityMatcher.Match(tree, facts, history);
+        var decisions = ClassifierApplicabilityMatcher.Decide(tree, facts, history);
+        var applicable = ClassifierApplicabilityMatcher.Match(decisions, facts);
+        var blockedCount = decisions.Count(item => item.Outcome == "blocked_unknown");
+        if (blockedCount > 0)
+            logger.LogWarning("Карточка {FacilitySlug}: {BlockedCount} решений классификатора заблокированы неизвестными фактами.", facilitySlug, blockedCount);
         var templateSections = inspectorTemplateSource?.Items.Select(item=>item.SectionCode).ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
         var plans = new List<AiChecklistBatchPlan>();
         foreach(var sectionMatches in applicable.GroupBy(match=>match.Section.Code).OrderBy(group=>group.First().Section.Position))

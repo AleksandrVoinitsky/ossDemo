@@ -74,6 +74,41 @@ internal static class ClassifierChecks
         var approvedMapping = ClassifierMappingCatalog.ParseLines(File.ReadLines(approvedMappingPath));
         AssertEqual(49, approvedMapping.Count);
         AssertEqual(49, approvedMapping.Select(row => row.Code).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+
+        var industrialProfile = StructuredProfile("industrial", FacilityFactState.Absent);
+        industrialProfile.Features["air.emissions"] = new(FacilityFactState.Present, "Два стационарных источника");
+        var industrialDecisions = ClassifierApplicabilityMatcher.Decide(
+            ClassifierSeedData.Tree,
+            FacilityFactNormalizer.Normalize(new FacilityProfileFields { Type = "Компрессорная станция", Category = "III категория", Region = "Пермский край", StructuredProfile = industrialProfile }, null), []);
+        AssertEqual("included", industrialDecisions.Single(item => item.Code == "2.2").Outcome);
+        AssertTrue(industrialDecisions.Single(item => item.Code == "2.2").Facts.Any(item => item.Code == "air.emissions" && item.State == FacilityFactState.Present),
+            "Решение должно содержать факт, который включил критерий.");
+
+        var officeProfile = StructuredProfile("office", FacilityFactState.Absent);
+        var officeDecisions = ClassifierApplicabilityMatcher.Decide(
+            ClassifierSeedData.Tree,
+            FacilityFactNormalizer.Normalize(new FacilityProfileFields { Type = "Административное здание", Category = "IV категория", Region = "Пермский край", StructuredProfile = officeProfile }, null),
+            [new("2.2", "Историческая проверка выбросов", true)]);
+        AssertEqual("excluded", officeDecisions.Single(item => item.Code == "2.2").Outcome);
+        AssertTrue(!ClassifierApplicabilityMatcher.Match(officeDecisions,
+                FacilityFactNormalizer.Normalize(new FacilityProfileFields { StructuredProfile = officeProfile }, null))
+            .Any(item => item.Criterion.Code == "2.2"), "История не должна включать критерий при подтвержденном отсутствии признака.");
+
+        var unknownProfile = StructuredProfile("unknown", FacilityFactState.Absent);
+        unknownProfile.Features["air.emissions"] = new(FacilityFactState.Unknown);
+        var unknownDecisions = ClassifierApplicabilityMatcher.Decide(
+            ClassifierSeedData.Tree,
+            FacilityFactNormalizer.Normalize(new FacilityProfileFields { Type = "Компрессорная станция", Category = "III категория", Region = "Пермский край", StructuredProfile = unknownProfile }, null), []);
+        AssertEqual("blocked_unknown", unknownDecisions.Single(item => item.Code == "2.2").Outcome);
+        AssertEqual(49, unknownDecisions.Count);
+    }
+
+    private static FacilityProfileV2 StructuredProfile(string slug, FacilityFactState state)
+    {
+        var profile = FacilityProfileV2.CreateEmpty(slug, slug);
+        foreach (var code in FacilityProfileV2.RequiredFeatureCodes) profile.Features[code] = new(state);
+        profile.VerificationStatus = "verified";
+        return profile;
     }
 
     private static void AssertEqual<T>(T expected, T actual)

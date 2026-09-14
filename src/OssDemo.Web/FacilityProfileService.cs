@@ -17,6 +17,7 @@ public sealed class FacilityProfileService(IConfiguration configuration, Operati
             var savedSlug = reader.GetString(0);
             var fields = JsonSerializer.Deserialize<FacilityProfileFields>(reader.GetString(1)) ?? new FacilityProfileFields();
             var structured = fields.StructuredProfile ?? FacilityProfileMigration.FromLegacy(savedSlug, fields);
+            fields.StructuredProfile = structured;
             return new FacilityProfile(savedSlug, fields, reader.IsDBNull(2) ? null : reader.GetDecimal(2), reader.IsDBNull(3) ? null : reader.GetDecimal(3), structured, FacilityProfileReadiness.Evaluate(structured));
         }
 
@@ -27,6 +28,7 @@ public sealed class FacilityProfileService(IConfiguration configuration, Operati
         if (!await facilityReader.ReadAsync(cancellationToken)) return null;
         var initial = CreateInitialProfile(slug, facilityReader.GetString(0), facilityReader.GetString(1), facilityReader.GetString(2));
         var initialStructured = FacilityProfileMigration.FromLegacy(slug, initial);
+        initial.StructuredProfile = initialStructured;
         return new FacilityProfile(slug, initial, facilityReader.IsDBNull(3) ? null : facilityReader.GetDecimal(3), facilityReader.IsDBNull(4) ? null : facilityReader.GetDecimal(4), initialStructured, FacilityProfileReadiness.Evaluate(initialStructured));
     }
 

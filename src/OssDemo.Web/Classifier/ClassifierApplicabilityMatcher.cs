@@ -11,38 +11,124 @@ internal sealed record ApplicableClassifierCriterion(
 
 internal static class ClassifierApplicabilityMatcher
 {
-    public static IReadOnlyList<ApplicableClassifierCriterion> Match(
+    private static readonly IReadOnlyDictionary<string, string[]> CriterionFeatures = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["1.4"] = ["land.disturbance"], ["1.7"] = ["waste.generation"],
+        ["2.1"] = ["air.emissions"], ["2.2"] = ["air.emissions"], ["2.3"] = ["air.emissions"],
+        ["2.4"] = ["air.gasTreatment"], ["2.5"] = ["air.emissions"], ["2.6"] = ["air.emissions"],
+        ["3.1"] = ["water.intake", "water.discharge"], ["3.2"] = ["water.intake"],
+        ["3.3"] = ["water.discharge"], ["3.4"] = ["water.discharge"], ["3.5"] = ["water.discharge"],
+        ["3.6"] = ["water.intake"], ["3.7"] = ["zone.waterProtection"], ["3.8"] = ["zone.waterProtection"],
+        ["3.9"] = ["water.intake", "water.discharge", "water.treatment"],
+        ["4.1"] = ["waste.generation"], ["4.2"] = ["waste.disposalSite"], ["4.3"] = ["waste.generation"],
+        ["4.4"] = ["waste.disposalSite"], ["4.5"] = ["waste.generation"], ["4.6"] = ["waste.generation"],
+        ["4.7"] = ["waste.generation"], ["4.8"] = ["waste.disposalSite"], ["4.9"] = ["waste.disposalSite"],
+        ["4.10"] = ["waste.generation", "waste.disposalSite"], ["4.11"] = ["waste.generation"],
+        ["4.12"] = ["waste.disposalSite"], ["4.13"] = ["waste.generation"],
+        ["5.1"] = ["land.disturbance"], ["5.2"] = ["land.disturbance"], ["5.3"] = ["land.disturbance"], ["5.4"] = ["land.disturbance"],
+        ["6.1"] = ["subsoil.wells"], ["6.2"] = ["subsoil.wells"],
+        ["7.1"] = ["nature.forest"], ["7.2"] = ["nature.forest"], ["7.3"] = ["nature.forest", "nature.oopt"],
+        ["7.4"] = ["nature.oopt"], ["7.5"] = ["zone.waterProtection"], ["7.6"] = ["zone.waterProtection"], ["7.7"] = ["zone.waterProtection"]
+    };
+
+    public static IReadOnlyList<ClassifierDecision> Decide(
         ClassifierTree tree,
         FacilityFacts facts,
         IReadOnlyList<ChecklistHistoryReference> history)
     {
-        var result = new List<ApplicableClassifierCriterion>();
+        var result = new List<ClassifierDecision>();
         foreach (var section in tree.Sections.OrderBy(item => item.Position))
         foreach (var criterion in section.Criteria.Where(item => item.IsActive).OrderBy(item => item.Position))
         {
-            if (criterion.IsBase && criterion.ApplicabilityRules.Any(rule => rule.Operator.Equals("always",StringComparison.OrdinalIgnoreCase)))
+            var historyItem = history.FirstOrDefault(item => item.CriterionCode.Equals(criterion.Code, StringComparison.OrdinalIgnoreCase));
+            if (criterion.IsBase && criterion.ApplicabilityRules.Any(rule => rule.Operator.Equals("always", StringComparison.OrdinalIgnoreCase)))
             {
-                result.Add(new(section,criterion,"Базовый общеэкологический критерий.","*","always",100));
+                result.Add(new(criterion.Code, "included", [], "Базовый общеэкологический критерий.", section, criterion, historyItem?.HadNonconformity == true ? 110 : 100, historyItem?.Title));
                 continue;
             }
             if (facts.ScheduleCriterionCodes.Contains(criterion.Code))
             {
-                result.Add(new(section,criterion,"Критерий указан в охвате проверки.","scheduleCriteria",criterion.Code,95));
+                result.Add(new(criterion.Code, "included", [], "Критерий явно указан в охвате проверки.", section, criterion, 105, historyItem?.Title));
                 continue;
             }
-            var matched = MatchRule(criterion.ApplicabilityRules,facts);
-            if (matched is not null)
+            if (!facts.HasStructuredProfile)
             {
-                var historical = history.Any(item => item.CriterionCode.Equals(criterion.Code,StringComparison.OrdinalIgnoreCase));
-                var historyExample=history.FirstOrDefault(item=>item.CriterionCode.Equals(criterion.Code,StringComparison.OrdinalIgnoreCase));
-                result.Add(new(section,criterion,$"Поле карточки «{matched.Value.Field}» содержит признак «{matched.Value.Value}».",matched.Value.Field,matched.Value.Value,historical?90:80,historyExample?.Title));
+                var legacyMatch = MatchRule(criterion.ApplicabilityRules, facts);
+                var included = legacyMatch is not null;
+                result.Add(new(criterion.Code, included ? "included" : "excluded", [], included
+                    ? $"Предварительное legacy-сопоставление: поле «{legacyMatch!.Value.Field}» содержит «{legacyMatch.Value.Value}»."
+                    : "В legacy-карточке не найдено основание применимости.", section, criterion, included ? (historyItem is null ? 70 : 80) : 0, historyItem?.Title));
                 continue;
             }
-            var historyItem = history.FirstOrDefault(item => item.CriterionCode.Equals(criterion.Code,StringComparison.OrdinalIgnoreCase));
-            if (historyItem is not null)
-                result.Add(new(section,criterion,"Критерий применялся в релевантной истории проверок.","history",historyItem.Title,historyItem.HadNonconformity?85:70,historyItem.Title));
+
+            var identity = EvaluateIdentity(criterion.ApplicabilityRules, facts);
+            if (identity.Outcome is not null)
+            {
+                result.Add(new(criterion.Code, identity.Outcome, [], identity.Reason, section, criterion, 0, historyItem?.Title));
+                continue;
+            }
+
+            if (!CriterionFeatures.TryGetValue(criterion.Code, out var featureCodes))
+            {
+                result.Add(new(criterion.Code, "included", [], "Применимость подтверждена идентификационными данными объекта.", section, criterion, historyItem is null ? 80 : 90, historyItem?.Title));
+                continue;
+            }
+
+            var decisionFacts = featureCodes.Select(code =>
+            {
+                var fact = facts.Feature(code);
+                return new DecisionFact(code, fact.State, fact.Details);
+            }).ToArray();
+            var present = decisionFacts.Where(item => item.State == FacilityFactState.Present).ToArray();
+            if (present.Length > 0)
+            {
+                result.Add(new(criterion.Code, "included", decisionFacts,
+                    $"Подтвержден признак: {string.Join(", ", present.Select(item => item.Code))}.", section, criterion, historyItem is null ? 80 : 90, historyItem?.Title));
+                continue;
+            }
+            if (decisionFacts.Any(item => item.State == FacilityFactState.Unknown))
+            {
+                result.Add(new(criterion.Code, "blocked_unknown", decisionFacts,
+                    $"Нужно уточнить признак: {string.Join(", ", decisionFacts.Where(item => item.State == FacilityFactState.Unknown).Select(item => item.Code))}.", section, criterion, 0, historyItem?.Title));
+                continue;
+            }
+            result.Add(new(criterion.Code, "excluded", decisionFacts,
+                $"Подтверждено отсутствие признаков: {string.Join(", ", featureCodes)}.", section, criterion, 0, historyItem?.Title));
         }
-        return result.OrderBy(item=>item.Section.Position).ThenBy(item=>item.Criterion.Position).ToArray();
+        return result;
+    }
+
+    public static IReadOnlyList<ApplicableClassifierCriterion> Match(
+        ClassifierTree tree,
+        FacilityFacts facts,
+        IReadOnlyList<ChecklistHistoryReference> history)
+        => Match(Decide(tree, facts, history), facts);
+
+    public static IReadOnlyList<ApplicableClassifierCriterion> Match(
+        IReadOnlyList<ClassifierDecision> decisions,
+        FacilityFacts facts)
+    {
+        return decisions.Where(item => item.Outcome == "included").Select(item =>
+        {
+            var fact = item.Facts.FirstOrDefault(value => value.State == FacilityFactState.Present);
+            return new ApplicableClassifierCriterion(item.Section, item.Criterion, item.Reason,
+                fact?.Code ?? (facts.ScheduleCriterionCodes.Contains(item.Code) ? "scheduleCriteria" : "*"),
+                fact?.Details ?? item.Code, item.Priority, item.HistoryExample);
+        }).ToArray();
+    }
+
+    private static (string? Outcome, string Reason) EvaluateIdentity(IReadOnlyList<ClassifierApplicabilityRule> rules, FacilityFacts facts)
+    {
+        foreach (var rule in rules.Where(rule => rule.Field.Equals("category", StringComparison.OrdinalIgnoreCase)
+            || rule.Field.Equals("region", StringComparison.OrdinalIgnoreCase)
+            || rule.Field.Equals("type", StringComparison.OrdinalIgnoreCase)))
+        {
+            var actual = facts.Values(rule.Field).ToArray();
+            if (actual.Length == 0) return ("blocked_unknown", $"Не заполнено идентификационное поле «{rule.Field}».");
+            if (!actual.Any(value => rule.Values.Any(expected => ContainsExpected(value, expected))))
+                return ("excluded", $"Значение поля «{rule.Field}» не входит в область применимости критерия.");
+        }
+        return (null, "");
     }
 
     private static (string Field,string Value)? MatchRule(IReadOnlyList<ClassifierApplicabilityRule> rules,FacilityFacts facts)
@@ -73,7 +159,7 @@ internal static class ClassifierApplicabilityMatcher
         {
             if(rule.Operator.Equals("equals",StringComparison.OrdinalIgnoreCase) && rule.Values.Any(expected=>actual.Equals(expected,StringComparison.OrdinalIgnoreCase))) return(name,actual);
             if((rule.Operator.Equals("contains-any",StringComparison.OrdinalIgnoreCase) || rule.Operator.Equals("required-any",StringComparison.OrdinalIgnoreCase))
-                && rule.Values.Any(expected=>ContainsExpected(actual,expected) || ContainsExpected(expected,actual))) return(name,actual);
+                && rule.Values.Any(expected=>ContainsExpected(actual,expected))) return(name,actual);
         }
         return null;
     }
