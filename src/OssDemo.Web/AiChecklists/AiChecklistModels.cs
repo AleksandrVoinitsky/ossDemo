@@ -29,7 +29,8 @@ internal sealed record AiChecklistBatchPlan(
     string? ApplicabilityReason = null,
     string? Query = null,
     string? FallbackTitle = null,
-    string? Section = null);
+    string? Section = null,
+    IReadOnlyList<string>? RequirementIds = null);
 
 internal sealed record AiChecklistBatchState(
     int Index,
@@ -50,7 +51,44 @@ internal sealed record AiChecklistBatchState(
     string Stage = "waiting",
     string StageMessage = "Ожидает запуска",
     int FoundSourceCount = 0,
-    string DraftOutput = "");
+    string DraftOutput = "",
+    IReadOnlyList<string>? RequirementIds = null);
+
+internal sealed record AiChecklistDecisionFactSnapshot(string Code, string State, string Details);
+
+internal sealed record AiChecklistClassifierDecisionSnapshot(
+    string Code,
+    string Outcome,
+    string Reason,
+    IReadOnlyList<AiChecklistDecisionFactSnapshot> Facts);
+
+internal sealed record AiChecklistCoverageGapSnapshot(string RequirementId, string Reason);
+
+internal sealed record AiChecklistItemTraceSnapshot(
+    string Id,
+    string Title,
+    string Basis,
+    IReadOnlyList<string> ClassifierCodes,
+    IReadOnlyList<string> RequirementIds,
+    string Provenance,
+    string Explanation);
+
+internal sealed record AiChecklistRunSnapshot(
+    int ProfileSchemaVersion,
+    string ProfileVerificationStatus,
+    IReadOnlyList<AiChecklistClassifierDecisionSnapshot> ClassifierDecisions,
+    IReadOnlyList<string> SelectedRequirementIds,
+    IReadOnlyList<string> SelectedItemIds,
+    IReadOnlyList<AiChecklistCoverageGapSnapshot> CoverageGaps,
+    IReadOnlyDictionary<string, string> CatalogHashes,
+    IReadOnlyList<AiChecklistItemTraceSnapshot>? ItemTraces = null)
+{
+    public int IncludedCriterionCount => ClassifierDecisions.Count(item => item.Outcome == "included");
+    public int ExcludedCriterionCount => ClassifierDecisions.Count(item => item.Outcome == "excluded");
+    public int BlockedCriterionCount => ClassifierDecisions.Count(item => item.Outcome == "blocked_unknown");
+    public int SelectedRequirementCount => SelectedRequirementIds.Count;
+    public int ExpectedItemCount => SelectedItemIds.Count;
+}
 
 internal sealed record AiChecklistRunState(
     Guid Id,
@@ -62,7 +100,8 @@ internal sealed record AiChecklistRunState(
     DateTimeOffset UpdatedAt,
     IReadOnlyList<AiChecklistEvidence> Evidence,
     IReadOnlyList<AiChecklistBatchState> Batches,
-    Guid? ChecklistId);
+    Guid? ChecklistId,
+    AiChecklistRunSnapshot? Snapshot = null);
 
 internal sealed record AiChecklistBatchWork(
     Guid RunId,

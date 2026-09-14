@@ -241,6 +241,14 @@ internal static class AiChecklistAgentChecks
         AssertTrue(catalogRun.IsSuccess && catalogRun.Value!.Batches.Count is > 0 and < 20,
             "Каталог должен формировать небольшое число пакетных операций вместо сотен одиночных.");
         var catalogRunValue = catalogRun.Value ?? throw new InvalidOperationException("Каталог не создал запуск.");
+        AssertEqual(2, catalogRunValue.Snapshot!.ProfileSchemaVersion);
+        AssertEqual(49, catalogRunValue.Snapshot.ClassifierDecisions.Count);
+        AssertTrue(catalogRunValue.Snapshot.SelectedRequirementIds.Count > 0, "Снимок должен сохранять выбранные требования.");
+        AssertTrue(catalogRunValue.Snapshot.CatalogHashes.Values.All(value => value.Length == 64), "Снимок должен содержать SHA-256 входных каталогов.");
+        AssertEqual(catalogRunValue.Snapshot.ExpectedItemCount, catalogRunValue.Snapshot.ItemTraces!.Count);
+        AssertTrue(catalogRunValue.Snapshot.ItemTraces.All(item => item.RequirementIds.Count > 0 && item.ClassifierCodes.Count > 0),
+            "Для каждого пункта снимок должен хранить цепочку классификатор → требование.");
+        AssertTrue(catalogRunValue.Batches.All(batch => batch.RequirementIds is { Count: > 0 }), "Каждый детерминированный пакет должен содержать требования.");
         AssertTrue(catalogRunValue.Batches.All(batch => batch.Query is null && batch.EvidenceIds.All(id => id.StartsWith("CAT-", StringComparison.Ordinal))),
             "Полностью покрытый профиль должен использовать только детерминированный каталог.");
         await catalogAgent.QueueBatchesAsync(catalogRunValue.Id, catalogRunValue.Batches.Select(batch => batch.Index).ToArray(), CancellationToken.None);

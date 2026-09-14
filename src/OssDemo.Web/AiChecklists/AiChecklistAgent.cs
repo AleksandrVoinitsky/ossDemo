@@ -102,6 +102,19 @@ internal sealed class AiChecklistAgent(
                 return ChecklistOperationResult<AiChecklistRunState>.Fail("coverage_gap", "Для части применимых требований нет утвержденных проверочных пунктов.",
                     new Dictionary<string, string[]> { ["requirementIds"] = composition.Gaps.Select(item => item.RequirementId).ToArray() });
 
+            var snapshot = new AiChecklistRunSnapshot(
+                structured.SchemaVersion,
+                structured.VerificationStatus,
+                composition.ClassifierDecisions.Select(decision => new AiChecklistClassifierDecisionSnapshot(
+                    decision.Code, decision.Outcome, decision.Reason,
+                    decision.Facts.Select(fact => new AiChecklistDecisionFactSnapshot(fact.Code, fact.State.ToString().ToLowerInvariant(), fact.Details)).ToArray())).ToArray(),
+                composition.SelectedRequirementIds.Order(StringComparer.OrdinalIgnoreCase).ToArray(),
+                composition.Items.Select(item => item.Id).ToArray(),
+                composition.Gaps.Select(gap => new AiChecklistCoverageGapSnapshot(gap.RequirementId, gap.Reason)).ToArray(),
+                checklistCatalogs.CatalogHashes,
+                composition.Items.Select(item => new AiChecklistItemTraceSnapshot(item.Id, item.Title, item.Basis,
+                    item.ClassifierCodes, item.RequirementIds, item.Provenance, item.LinkExplanation)).ToArray());
+
             var catalogEvidence = composition.Items.Select(item => new AiChecklistEvidence(
                 $"CAT-{item.Id}", item.Section, "Утверждённый реестр требований", item.Basis, item.Title, 1)).ToArray();
             var catalogPlans = composition.Items.GroupBy(item => item.Section)
@@ -117,8 +130,9 @@ internal sealed class AiChecklistAgent(
                     batch.Items.Sum(item => item.Title.Length + item.Basis.Length),
                     batch.Items.SelectMany(item => item.ClassifierCodes).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
                     "Пункты выбраны по подтвержденным фактам карточки, классификатору и утвержденному реестру требований.",
-                    null, null, batch.Section)).ToArray();
-            var catalogRun = await runStore.CreateAsync(analysis.Value.Facility, facility.Id, facility.Name, catalogEvidence, catalogPlans, cancellationToken);
+                    null, null, batch.Section,
+                    batch.Items.SelectMany(item => item.RequirementIds).Distinct(StringComparer.OrdinalIgnoreCase).ToArray())).ToArray();
+            var catalogRun = await runStore.CreateAsync(analysis.Value.Facility, facility.Id, facility.Name, catalogEvidence, catalogPlans, cancellationToken, snapshot);
             logger.LogInformation("Создан детерминированный запуск {RunId}: {RequirementCount} требований, {ItemCount} пунктов, LLM не требуется.", catalogRun.Id, composition.SelectedRequirements.Count, composition.Items.Count);
             return ChecklistOperationResult<AiChecklistRunState>.Success(catalogRun);
         }

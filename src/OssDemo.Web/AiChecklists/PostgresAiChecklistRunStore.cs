@@ -6,14 +6,16 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<AiChecklistRunState> CreateAsync(FacilityProfile profile, Guid facilityId, string facilityName, IReadOnlyList<AiChecklistEvidence> evidence, IReadOnlyList<AiChecklistBatchPlan> batches, CancellationToken cancellationToken)
+    public async Task<AiChecklistRunState> CreateAsync(FacilityProfile profile, Guid facilityId, string facilityName, IReadOnlyList<AiChecklistEvidence> evidence, IReadOnlyList<AiChecklistBatchPlan> batches, CancellationToken cancellationToken, AiChecklistRunSnapshot? snapshot = null)
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         var runId = Guid.NewGuid();
-        await using (var insert = new NpgsqlCommand("INSERT INTO app_ai_checklist_runs(id,facility_id,facility_name,facility_profile) VALUES(@id,@facilityId,@facilityName,CAST(@profile AS jsonb))", connection, transaction))
+        await using (var insert = new NpgsqlCommand("INSERT INTO app_ai_checklist_runs(id,facility_id,facility_name,facility_profile,composition_snapshot,coverage) VALUES(@id,@facilityId,@facilityName,CAST(@profile AS jsonb),CAST(@snapshot AS jsonb),CAST(@coverage AS jsonb))", connection, transaction))
         {
             insert.Parameters.AddWithValue("id", runId); insert.Parameters.AddWithValue("facilityId", facilityId); insert.Parameters.AddWithValue("facilityName", facilityName); insert.Parameters.AddWithValue("profile", JsonSerializer.Serialize(profile, JsonOptions));
+            insert.Parameters.AddWithValue("snapshot", JsonSerializer.Serialize(snapshot, JsonOptions));
+            insert.Parameters.AddWithValue("coverage", JsonSerializer.Serialize(snapshot?.CoverageGaps ?? [], JsonOptions));
             await insert.ExecuteNonQueryAsync(cancellationToken);
         }
         for (var index = 0; index < evidence.Count; index++)
@@ -25,10 +27,11 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
         }
         foreach (var batch in batches)
         {
-            await using var insert = new NpgsqlCommand("INSERT INTO app_ai_checklist_batches(run_id,batch_index,topic,evidence_ids,criterion_codes,applicability_reason,search_query,fallback_title,classifier_section) VALUES(@runId,@index,@topic,@ids,@codes,@reason,@query,@fallback,@section)", connection, transaction);
+            await using var insert = new NpgsqlCommand("INSERT INTO app_ai_checklist_batches(run_id,batch_index,topic,evidence_ids,criterion_codes,applicability_reason,search_query,fallback_title,classifier_section,requirement_ids) VALUES(@runId,@index,@topic,@ids,@codes,@reason,@query,@fallback,@section,@requirementIds)", connection, transaction);
             insert.Parameters.AddWithValue("runId", runId); insert.Parameters.AddWithValue("index", batch.Index); insert.Parameters.AddWithValue("topic", batch.Topic); insert.Parameters.AddWithValue("ids", batch.EvidenceIds.ToArray());
             insert.Parameters.AddWithValue("codes", batch.CriterionCodes?.ToArray() ?? []); insert.Parameters.AddWithValue("reason", (object?)batch.ApplicabilityReason ?? DBNull.Value);
             insert.Parameters.AddWithValue("query", (object?)batch.Query ?? DBNull.Value); insert.Parameters.AddWithValue("fallback", (object?)batch.FallbackTitle ?? DBNull.Value); insert.Parameters.AddWithValue("section", (object?)batch.Section ?? DBNull.Value);
+            insert.Parameters.AddWithValue("requirementIds", batch.RequirementIds?.ToArray() ?? []);
             await insert.ExecuteNonQueryAsync(cancellationToken);
         }
         await transaction.CommitAsync(cancellationToken);
@@ -38,13 +41,15 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
     public async Task<AiChecklistRunState?> GetAsync(Guid runId, CancellationToken cancellationToken)
     {
         await using var connection = await OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("SELECT facility_id,facility_name,facility_profile::text,status,created_at,updated_at,checklist_id FROM app_ai_checklist_runs WHERE id=@id", connection);
+        await using var command = new NpgsqlCommand("SELECT facility_id,facility_name,facility_profile::text,status,created_at,updated_at,checklist_id,composition_snapshot::text FROM app_ai_checklist_runs WHERE id=@id", connection);
         command.Parameters.AddWithValue("id", runId);
-        FacilityProfile profile; Guid facilityId; string facilityName; string status; DateTimeOffset createdAt; DateTimeOffset updatedAt; Guid? checklistId;
+        FacilityProfile profile; Guid facilityId; string facilityName; string status; DateTimeOffset createdAt; DateTimeOffset updatedAt; Guid? checklistId; AiChecklistRunSnapshot? snapshot;
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {
             if (!await reader.ReadAsync(cancellationToken)) return null;
             facilityId = reader.GetGuid(0); facilityName = reader.GetString(1); profile = JsonSerializer.Deserialize<FacilityProfile>(reader.GetString(2), JsonOptions)!; status = reader.GetString(3); createdAt = reader.GetFieldValue<DateTimeOffset>(4); updatedAt = reader.GetFieldValue<DateTimeOffset>(5); checklistId = reader.IsDBNull(6) ? null : reader.GetGuid(6);
+            var snapshotJson = reader.GetString(7);
+            snapshot = snapshotJson is "{}" or "null" ? null : JsonSerializer.Deserialize<AiChecklistRunSnapshot>(snapshotJson, JsonOptions);
         }
         var evidence = new List<AiChecklistEvidence>();
         await using (var evidenceCommand = new NpgsqlCommand("SELECT evidence_id,query_label,document_title,source_label,content,score FROM app_ai_checklist_evidence WHERE run_id=@id ORDER BY position", connection))
@@ -53,7 +58,7 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
             while (await reader.ReadAsync(cancellationToken)) evidence.Add(new(reader.GetString(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),reader.GetString(4),reader.GetDouble(5)));
         }
         var batches = new List<AiChecklistBatchState>();
-        await using (var batchCommand = new NpgsqlCommand("SELECT batch_index,topic,evidence_ids,status,items::text,error,duration_ms,updated_at,criterion_codes,applicability_reason,search_query,fallback_title,classifier_section,evidence::text,stage,stage_message,found_source_count,draft_output FROM app_ai_checklist_batches WHERE run_id=@id ORDER BY batch_index", connection))
+        await using (var batchCommand = new NpgsqlCommand("SELECT batch_index,topic,evidence_ids,status,items::text,error,duration_ms,updated_at,criterion_codes,applicability_reason,search_query,fallback_title,classifier_section,evidence::text,stage,stage_message,found_source_count,draft_output,requirement_ids FROM app_ai_checklist_batches WHERE run_id=@id ORDER BY batch_index", connection))
         {
             batchCommand.Parameters.AddWithValue("id", runId); await using var reader = await batchCommand.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
@@ -62,10 +67,10 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
                 var batchEvidence = JsonSerializer.Deserialize<AiChecklistEvidence[]>(reader.GetString(13), JsonOptions) ?? [];
                 batches.Add(new(reader.GetInt32(0),reader.GetString(1),reader.GetFieldValue<string[]>(2),reader.GetString(3),items.Length,reader.IsDBNull(5)?null:reader.GetString(5),reader.IsDBNull(6)?null:reader.GetInt64(6),reader.GetFieldValue<DateTimeOffset>(7),items,
                     reader.GetFieldValue<string[]>(8),reader.IsDBNull(9)?null:reader.GetString(9),reader.IsDBNull(10)?null:reader.GetString(10),reader.IsDBNull(11)?null:reader.GetString(11),reader.IsDBNull(12)?null:reader.GetString(12),batchEvidence,
-                    reader.GetString(14),reader.GetString(15),reader.GetInt32(16),reader.GetString(17)));
+                    reader.GetString(14),reader.GetString(15),reader.GetInt32(16),reader.GetString(17),reader.GetFieldValue<string[]>(18)));
             }
         }
-        return new(runId,profile,facilityId,facilityName,status,createdAt,updatedAt,evidence,batches,checklistId);
+        return new(runId,profile,facilityId,facilityName,status,createdAt,updatedAt,evidence,batches,checklistId,snapshot);
     }
 
     public async Task<bool> QueueBatchAsync(Guid runId, int batchIndex, CancellationToken cancellationToken)

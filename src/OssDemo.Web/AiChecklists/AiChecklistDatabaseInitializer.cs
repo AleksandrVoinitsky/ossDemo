@@ -34,6 +34,9 @@ internal sealed class AiChecklistDatabaseInitializer(IConfiguration configuratio
             ALTER TABLE app_ai_checklist_batches ADD COLUMN IF NOT EXISTS stage_message text NOT NULL DEFAULT 'Ожидает запуска';
             ALTER TABLE app_ai_checklist_batches ADD COLUMN IF NOT EXISTS found_source_count integer NOT NULL DEFAULT 0;
             ALTER TABLE app_ai_checklist_batches ADD COLUMN IF NOT EXISTS draft_output text NOT NULL DEFAULT '';
+            ALTER TABLE app_ai_checklist_batches ADD COLUMN IF NOT EXISTS requirement_ids text[] NOT NULL DEFAULT '{}';
+            ALTER TABLE app_ai_checklist_runs ADD COLUMN IF NOT EXISTS composition_snapshot jsonb NOT NULL DEFAULT '{}';
+            ALTER TABLE app_ai_checklist_runs ADD COLUMN IF NOT EXISTS coverage jsonb NOT NULL DEFAULT '[]';
             UPDATE app_ai_checklist_batches SET
                 stage=CASE
                     WHEN status='completed' AND jsonb_array_length(items)>0 THEN 'completed_ai'
