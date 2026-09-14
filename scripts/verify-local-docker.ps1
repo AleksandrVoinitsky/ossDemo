@@ -132,6 +132,92 @@ foreach ($marker in @('data-ai-profile-readiness', 'data-ai-composition-summary'
     }
 }
 
+$probeSuffix = [Guid]::NewGuid().ToString('N')
+$probeNames = @("acceptance-office-$probeSuffix", "acceptance-industrial-$probeSuffix")
+$probeSlugs = [System.Collections.Generic.List[string]]::new()
+$requiredFeatureCodes = @(
+    'air.emissions', 'air.gasTreatment', 'water.intake', 'water.discharge',
+    'water.treatment', 'waste.generation', 'waste.disposalSite', 'land.disturbance',
+    'subsoil.wells', 'nature.forest', 'nature.oopt', 'zone.waterProtection'
+)
+
+function New-ChecklistProbeBody {
+    param([string]$Name, [bool]$HasEmissions)
+
+    $features = [ordered]@{}
+    foreach ($code in $requiredFeatureCodes) {
+        $features[$code] = @{ state = 'absent'; details = '' }
+    }
+    if ($HasEmissions) {
+        $features['air.emissions'] = @{ state = 'present'; details = 'Стационарные источники выбросов' }
+    }
+
+    return @{
+        profile = @{
+            fullName = "Контрольный объект $Name"
+            shortName = $Name
+            type = 'Компрессорная станция'
+            category = 'III категория'
+            region = 'Пермский край'
+            address = 'Локальная приёмка'
+        }
+        latitude = $null
+        longitude = $null
+        structuredProfile = @{
+            schemaVersion = 2
+            slug = ''
+            shortName = $Name
+            verificationStatus = 'needs_review'
+            objectTypeCodes = @()
+            features = $features
+            documents = @()
+        }
+    }
+}
+
+function Remove-ChecklistProbes {
+    if ($probeSlugs.Count -eq 0) { return }
+
+    $cleanupSql = @'
+DELETE FROM app_ai_checklist_evidence WHERE run_id IN (SELECT r.id FROM app_ai_checklist_runs r JOIN app_facilities f ON f.id=r.facility_id WHERE f.slug IN (:'probe_one', :'probe_two'));
+DELETE FROM app_ai_checklist_batches WHERE run_id IN (SELECT r.id FROM app_ai_checklist_runs r JOIN app_facilities f ON f.id=r.facility_id WHERE f.slug IN (:'probe_one', :'probe_two'));
+DELETE FROM app_ai_checklist_runs WHERE facility_id IN (SELECT id FROM app_facilities WHERE slug IN (:'probe_one', :'probe_two'));
+DELETE FROM app_facility_profiles WHERE slug IN (:'probe_one', :'probe_two');
+DELETE FROM app_facilities WHERE slug IN (:'probe_one', :'probe_two');
+'@
+    $first = $probeSlugs[0]
+    $second = if ($probeSlugs.Count -gt 1) { $probeSlugs[1] } else { $first }
+    $cleanupSql | & docker compose --project-name ossdemo-local --env-file $environmentFile -f $composeFile exec -T database `
+        psql -v ON_ERROR_STOP=1 -U ossdemo -d ossdemo --set="probe_one=$first" --set="probe_two=$second" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Could not remove checklist acceptance probes.' }
+}
+
+try {
+    $probeRuns = foreach ($index in 0..1) {
+        $body = New-ChecklistProbeBody -Name $probeNames[$index] -HasEmissions:($index -eq 1)
+        $created = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:18080/api/operations/facility-profiles' -Headers @{ Cookie = 'oss.auth=true' } `
+            -ContentType 'application/json; charset=utf-8' -Body ($body | ConvertTo-Json -Depth 10 -Compress) -TimeoutSec 30
+        $probeSlugs.Add([string]$created.slug)
+        Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:18080/api/operations/facility-profiles/$($created.slug)/confirm" `
+            -Headers @{ Cookie = 'oss.auth=true' } -TimeoutSec 30 | Out-Null
+        $runBody = @{ facilitySlug = [string]$created.slug } | ConvertTo-Json -Compress
+        Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:18080/api/ai-checklists/runs' -Headers @{ Cookie = 'oss.auth=true' } `
+            -ContentType 'application/json; charset=utf-8' -Body $runBody -TimeoutSec 60
+    }
+
+    $officeIds = @($probeRuns[0].snapshot.selectedItemIds | Sort-Object)
+    $industrialIds = @($probeRuns[1].snapshot.selectedItemIds | Sort-Object)
+    if ($officeIds.Count -eq 0 -or $industrialIds.Count -eq 0) {
+        throw 'A checklist acceptance probe returned an empty item set.'
+    }
+    if (($officeIds -join "`n") -eq ($industrialIds -join "`n")) {
+        throw 'Contrasting facility profiles returned identical checklist item sets.'
+    }
+}
+finally {
+    Remove-ChecklistProbes
+}
+
 try {
     $ragStatus = Invoke-RestMethod -Uri 'http://127.0.0.1:18080/api/rag/status' -Headers @{ Cookie = 'oss.auth=true' } -TimeoutSec 10
 }
