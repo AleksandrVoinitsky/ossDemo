@@ -211,9 +211,16 @@ internal static class AiChecklistAgentChecks
         AssertEqual(2, deterministicRun.Value!.Batches.Count);
         await deterministicAgent.QueueBatchesAsync(deterministicRun.Value.Id, deterministicRun.Value.Batches.Select(item => item.Index).ToArray(), CancellationToken.None);
         while (await deterministicAgent.ProcessNextBatchAsync(CancellationToken.None)) { }
+        var deterministicCompletedRun = await deterministicStore.GetAsync(deterministicRun.Value.Id, CancellationToken.None);
+        AssertTrue(deterministicCompletedRun!.Batches.All(batch => batch.Stage == "completed_template"),
+            "Интерфейс должен отличать перенос утверждённого рабочего слоя от генерации моделью.");
+        AssertTrue(deterministicCompletedRun.Batches.All(batch => batch.StageMessage.Contains("утверждённого рабочего слоя", StringComparison.OrdinalIgnoreCase)),
+            "Статус детерминированного пакета не должен сообщать о работе ИИ.");
         var deterministicResult = await deterministicAgent.FinalizeRunAsync(deterministicRun.Value.Id, CancellationToken.None);
         AssertTrue(deterministicResult.IsSuccess, "Детерминированный рабочий слой должен сохраняться как черновик.");
-        AssertEqual(5, deterministicResult.Value!.Items.Count);
+        AssertTrue(deterministicResult.Value!.Name.StartsWith("Автоматизированный чек-лист", StringComparison.Ordinal),
+            "Название черновика должно описывать фактический автоматизированный процесс.");
+        AssertEqual(5, deterministicResult.Value.Items.Count);
         AssertEqual(0, deterministicSearch.Calls);
         AssertEqual(0, deterministicSynthesis.Calls);
         AssertTrue(deterministicResult.Value.Items.All(item => !string.IsNullOrWhiteSpace(item.Basis)),

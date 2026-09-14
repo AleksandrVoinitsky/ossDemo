@@ -1,8 +1,8 @@
 @page
 @{
-    ViewData["Title"] = "ИИ-формирование чек-листа";
+    ViewData["Title"] = "Автоматизированное формирование чек-листа";
     ViewData["Nav"] = "AiChecklist";
-    ViewData["Breadcrumb"] = "Чек-лист \\ ИИ-формирование";
+    ViewData["Breadcrumb"] = "Чек-лист \\ Автоматизированное формирование";
 }
 
 <div class="page-actions mb-3">
@@ -14,7 +14,7 @@
     <div class="wizard-progress-area">
         <div class="d-flex flex-wrap justify-content-between gap-2">
             <span class="badge text-bg-primary" data-ai-wizard-status>Этап 1 из 5 · Объект</span>
-            <span class="badge text-bg-warning">Эксперимент</span>
+            <span class="badge text-bg-success">Рабочий режим</span>
         </div>
         <div class="wizard-progress-line" aria-hidden="true"><div data-ai-wizard-progress></div></div>
     </div>
@@ -43,12 +43,12 @@
     </div>
 
     <div class="wizard-panel" data-ai-step="3" hidden>
-        <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 4. Сформировать проект</h2><p class="muted-note mb-0">Агент последовательно обрабатывает критерии: ищет статьи, проверяет цитаты и формулирует короткие действия.</p></div></div>
-        <div class="generation-stage"><div class="generation-orbit" aria-hidden="true"><span></span><span></span><span></span></div><div><div class="d-flex flex-wrap justify-content-between gap-2"><strong data-ai-generation-title>Агент готов к запуску</strong><span class="muted-note">Прошло: <b data-ai-elapsed>00:00</b></span></div><p class="muted-note mb-2" data-ai-generation-status>Ограничений по времени нет. Все операции выполняются по одной.</p><div class="generation-progress"><div class="generation-progress-bar" data-ai-generation-progress></div></div></div></div>
-        <div class="ai-live-metrics mt-3" aria-live="polite">
+        <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 4. Сформировать проект</h2><p class="muted-note mb-0">Система переносит утверждённые пункты применимых разделов. Поиск по нормативной базе и ИИ используются только для критериев без готового рабочего слоя.</p></div></div>
+        <div class="generation-stage"><div class="generation-orbit" aria-hidden="true"><span></span><span></span><span></span></div><div><div class="d-flex flex-wrap justify-content-between gap-2"><strong data-ai-generation-title>Система готова к запуску</strong><span class="muted-note">Прошло: <b data-ai-elapsed>00:00</b></span></div><p class="muted-note mb-2" data-ai-generation-status role="status" aria-live="polite" aria-atomic="true">Разделы будут обработаны последовательно и сохранены в черновик.</p><div class="generation-progress"><div class="generation-progress-bar" data-ai-generation-progress></div></div></div></div>
+        <div class="ai-live-metrics mt-3">
             <div><span>Общий прогресс</span><strong data-ai-total-progress>0 из 0</strong></div>
-            <div><span>Проверено ИИ</span><strong class="text-success" data-ai-success-count>0</strong></div>
-            <div><span>Базовые пункты</span><strong class="text-warning" data-ai-base-count>0</strong></div>
+            <div><span>Готовые разделы</span><strong class="text-success" data-ai-success-count>0</strong></div>
+            <div><span>Резервные разделы</span><strong class="text-warning" data-ai-base-count>0</strong></div>
             <div><span>В очереди</span><strong data-ai-remaining-count>0</strong></div>
         </div>
         <div class="ai-live-workspace mt-3">
@@ -58,20 +58,20 @@
                 <ol class="ai-stage-list" data-ai-stage-list></ol>
             </section>
             <section class="ai-stream-panel">
-                <div class="ai-live-panel-head"><div><span class="eyebrow">Живой ответ модели</span><h3 class="h5 mb-0">Рабочий текст агента</h3></div><span class="ai-stream-indicator" data-ai-stream-indicator>Ожидание</span></div>
-                <pre class="ai-stream-output" data-ai-stream-output aria-live="polite">Ответ появится здесь по мере поступления от модели.</pre>
+                <div class="ai-live-panel-head"><div><span class="eyebrow">Ход формирования</span><h3 class="h5 mb-0">Рабочие данные раздела</h3></div><span class="ai-stream-indicator" data-ai-stream-indicator>Ожидание</span></div>
+                <pre class="ai-stream-output" data-ai-stream-output aria-live="polite">Здесь появится результат текущего этапа.</pre>
                 <div class="ai-result-preview" data-ai-result-preview hidden><span>Итоговая формулировка</span><strong data-ai-result-preview-text></strong></div>
             </section>
         </div>
         <div class="ai-batch-grid mt-3" data-ai-batch-list></div>
         <div class="wizard-card mt-3"><h3 class="h6 section-title">Последние сформированные пункты</h3><ol class="ai-operation-log mb-0" data-ai-operation-log aria-live="polite"><li>Критерии сопоставлены с карточкой и ожидают запуска.</li></ol></div>
         <div class="alert alert-danger mt-3 mb-0" data-ai-generation-error hidden tabindex="-1"></div>
-        <div class="wizard-actions"><button class="btn btn-outline-primary btn-lg" type="button" data-ai-prev>Назад</button><button class="btn btn-primary btn-lg" type="button" data-ai-generate>Сформировать ИИ-чек-лист</button><button class="btn btn-outline-danger btn-lg" type="button" data-ai-stop hidden>Остановить формирование</button><button class="btn btn-success btn-lg" type="button" data-ai-continue hidden>Перейти к чек-листу с доступными данными</button></div>
+        <div class="wizard-actions"><button class="btn btn-outline-primary btn-lg" type="button" data-ai-prev>Назад</button><button class="btn btn-primary btn-lg" type="button" data-ai-generate>Сформировать чек-лист</button><button class="btn btn-outline-danger btn-lg" type="button" data-ai-stop hidden>Остановить формирование</button><button class="btn btn-success btn-lg" type="button" data-ai-continue hidden>Перейти к чек-листу с доступными данными</button></div>
     </div>
 
     <div class="wizard-panel" data-ai-step="4" hidden>
         <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 5. Проект сохранён</h2><p class="muted-note mb-0">Дальше работает обычный цикл: редактирование, заполнение результатов, утверждение, история и экспорт.</p></div><span class="badge text-bg-success">Черновик</span></div>
-        <div class="wizard-card"><table class="table compact-detail-table mb-0"><tbody><tr><th>Название</th><td data-ai-result-name>—</td></tr><tr><th>Объект</th><td data-ai-result-facility>—</td></tr><tr><th>Пунктов</th><td data-ai-result-count>—</td></tr><tr><th>Источник</th><td>Классификатор + карточка объекта + база знаний</td></tr></tbody></table></div>
+        <div class="wizard-card"><table class="table compact-detail-table mb-0"><tbody><tr><th>Название</th><td data-ai-result-name>—</td></tr><tr><th>Объект</th><td data-ai-result-facility>—</td></tr><tr><th>Пунктов</th><td data-ai-result-count>—</td></tr><tr><th>Источник</th><td>Mapping карточки объекта + утверждённый рабочий слой + нормативная база</td></tr></tbody></table></div>
         <div class="wizard-actions"><a class="btn btn-success btn-lg" data-ai-result-link>Открыть интерактивный чек-лист</a></div>
     </div>
 </section>

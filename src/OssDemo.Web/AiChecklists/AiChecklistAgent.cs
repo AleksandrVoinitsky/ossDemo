@@ -224,7 +224,7 @@ internal sealed class AiChecklistAgent(
                 var allEvidence = run.Evidence.Concat(run.Batches.SelectMany(batch=>batch.BatchEvidence ?? [])).DistinctBy(item=>item.Id,StringComparer.OrdinalIgnoreCase).ToArray();
                 draftItems = ToDraftItems(items, allEvidence).Take(75).Concat(AiChecklistFallbackBuilder.Build(run.Facility)).DistinctBy(item => item.Title.Trim(), StringComparer.OrdinalIgnoreCase).Take(100).ToArray();
             }
-            var result = await checklists.CreateAiDraftAsync(new(run.FacilityId, run.FacilityName, $"ИИ-чек-лист — {run.FacilityName}", draftItems, runId), cancellationToken);
+            var result = await checklists.CreateAiDraftAsync(new(run.FacilityId, run.FacilityName, $"Автоматизированный чек-лист — {run.FacilityName}", draftItems, runId), cancellationToken);
             if (!result.IsSuccess) { await runStore.CancelFinalizeAsync(runId, result.Error ?? "Ошибка сохранения.", cancellationToken); return result; }
             await runStore.CompleteFinalizeAsync(runId, result.Value!.Id, cancellationToken);
             return result;

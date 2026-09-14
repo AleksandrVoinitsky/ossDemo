@@ -150,7 +150,7 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
         }
 
         var id = Guid.NewGuid();
-        var name = string.IsNullOrWhiteSpace(request.Name) ? $"ИИ-чек-лист — {request.FacilityName}" : request.Name.Trim();
+        var name = string.IsNullOrWhiteSpace(request.Name) ? $"Автоматизированный чек-лист — {request.FacilityName}" : request.Name.Trim();
         await using (var insert = new NpgsqlCommand("INSERT INTO app_checklists (id,name,facility_id,facility_name,template_id,template_name,status,ai_run_id) VALUES (@id,@name,@facilityId,@facility,NULL,@templateName,'draft',@runId) ON CONFLICT (ai_run_id) WHERE ai_run_id IS NOT NULL DO NOTHING", connection, transaction))
         {
             insert.Parameters.AddWithValue("id", id);
