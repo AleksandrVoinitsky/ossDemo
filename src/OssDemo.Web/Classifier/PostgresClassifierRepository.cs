@@ -64,7 +64,7 @@ internal sealed class PostgresClassifierRepository(IConfiguration configuration)
         if (!normalized.IsSuccess) return ChecklistOperationResult<ClassifierCriterion>.Fail(normalized.ErrorCode!,normalized.Error!,normalized.Errors);
         await using var connection = new NpgsqlConnection(connectionString); await connection.OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand("""
-            UPDATE app_classifier_criteria SET risk_text=@risk,check_text=@check,search_terms=@terms,applicability_rules=@rules,source_hints=@hints,is_active=@active,position=@position,updated_at=now() WHERE id=@id
+            UPDATE app_classifier_criteria SET risk_text=@risk,check_text=@check,search_terms=@terms,applicability_rules=@rules,source_hints=@hints,is_active=@active,position=@position,is_customized=true,updated_at=now() WHERE id=@id
             """,connection);
         AddWriteParameters(command,normalized.Value!); command.Parameters.AddWithValue("id",id);
         if (await command.ExecuteNonQueryAsync(cancellationToken)==0) return ChecklistOperationResult<ClassifierCriterion>.Fail("not_found","Критерий не найден.");
@@ -74,7 +74,7 @@ internal sealed class PostgresClassifierRepository(IConfiguration configuration)
     public async Task<bool> DeleteCriterionAsync(Guid id, CancellationToken cancellationToken)
     {
         await using var connection = new NpgsqlConnection(connectionString); await connection.OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("UPDATE app_classifier_criteria SET is_active=false,updated_at=now() WHERE id=@id",connection);
+        await using var command = new NpgsqlCommand("UPDATE app_classifier_criteria SET is_active=false,is_customized=true,updated_at=now() WHERE id=@id",connection);
         command.Parameters.AddWithValue("id",id); return await command.ExecuteNonQueryAsync(cancellationToken)>0;
     }
 

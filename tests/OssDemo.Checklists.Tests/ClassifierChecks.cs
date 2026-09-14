@@ -35,6 +35,22 @@ internal static class ClassifierChecks
         AssertTrue(query.Label.Contains(water.Criterion.CheckText, StringComparison.Ordinal), "Модель должна получить формулировку выбранного критерия.");
         AssertTrue(selected.Select(item => AiChecklistQueryPlanner.Build(item, facts)).All(item => item.Query.Length <= 280),
             "Поиск по критерию должен получать короткий запрос без полной формулировки риска.");
+
+        var thirdCategory = FacilityFactNormalizer.Normalize(new FacilityProfileFields
+        {
+            Category = "III категория"
+        }, null);
+        var thirdCategorySelection = ClassifierApplicabilityMatcher.Match(ClassifierSeedData.Tree, thirdCategory, []);
+        AssertTrue(!thirdCategorySelection.Any(item => item.Criterion.Code == "1.2"),
+            "Римская I не должна совпадать подстрокой с III категорией.");
+
+        var secondCategory = FacilityFactNormalizer.Normalize(new FacilityProfileFields
+        {
+            Category = "II категория"
+        }, null);
+        var secondCategorySelection = ClassifierApplicabilityMatcher.Match(ClassifierSeedData.Tree, secondCategory, []);
+        AssertTrue(secondCategorySelection.Any(item => item.Criterion.Code == "1.2"),
+            "II категория должна включать критерий комплексного экологического разрешения.");
     }
 
     private static void AssertEqual<T>(T expected, T actual)

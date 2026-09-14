@@ -22,7 +22,12 @@ internal sealed class ClassifierDatabaseInitializer(IConfiguration configuration
                 risk_text text NOT NULL, check_text text NOT NULL, search_terms text NOT NULL DEFAULT '',
                 applicability_rules jsonb NOT NULL DEFAULT '[]'::jsonb, source_hints jsonb NOT NULL DEFAULT '[]'::jsonb,
                 is_base boolean NOT NULL DEFAULT false, is_active boolean NOT NULL DEFAULT true, position integer NOT NULL,
+                is_customized boolean,
                 created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(section_id,code));
+            ALTER TABLE app_classifier_criteria ADD COLUMN IF NOT EXISTS is_customized boolean;
+            UPDATE app_classifier_criteria SET is_customized = updated_at > created_at WHERE is_customized IS NULL;
+            ALTER TABLE app_classifier_criteria ALTER COLUMN is_customized SET DEFAULT false;
+            ALTER TABLE app_classifier_criteria ALTER COLUMN is_customized SET NOT NULL;
             CREATE INDEX IF NOT EXISTS ix_classifier_sections_version_position ON app_classifier_sections(version_id,position);
             CREATE INDEX IF NOT EXISTS ix_classifier_criteria_section_position ON app_classifier_criteria(section_id,position);
             """, connection))
@@ -32,7 +37,7 @@ internal sealed class ClassifierDatabaseInitializer(IConfiguration configuration
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await using (var version = new NpgsqlCommand("""
             INSERT INTO app_classifier_versions(id,version,status,effective_from) VALUES(@id,@version,@status,@date)
-            ON CONFLICT(version) DO NOTHING
+            ON CONFLICT(version) DO UPDATE SET status=EXCLUDED.status,effective_from=EXCLUDED.effective_from,updated_at=now()
             """, connection, transaction))
         {
             version.Parameters.AddWithValue("id", tree.VersionId);
@@ -45,7 +50,7 @@ internal sealed class ClassifierDatabaseInitializer(IConfiguration configuration
         {
             await using var sectionCommand = new NpgsqlCommand("""
                 INSERT INTO app_classifier_sections(id,version_id,code,title,position) VALUES(@id,@version,@code,@title,@position)
-                ON CONFLICT(version_id,code) DO NOTHING
+                ON CONFLICT(version_id,code) DO UPDATE SET title=EXCLUDED.title,position=EXCLUDED.position,updated_at=now()
                 """, connection, transaction);
             sectionCommand.Parameters.AddWithValue("id", section.Id);
             sectionCommand.Parameters.AddWithValue("version", tree.VersionId);
@@ -58,7 +63,11 @@ internal sealed class ClassifierDatabaseInitializer(IConfiguration configuration
                 await using var criterionCommand = new NpgsqlCommand("""
                     INSERT INTO app_classifier_criteria(id,section_id,code,risk_text,check_text,search_terms,applicability_rules,source_hints,is_base,is_active,position)
                     VALUES(@id,@section,@code,@risk,@check,@terms,@rules,@hints,@base,@active,@position)
-                    ON CONFLICT(section_id,code) DO NOTHING
+                    ON CONFLICT(section_id,code) DO UPDATE SET
+                        risk_text=EXCLUDED.risk_text,check_text=EXCLUDED.check_text,search_terms=EXCLUDED.search_terms,
+                        applicability_rules=EXCLUDED.applicability_rules,source_hints=EXCLUDED.source_hints,
+                        is_base=EXCLUDED.is_base,is_active=EXCLUDED.is_active,position=EXCLUDED.position,updated_at=now()
+                    WHERE NOT app_classifier_criteria.is_customized
                     """, connection, transaction);
                 criterionCommand.Parameters.AddWithValue("id", criterion.Id);
                 criterionCommand.Parameters.AddWithValue("section", section.Id);

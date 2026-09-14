@@ -55,9 +55,30 @@ internal static class ClassifierApplicabilityMatcher
             foreach(var actual in facts.Values(name))
             {
                 if(rule.Operator.Equals("equals",StringComparison.OrdinalIgnoreCase) && rule.Values.Any(expected=>actual.Equals(expected,StringComparison.OrdinalIgnoreCase))) return(name,actual);
-                if(rule.Operator.Equals("contains-any",StringComparison.OrdinalIgnoreCase) && rule.Values.Any(expected=>actual.Contains(expected,StringComparison.OrdinalIgnoreCase))) return(name,actual);
+                if(rule.Operator.Equals("contains-any",StringComparison.OrdinalIgnoreCase) && rule.Values.Any(expected=>ContainsExpected(actual,expected))) return(name,actual);
             }
         }
         return null;
+    }
+
+    private static bool ContainsExpected(string actual,string expected)
+    {
+        if (expected is "i" or "ii" or "iii" or "iv" or "v" or "да" or "нет")
+            return ContainsWholeToken(actual,expected);
+        return actual.Contains(expected,StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsWholeToken(string actual,string expected)
+    {
+        var start=0;
+        while ((start=actual.IndexOf(expected,start,StringComparison.OrdinalIgnoreCase))>=0)
+        {
+            var before=start==0 || !char.IsLetterOrDigit(actual[start-1]);
+            var end=start+expected.Length;
+            var after=end==actual.Length || !char.IsLetterOrDigit(actual[end]);
+            if(before && after) return true;
+            start++;
+        }
+        return false;
     }
 }
