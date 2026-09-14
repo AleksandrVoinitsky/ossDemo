@@ -33,7 +33,10 @@ internal sealed class ClassifierDatabaseInitializer(IConfiguration configuration
             """, connection))
             await schema.ExecuteNonQueryAsync(cancellationToken);
 
-        var tree = ClassifierSeedData.Tree;
+        var mappingPath = Path.Combine(AppContext.BaseDirectory, "requirements", "classifier-mapping.jsonl");
+        if (!File.Exists(mappingPath))
+            throw new InvalidOperationException($"Не найден утверждённый mapping классификатора: {mappingPath}");
+        var tree = ClassifierMappingCatalog.ApplyFile(ClassifierSeedData.Tree, mappingPath);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await using (var version = new NpgsqlCommand("""
             INSERT INTO app_classifier_versions(id,version,status,effective_from) VALUES(@id,@version,@status,@date)

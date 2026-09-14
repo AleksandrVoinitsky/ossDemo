@@ -51,6 +51,29 @@ internal static class ClassifierChecks
         var secondCategorySelection = ClassifierApplicabilityMatcher.Match(ClassifierSeedData.Tree, secondCategory, []);
         AssertTrue(secondCategorySelection.Any(item => item.Criterion.Code == "1.2"),
             "II категория должна включать критерий комплексного экологического разрешения.");
+
+        var mappingRows = ClassifierMappingCatalog.ParseLines([
+            "{\"code\":\"1.2\",\"section\":\"1. Общие вопросы\",\"name\":\"КЭР\",\"categories\":[\"I\"],\"types\":[\"Компрессорная станция\"],\"zones\":[],\"equipment\":[],\"specialZones\":[],\"environmentalAspects\":[],\"regions\":[\"Пермский край\"]}",
+            "{\"code\":\"1.3\",\"section\":\"1. Общие вопросы\",\"name\":\"Плата за НВОС\",\"categories\":[\"I\",\"II\",\"III\",\"IV\"],\"types\":[\"Компрессорная станция\"],\"zones\":[],\"equipment\":[],\"specialZones\":[],\"environmentalAspects\":[],\"regions\":[\"Пермский край\"]}"
+        ]);
+        var mappedTree = ClassifierMappingCatalog.Apply(ClassifierSeedData.Tree, mappingRows);
+        var mappedThirdCategory = FacilityFactNormalizer.Normalize(new FacilityProfileFields
+        {
+            Category = "III категория",
+            Type = "Компрессорная станция",
+            Region = "Пермский край"
+        }, null);
+        var mappedThirdSelection = ClassifierApplicabilityMatcher.Match(mappedTree, mappedThirdCategory, []);
+        AssertTrue(!mappedThirdSelection.Any(item => item.Criterion.Code == "1.2"),
+            "Обязательное ограничение mapping по категории должно исключать критерий 1.2 для категории III.");
+        AssertTrue(mappedThirdSelection.Any(item => item.Criterion.Code == "1.3"),
+            "Критерий с подходящими категорией, регионом и типом должен применяться.");
+
+        var approvedMappingPath = Path.Combine(AppContext.BaseDirectory, "requirements", "classifier-mapping.jsonl");
+        AssertTrue(File.Exists(approvedMappingPath), "Утверждённый mapping должен входить в результат сборки.");
+        var approvedMapping = ClassifierMappingCatalog.ParseLines(File.ReadLines(approvedMappingPath));
+        AssertEqual(49, approvedMapping.Count);
+        AssertEqual(49, approvedMapping.Select(row => row.Code).Distinct(StringComparer.OrdinalIgnoreCase).Count());
     }
 
     private static void AssertEqual<T>(T expected, T actual)

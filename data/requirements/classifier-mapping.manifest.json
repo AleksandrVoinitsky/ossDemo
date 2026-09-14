@@ -1,0 +1,9 @@
+{
+  "sourceFile": "Mapping_Карточка_объекта_+_Классификатор.xlsx",
+  "sourceSha256": "2ac397602d2e4fe2e8751a4e0e12a899e1526b6b070a0bd3f50b99d63d05a364",
+  "sourceRows": 49,
+  "mappingEntries": 49,
+  "correctedSourceCodes": {
+    "licensingCriterion": "4.1 -> 4.10"
+  }
+}

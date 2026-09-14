@@ -9,7 +9,8 @@ internal sealed class AiChecklistAgent(
     IAiChecklistRunStore runStore,
     ILogger<AiChecklistAgent> logger,
     IClassifierRepository? classifierRepository = null,
-    IAiChecklistHistoryReferenceSource? historyReferenceSource = null)
+    IAiChecklistHistoryReferenceSource? historyReferenceSource = null,
+    IInspectorChecklistTemplateSource? inspectorTemplateSource = null)
 {
     public async Task<ChecklistOperationResult<AiChecklistAnalysis>> AnalyzeAsync(string? facilitySlug, CancellationToken cancellationToken)
     {
@@ -85,11 +86,24 @@ internal sealed class AiChecklistAgent(
         var facts = FacilityFactNormalizer.Normalize(analysis.Value.Facility.Profile, null);
         var history = historyReferenceSource is null ? [] : await historyReferenceSource.GetAsync(facility.Name,tree,cancellationToken);
         var applicable = ClassifierApplicabilityMatcher.Match(tree, facts, history);
-        var batches = applicable.Select((match,index) =>
+        var templateSections = inspectorTemplateSource?.Items.Select(item=>item.SectionCode).ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
+        var plans = new List<AiChecklistBatchPlan>();
+        foreach(var sectionMatches in applicable.GroupBy(match=>match.Section.Code).OrderBy(group=>group.First().Section.Position))
         {
-            var query = AiChecklistQueryPlanner.Build(match,facts);
-            return new AiChecklistBatchPlan(index,$"{match.Criterion.Code} · {match.Section.Title}",[],0,[match.Criterion.Code],match.Reason,query.Query,match.Criterion.CheckText,match.Section.Title);
-        }).ToArray();
+            if(templateSections.Contains(sectionMatches.Key))
+            {
+                var first=sectionMatches.First();
+                plans.Add(new(plans.Count,first.Section.Title,[],0,sectionMatches.Select(match=>match.Criterion.Code).ToArray(),
+                    string.Join(" ",sectionMatches.Select(match=>match.Reason).Distinct(StringComparer.OrdinalIgnoreCase)),null,null,first.Section.Title));
+                continue;
+            }
+            foreach(var match in sectionMatches)
+            {
+                var query=AiChecklistQueryPlanner.Build(match,facts);
+                plans.Add(new(plans.Count,$"{match.Criterion.Code} · {match.Section.Title}",[],0,[match.Criterion.Code],match.Reason,query.Query,match.Criterion.CheckText,match.Section.Title));
+            }
+        }
+        var batches = plans.ToArray();
         var run = await runStore.CreateAsync(analysis.Value.Facility, facility.Id, facility.Name, [], batches, cancellationToken);
         logger.LogInformation("Создан запуск ИИ-чек-листа {RunId}: {CriterionCount} критериев классификатора за {DurationMs} мс.", run.Id, batches.Length, started.ElapsedMilliseconds);
         return ChecklistOperationResult<AiChecklistRunState>.Success(run);
@@ -108,6 +122,25 @@ internal sealed class AiChecklistAgent(
         logger.LogInformation("Запуск {RunId}, критерий {BatchIndex}: начат поиск оснований.", work.RunId, work.Batch.Index);
         try
         {
+            var sectionCode=work.Batch.CriterionCodes?.FirstOrDefault()?.Split('.')[0];
+            var templateItems=string.IsNullOrWhiteSpace(sectionCode) || inspectorTemplateSource is null
+                ? []
+                : InspectorChecklistTemplate.SelectSections(inspectorTemplateSource.Items,[sectionCode]);
+            if(templateItems.Count>0)
+            {
+                var templateEvidence=templateItems.Select(item=>new AiChecklistEvidence($"TPL-{item.Id}",item.Section,
+                    "Рабочий шаблон инспекционного контроля",item.Basis,item.Title,1)).ToArray();
+                var templateResults=templateItems.Select(item=>new AiGeneratedChecklistItem(item.Section,item.Title,
+                    work.Batch.ApplicabilityReason ?? "Раздел применим к карточке объекта.",1,
+                    [new($"TPL-{item.Id}",item.Title)])).ToArray();
+                await runStore.UpdateProgressAsync(work.RunId,work.Batch.Index,"validating",
+                    $"Из утверждённого рабочего слоя выбрано пунктов: {templateResults.Length}",templateResults.Length,string.Empty,cancellationToken);
+                await PersistOutcomeAsync(
+                    ()=>runStore.CompleteCriterionAsync(work.RunId,work.Batch.Index,templateEvidence,templateResults,timer.ElapsedMilliseconds,cancellationToken),
+                    work.RunId,work.Batch.Index,cancellationToken);
+                logger.LogInformation("Запуск {RunId}, раздел {SectionCode}: без LLM принято {ItemCount} утверждённых пунктов.",work.RunId,sectionCode,templateResults.Length);
+                return true;
+            }
             var evidence = work.Evidence;
             if (!string.IsNullOrWhiteSpace(work.Batch.Query))
             {

@@ -18,6 +18,16 @@
 
   <ItemGroup>
     <EmbeddedResource Include="..\..\data\seed\checklists.json" LogicalName="OssDemo.Web.Data.checklists.json" />
+    <Content Include="..\..\data\requirements\classifier-mapping.jsonl">
+      <Link>requirements\classifier-mapping.jsonl</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\..\data\requirements\inspector-checklist-template.jsonl">
+      <Link>requirements\inspector-checklist-template.jsonl</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
     <Content Include="..\..\data\knowledge-base\**\*.md">
       <Link>knowledge-base\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

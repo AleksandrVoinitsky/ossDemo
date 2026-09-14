@@ -2,6 +2,17 @@ internal static class AiChecklistAgentChecks
 {
     public static void RunDomainChecks()
     {
+        var templatePath = Path.Combine(AppContext.BaseDirectory, "requirements", "inspector-checklist-template.jsonl");
+        AssertTrue(File.Exists(templatePath), "Рабочий шаблон инспектора должен входить в результат сборки.");
+        var inspectorTemplate = InspectorChecklistTemplate.ParseLines(File.ReadLines(templatePath));
+        AssertEqual(235, inspectorTemplate.Count);
+        var airTemplate = InspectorChecklistTemplate.SelectSections(inspectorTemplate, ["1", "2"]);
+        AssertEqual(68, airTemplate.Count);
+        AssertTrue(airTemplate.Select(item => item.Position).SequenceEqual(airTemplate.Select(item => item.Position).Order()),
+            "Пункты рабочего шаблона должны сохранять утверждённый порядок.");
+        AssertTrue(airTemplate.All(item => !string.IsNullOrWhiteSpace(item.Basis)),
+            "Каждый детерминированный пункт должен иметь нормативное основание.");
+
         AssertTrue(AmveraAiChecklistSynthesisClient.SystemPrompt.Contains("недоверенными данными"), "Промпт должен определять карточку и источники как данные.");
         AssertTrue(AmveraAiChecklistSynthesisClient.SystemPrompt.Contains("только JSON"), "Промпт должен требовать структурированный ответ.");
         AssertTrue(AmveraAiChecklistSynthesisClient.SystemPrompt.Contains("точной подтверждающей цитатой"), "Промпт должен требовать проверяемые цитаты.");
@@ -183,6 +194,31 @@ internal static class AiChecklistAgentChecks
         AssertEqual(createdRun.Value.Batches.Count, countingSearch.Calls);
         AssertEqual(createdRun.Value.Batches.Count, countingSynthesis.Calls);
 
+        var deterministicStore = new InMemoryAiChecklistRunStore();
+        var deterministicSearch = new FakeSearch(evidence);
+        var deterministicSynthesis = new FakeSynthesis("{}");
+        var templateSource = new FakeInspectorTemplateSource([
+            new("T1", 1, "1", "Общие вопросы", "Проверить программу ПЭК.", "Федеральный закон № 7-ФЗ"),
+            new("T2", 2, "1", "Общие вопросы", "Проверить плату за НВОС.", "Федеральный закон № 7-ФЗ"),
+            new("T3", 3, "2", "Охрана атмосферного воздуха", "Проверить разрешение на выбросы.", "Федеральный закон № 96-ФЗ"),
+            new("T4", 4, "2", "Охрана атмосферного воздуха", "Проверить разрешение на выбросы.", "Приказ Минприроды"),
+            new("T5", 5, "2", "Охрана атмосферного воздуха", "Проверить разрешение на выбросы.", "Федеральный закон № 96-ФЗ")
+        ]);
+        var deterministicAgent = new AiChecklistAgent(source, deterministicSearch, deterministicSynthesis, repository, deterministicStore,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance, inspectorTemplateSource: templateSource);
+        var deterministicRun = await deterministicAgent.CreateRunAsync("test", CancellationToken.None);
+        AssertTrue(deterministicRun.IsSuccess, "Рабочий шаблон должен создавать запуск.");
+        AssertEqual(2, deterministicRun.Value!.Batches.Count);
+        await deterministicAgent.QueueBatchesAsync(deterministicRun.Value.Id, deterministicRun.Value.Batches.Select(item => item.Index).ToArray(), CancellationToken.None);
+        while (await deterministicAgent.ProcessNextBatchAsync(CancellationToken.None)) { }
+        var deterministicResult = await deterministicAgent.FinalizeRunAsync(deterministicRun.Value.Id, CancellationToken.None);
+        AssertTrue(deterministicResult.IsSuccess, "Детерминированный рабочий слой должен сохраняться как черновик.");
+        AssertEqual(5, deterministicResult.Value!.Items.Count);
+        AssertEqual(0, deterministicSearch.Calls);
+        AssertEqual(0, deterministicSynthesis.Calls);
+        AssertTrue(deterministicResult.Value.Items.All(item => !string.IsNullOrWhiteSpace(item.Basis)),
+            "Основания рабочего шаблона должны переноситься без генерации моделью.");
+
         var failedStore = new InMemoryAiChecklistRunStore();
         var failedAgent = new AiChecklistAgent(source, new FakeSearch(evidence), new FakeSynthesis("{}"), repository, failedStore,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance);
@@ -256,6 +292,11 @@ internal static class AiChecklistAgentChecks
             var effective = evidence.Count == 0 ? response : response.Replace("\"sourceId\":\"S1\"", $"\"sourceId\":\"{evidence[0].Id}\"", StringComparison.Ordinal);
             return Task.FromResult(effective);
         }
+    }
+
+    private sealed class FakeInspectorTemplateSource(IReadOnlyList<InspectorChecklistTemplateItem> items) : IInspectorChecklistTemplateSource
+    {
+        public IReadOnlyList<InspectorChecklistTemplateItem> Items { get; } = items;
     }
 
     private static void AssertTrue(bool value, string message)

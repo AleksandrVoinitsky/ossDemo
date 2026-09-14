@@ -14,7 +14,11 @@ internal static class AiChecklistCriterionConsolidator
 
     public static IReadOnlyList<AiGeneratedDraftItem> Consolidate(IReadOnlyList<AiChecklistBatchState> batches)
     {
-        var byCode = batches
+        var templateBatches=batches.Where(batch=>batch.BatchEvidence?.Any(evidence=>evidence.Id.StartsWith("TPL-",StringComparison.OrdinalIgnoreCase))==true)
+            .OrderBy(batch=>batch.Index).ToArray();
+        var templateItems=templateBatches.SelectMany(batch=>BuildTemplateItems(batch)).ToArray();
+        var classifierBatches=batches.Except(templateBatches).ToArray();
+        var byCode = classifierBatches
             .SelectMany(batch => (batch.CriterionCodes ?? []).Select(code => (Code:code,Batch:batch)))
             .GroupBy(item=>item.Code,StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group=>group.Key,group=>group.First().Batch,StringComparer.OrdinalIgnoreCase);
@@ -29,7 +33,19 @@ internal static class AiChecklistCriterionConsolidator
         }
         foreach(var pair in byCode.Where(pair=>!consumed.Contains(pair.Key)).OrderBy(pair=>CodeSort(pair.Key)))
             result.Add(Build([pair.Value],[pair.Key],null));
-        return result.OrderBy(item=>CodeSort(item.CriterionCodes?.FirstOrDefault() ?? "99.99")).ToArray();
+        return templateItems.Concat(result.OrderBy(item=>CodeSort(item.CriterionCodes?.FirstOrDefault() ?? "99.99"))).ToArray();
+    }
+
+    private static IEnumerable<AiGeneratedDraftItem> BuildTemplateItems(AiChecklistBatchState batch)
+    {
+        var evidence=(batch.BatchEvidence ?? []).ToDictionary(item=>item.Id,StringComparer.OrdinalIgnoreCase);
+        foreach(var item in batch.Items)
+        {
+            var source=item.Citations.Select(citation=>evidence.GetValueOrDefault(citation.SourceId)).FirstOrDefault(value=>value is not null);
+            if(source is null) continue;
+            yield return new(item.Section,item.Title,source.SourceLabel,$"Применимость: {batch.ApplicabilityReason}",batch.CriterionCodes,
+                "Утверждённый шаблон + mapping карточки объекта");
+        }
     }
 
     private static AiGeneratedDraftItem Build(IReadOnlyList<AiChecklistBatchState> batches,IReadOnlyList<string> codes,string? groupedTitle)

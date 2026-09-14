@@ -7,5 +7,13 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/OssDemo.Web/OssDemo.Web.csproj" />
+    <Content Include="../../data/requirements/classifier-mapping.jsonl">
+      <Link>requirements/classifier-mapping.jsonl</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="../../data/requirements/inspector-checklist-template.jsonl">
+      <Link>requirements/inspector-checklist-template.jsonl</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 </Project>
