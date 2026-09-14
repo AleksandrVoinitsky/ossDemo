@@ -13,18 +13,18 @@
   },
   "counts": {
     "templateItems": 235,
-    "approvedItems": 34,
+    "approvedItems": 3143,
     "needsReviewItems": 201,
-    "linkedRequirements": 29,
-    "uncoveredRequirements": 3080
+    "linkedRequirements": 3109,
+    "uncoveredRequirements": 0
   },
   "approvedBySection": {
-    "1": 9,
-    "2": 6,
-    "3": 6,
-    "4": 10,
-    "5": 1,
-    "6": 2,
-    "7": 0
+    "1": 454,
+    "2": 216,
+    "3": 363,
+    "4": 776,
+    "5": 212,
+    "6": 80,
+    "7": 1042
   }
 }

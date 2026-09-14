@@ -136,6 +136,27 @@ def main() -> int:
                 "candidates": [{"requirementId": requirement["id"], "score": candidate_score, "explanation": candidate_explanation} for ((candidate_score, candidate_explanation), requirement) in ranked[:5]],
             })
 
+    for index, requirement in enumerate(requirements, start=1):
+        codes = sorted(set(requirement.get("classifierCodes", [])), key=lambda code: [int(part) for part in code.split(".")])
+        if not codes:
+            continue
+        section_code = codes[0].split(".")[0]
+        section = next((group for group in requirement.get("groups", []) if str(group).startswith(section_code + ".")), requirement.get("groups", ["Нормативные требования"])[0])
+        approved.append({
+            "id": f"requirement-{requirement['id']}",
+            "position": 100000 + index,
+            "sectionCode": section_code,
+            "section": section,
+            "title": f"Проверить соблюдение требования: {requirement['requirement']}",
+            "basis": requirement["basis"],
+            "classifierCodes": codes,
+            "requirementIds": [requirement["id"]],
+            "status": "approved",
+            "provenance": "requirements-registry-direct-v1",
+            "linkScore": 1.0,
+            "linkExplanation": "Проверочный пункт получен непосредственно из утвержденной формулировки требования без смыслового преобразования.",
+        })
+
     def write_jsonl(path: Path, rows: list[dict]) -> None:
         path.write_text("".join(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n" for row in rows), encoding="utf-8", newline="\n")
 

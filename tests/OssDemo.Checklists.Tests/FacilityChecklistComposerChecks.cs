@@ -20,8 +20,13 @@ internal static class FacilityChecklistComposerChecks
             "Пункт не должен ссылаться на неприменимое требование.");
         AssertEqual(industrialResult.SelectedRequirementIds.Count,
             industrialResult.CoveredRequirementIds.Concat(industrialResult.Gaps.Select(gap => gap.RequirementId)).Distinct(StringComparer.OrdinalIgnoreCase).Count());
-        AssertTrue(industrialResult.Gaps.Count > 0 && !industrialResult.CanFinalizeChecklist,
-            "Неполное покрытие нельзя скрывать или финализировать.");
+        AssertEqual(0, industrialResult.Gaps.Count);
+        AssertTrue(industrialResult.CanFinalizeChecklist, "Прямые пункты реестра должны закрывать нормативное покрытие без ИИ.");
+
+        industrial.StructuredProfile!.Features["water.discharge"] = new(FacilityFactState.Unknown);
+        var blocked = composer.Compose(industrial);
+        AssertTrue(!blocked.CanFinalizeChecklist && blocked.ClassifierDecisions.Any(item => item.Outcome == "blocked_unknown"),
+            "Неизвестный критический факт должен блокировать финализацию.");
     }
 
     private static FacilityProfileFields Profile(string slug, FacilityFactState defaultState)

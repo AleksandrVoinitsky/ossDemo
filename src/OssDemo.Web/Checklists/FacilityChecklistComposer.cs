@@ -34,10 +34,15 @@ internal sealed class FacilityChecklistComposer(
             .Where(requirement => MatchesCategory(requirement.Categories, profile.Category))
             .ToArray();
         var selectedIds = selectedRequirements.Select(item => item.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var selectedItems = items
+        var applicableItems = items
             .Where(item => item.Status.Equals("approved", StringComparison.OrdinalIgnoreCase))
             .Where(item => item.ClassifierCodes.Any(includedCodes.Contains))
             .Where(item => item.RequirementIds.Count > 0 && item.RequirementIds.All(selectedIds.Contains))
+            .ToArray();
+        var historicalItems = applicableItems.Where(item => !item.Provenance.StartsWith("requirements-registry-direct", StringComparison.OrdinalIgnoreCase)).ToArray();
+        var historicallyCovered = historicalItems.SelectMany(item => item.RequirementIds).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var selectedItems = historicalItems.Concat(applicableItems.Where(item => item.Provenance.StartsWith("requirements-registry-direct", StringComparison.OrdinalIgnoreCase)
+                && item.RequirementIds.Any(requirementId => !historicallyCovered.Contains(requirementId))))
             .OrderBy(item => item.SectionCode, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.Position)
             .ToArray();
