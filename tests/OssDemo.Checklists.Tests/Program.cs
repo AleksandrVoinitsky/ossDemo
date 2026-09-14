@@ -17,6 +17,53 @@ AssertEqual(1, valid.Value.Sections[0].Position);
 AssertEqual(1, valid.Value.Sections[0].Items[0].Position);
 AssertEqual("Статья 1", valid.Value.Sections[0].Items[0].Basis);
 
+var loadedSeed = ChecklistSeedDataLoader.Deserialize(
+    """
+    {
+      "templates": [
+        {
+          "id": "20000000-0000-0000-0000-000000000099",
+          "sourceKey": "fixture-template",
+          "name": "Тестовый шаблон",
+          "facility": "Тестовый объект",
+          "sections": [
+            {
+              "title": "Общий раздел",
+              "items": [
+                { "title": "Проверить документ", "basis": "Статья 1", "note": "Примечание" }
+              ]
+            }
+          ]
+        }
+      ],
+      "history": [
+        {
+          "id": "30000000-0000-0000-0000-000000000099",
+          "sourceKey": "fixture-history",
+          "name": "Тестовая история",
+          "facility": "Тестовый объект",
+          "startedOn": "2026-09-01",
+          "finishedOn": "2026-09-02",
+          "approvedAt": "2026-09-03T10:15:00+05:00",
+          "status": "Approved",
+          "items": [
+            {
+              "section": "Общий раздел",
+              "title": "Проверить документ",
+              "basis": "Статья 1",
+              "result": "Да",
+              "nonconformity": "",
+              "note": "Выполнено"
+            }
+          ]
+        }
+      ]
+    }
+    """);
+AssertEqual("Проверить документ", loadedSeed.Templates[0].Sections[0].Items[0].Title);
+AssertEqual(new DateOnly(2026, 9, 1), loadedSeed.History[0].StartedOn);
+AssertEqual(ChecklistStatus.Approved, loadedSeed.History[0].Status);
+
 AssertEqual(3, ChecklistSeedData.Templates.Count);
 AssertEqual(3, ChecklistSeedData.History.Count);
 AssertTrue(ChecklistSeedData.History.All(item => item.Status == ChecklistStatus.Approved), "История должна быть утверждена.");

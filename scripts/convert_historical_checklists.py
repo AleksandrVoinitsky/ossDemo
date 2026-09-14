@@ -14,8 +14,8 @@ from openpyxl import load_workbook
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_DIRECTORY = ROOT / "02_📂 Чек-листы" / "Исторические чек-листы"
-DESTINATION_DIRECTORY = ROOT / "src" / "OssDemo.Web" / "Data" / "Checklists"
+SOURCE_DIRECTORY = ROOT / "data" / "reference" / "checklists" / "Исторические чек-листы"
+DESTINATION_DIRECTORY = ROOT / "data" / "import" / "checklists" / "csv"
 
 
 def text(value: object | None) -> str:

@@ -43,6 +43,7 @@ internal sealed record ChecklistSeedSection(string Title, IReadOnlyList<Checklis
 internal sealed record ChecklistSeedTemplateItem(string Title, string Basis, string Note);
 internal sealed record ChecklistSeedHistory(Guid Id, string SourceKey, string Name, string Facility, DateOnly? StartedOn, DateOnly? FinishedOn, DateTimeOffset ApprovedAt, ChecklistStatus Status, IReadOnlyList<ChecklistSeedHistoryItem> Items);
 internal sealed record ChecklistSeedHistoryItem(string Section, string Title, string Basis, string Result, string Nonconformity, string Note);
+internal sealed record ChecklistSeedDataset(IReadOnlyList<ChecklistSeedTemplate> Templates, IReadOnlyList<ChecklistSeedHistory> History);
 
 internal sealed record ChecklistOperationResult<T>(
     bool IsSuccess,

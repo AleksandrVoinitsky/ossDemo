@@ -1,18 +1,6 @@
-# Demo source materials currently stored locally in the repository root.
-# They are intentionally excluded from Git because they are binary/reference data,
-# not application source code.
-/Сценарий демо-показа АИ ООС.docx
-/сценарий.txt
-/Техническое задание и план работ для Demo-стенда АИ ООС.pdf
-/ФТ АИ ОСС.docx
-/01_📅 График проверок/
-/02_📂 Чек-листы/
-# Docling-обработанная база знаний поставляется с приложением и хранится в Git.
-/04_📄 Шаблоны чек-листов/
-/06_🏭 Объекты/
-/07_⚠️ Реестр нарушений/
-/08_📋 Справочники/
-/Дулаева - рабочие материалы/
+# Local binary/reference data. Keep only its README in Git.
+/data/reference/*
+!/data/reference/README.md
 
 # Build output
 [Bb]in/
@@ -34,6 +22,7 @@ _ReSharper*/
 *.DotSettings.user
 
 # ASP.NET Core local settings and secrets
+/.env
 appsettings.Local.json
 appsettings.*.Local.json
 secrets.json
@@ -61,7 +50,7 @@ coverage.*
 # Publish/deployment output
 publish/
 /.checklists-publish/
-/.verify-publish/
+/.verify-publish*/
 *.nupkg
 *.snupkg
 
