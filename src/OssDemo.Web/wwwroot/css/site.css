@@ -4183,3 +4183,24 @@ a { color: var(--primary); }
 .facility-fact-absent .badge { color: #fff; background: #6c757d; }
 .facility-fact-unknown .badge { color: #332701; background: #ffc107; }
 @media (max-width: 767.98px) { .facility-feature-grid, .facility-fact-list { grid-template-columns: 1fr; } .facility-feature-hint { min-height: 0; } }
+
+/* Checklist composition provenance */
+.ai-composition-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; }
+.ai-composition-summary > div { padding: 1rem; border: 1px solid var(--border-soft); border-radius: .85rem; background: var(--surface-soft); }
+.ai-composition-summary span, .ai-composition-summary strong { display: block; }
+.ai-composition-summary span { color: var(--ink-muted); font-size: .78rem; }
+.ai-composition-summary strong { margin-top: .15rem; color: var(--primary); font-size: 1.45rem; }
+.ai-excluded-row { display: grid; grid-template-columns: auto 1fr; gap: .7rem; padding: .7rem 0; border-bottom: 1px solid var(--border-soft); }
+.ai-excluded-row:last-child { border-bottom: 0; }
+.ai-excluded-row p { margin: .15rem 0 0; color: var(--ink-muted); font-size: .84rem; }
+.ai-item-traces { display: grid; gap: .55rem; }
+.ai-trace { border: 1px solid var(--border-soft); border-radius: .8rem; background: var(--surface); overflow: clip; }
+.ai-trace summary { display: grid; grid-template-columns: 2.1rem 1fr; gap: .65rem; align-items: start; min-height: 3rem; padding: .8rem 1rem; cursor: pointer; }
+.ai-trace summary:hover { background: var(--surface-soft); }
+.ai-trace summary:focus-visible { outline: .2rem solid color-mix(in srgb, var(--primary) 35%, transparent); outline-offset: -.2rem; }
+.ai-trace summary span { display: grid; place-items: center; width: 2rem; height: 2rem; color: var(--primary); border-radius: 50%; background: color-mix(in srgb, var(--primary) 10%, white); font-size: .75rem; font-weight: 800; }
+.ai-trace ol { margin: 0; padding: .85rem 1.25rem .5rem 3.25rem; border-top: 1px solid var(--border-soft); background: var(--surface-soft); }
+.ai-trace li { margin-bottom: .45rem; overflow-wrap: anywhere; }
+.ai-trace > p { margin: 0; padding: .6rem 1rem .8rem; color: var(--ink-muted); background: var(--surface-soft); font-size: .78rem; }
+@media (max-width: 767.98px) { .ai-composition-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .ai-composition-summary { grid-template-columns: 1fr; } .ai-trace summary { padding-inline: .75rem; } }

@@ -31,6 +31,7 @@
 
     <div class="wizard-panel" data-ai-step="1" hidden>
         <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 2. Признаки объекта</h2><p class="muted-note mb-0">Проверьте поля карточки, по которым система определит применимые критерии классификатора.</p></div></div>
+        <div class="alert mb-3" data-ai-profile-readiness role="status"></div>
         <div class="row g-3" data-ai-profile></div>
         <div class="alert alert-danger mt-3 mb-0" data-ai-search-error hidden tabindex="-1"></div>
         <div class="wizard-actions"><button class="btn btn-outline-primary btn-lg" type="button" data-ai-prev>Назад</button><button class="btn btn-primary btn-lg" type="button" data-ai-search>Подобрать критерии</button></div>
@@ -38,12 +39,16 @@
 
     <div class="wizard-panel" data-ai-step="2" hidden>
         <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 3. Применимые критерии</h2><p class="muted-note mb-0">Классификатор задал структуру будущего чек-листа. Для каждого критерия показана причина включения.</p></div><span class="badge text-bg-primary" data-ai-evidence-count>0 критериев</span></div>
+        <div class="ai-composition-summary mb-3" data-ai-composition-summary></div>
+        <div class="alert mb-3" data-ai-coverage-gaps role="status"></div>
         <div class="ai-selected-criteria" data-ai-evidence></div><div data-ai-queries hidden></div>
+        <details class="soft-panel p-3 mt-3" data-ai-excluded-criteria><summary class="fw-semibold">Исключённые и заблокированные критерии</summary><div class="mt-3" data-ai-excluded-list></div></details>
+        <section class="mt-4" aria-labelledby="ai-item-traces-title"><div class="d-flex flex-wrap justify-content-between gap-2 mb-2"><h3 class="h5 section-title mb-0" id="ai-item-traces-title">Происхождение пунктов</h3><span class="muted-note">Факт → критерий → требование → проверка</span></div><div class="ai-item-traces" data-ai-item-traces></div></section>
         <div class="wizard-actions"><button class="btn btn-outline-primary btn-lg" type="button" data-ai-prev>Назад</button><button class="btn btn-primary btn-lg" type="button" data-ai-next>Перейти к формированию</button></div>
     </div>
 
     <div class="wizard-panel" data-ai-step="3" hidden>
-        <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 4. Сформировать проект</h2><p class="muted-note mb-0">Система переносит утверждённые пункты применимых разделов. Поиск по нормативной базе и ИИ используются только для критериев без готового рабочего слоя.</p></div></div>
+        <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 4. Сформировать проект</h2><p class="muted-note mb-0">Система собирает утверждённые пункты по сохранённому снимку карточки и нормативных каталогов. Применимость не передаётся ИИ.</p></div></div>
         <div class="generation-stage"><div class="generation-orbit" aria-hidden="true"><span></span><span></span><span></span></div><div><div class="d-flex flex-wrap justify-content-between gap-2"><strong data-ai-generation-title>Система готова к запуску</strong><span class="muted-note">Прошло: <b data-ai-elapsed>00:00</b></span></div><p class="muted-note mb-2" data-ai-generation-status role="status" aria-live="polite" aria-atomic="true">Разделы будут обработаны последовательно и сохранены в черновик.</p><div class="generation-progress"><div class="generation-progress-bar" data-ai-generation-progress></div></div></div></div>
         <div class="ai-live-metrics mt-3">
             <div><span>Общий прогресс</span><strong data-ai-total-progress>0 из 0</strong></div>
@@ -71,7 +76,7 @@
 
     <div class="wizard-panel" data-ai-step="4" hidden>
         <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 5. Проект сохранён</h2><p class="muted-note mb-0">Дальше работает обычный цикл: редактирование, заполнение результатов, утверждение, история и экспорт.</p></div><span class="badge text-bg-success">Черновик</span></div>
-        <div class="wizard-card"><table class="table compact-detail-table mb-0"><tbody><tr><th>Название</th><td data-ai-result-name>—</td></tr><tr><th>Объект</th><td data-ai-result-facility>—</td></tr><tr><th>Пунктов</th><td data-ai-result-count>—</td></tr><tr><th>Источник</th><td>Mapping карточки объекта + утверждённый рабочий слой + нормативная база</td></tr></tbody></table></div>
+        <div class="wizard-card"><table class="table compact-detail-table mb-0"><tbody><tr><th>Название</th><td data-ai-result-name>—</td></tr><tr><th>Объект</th><td data-ai-result-facility>—</td></tr><tr><th>Пунктов</th><td data-ai-result-count>—</td></tr><tr><th>Источник</th><td>Подтверждённая карточка → классификатор → реестр требований → утверждённые проверки</td></tr></tbody></table></div>
         <div class="wizard-actions"><a class="btn btn-success btn-lg" data-ai-result-link>Открыть интерактивный чек-лист</a></div>
     </div>
 </section>

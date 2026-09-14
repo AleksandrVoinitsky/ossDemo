@@ -125,6 +125,12 @@ $facilityEditPage = Invoke-WebRequest -Uri "http://127.0.0.1:18080/Facilities/Ed
 if ($facilityEditPage.Content -notmatch 'data-facility-readiness' -or $facilityEditPage.Content -notmatch 'data-structured-features') {
     throw 'The facility editor does not expose structured readiness controls.'
 }
+$aiChecklistPage = Invoke-WebRequest -Uri 'http://127.0.0.1:18080/Checklists/AiNew' -Headers @{ Cookie = 'oss.auth=true' } -UseBasicParsing -TimeoutSec 10
+foreach ($marker in @('data-ai-profile-readiness', 'data-ai-composition-summary', 'data-ai-coverage-gaps', 'data-ai-item-traces')) {
+    if ($aiChecklistPage.Content -notmatch $marker) {
+        throw "The automated checklist page is missing explainability marker '$marker'."
+    }
+}
 
 try {
     $ragStatus = Invoke-RestMethod -Uri 'http://127.0.0.1:18080/api/rag/status' -Headers @{ Cookie = 'oss.auth=true' } -TimeoutSec 10

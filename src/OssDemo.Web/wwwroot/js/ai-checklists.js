@@ -5,7 +5,11 @@
   const request = async (url, options) => {
     const response = await fetch(url, options);
     const body = response.status === 204 || response.status === 202 ? null : await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body?.error || 'Не удалось выполнить операцию.');
+    if (!response.ok) {
+      const error = new Error(body?.error || 'Не удалось выполнить операцию.');
+      error.code = body?.code; error.fields = body?.fields || {};
+      throw error;
+    }
     return body;
   };
   const post = (url, body) => request(url, { method: 'POST', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
@@ -28,13 +32,50 @@
   const setBusy = (button, busy, label) => { button.disabled = busy; button.textContent = busy ? label : button.dataset.idleLabel; };
   const showError = (selector, error) => { const node = root.querySelector(selector); node.textContent = error.message; node.hidden = false; node.focus(); };
   const profileLabels = { shortName: 'Краткое название', fullName: 'Полное название', type: 'Тип объекта', category: 'Категория НВОС', region: 'Регион', specialZones: 'Специальные зоны', zones: 'Зоны объекта', environmentalAspects: 'Экологические аспекты', equipment: 'Оборудование', gasTreatment: 'Газоочистка', treatmentFacilities: 'Очистные сооружения', waterSupply: 'Водоснабжение', emissionSources: 'Источники выбросов', permits: 'Разрешения', pecProgram: 'Программа ПЭК', wasteStandard: 'Нормативы отходов', sanitaryZoneProject: 'Проект СЗЗ' };
-  const renderProfile = (profile) => {
+  const renderProfile = (facility) => {
+    const profile = facility.profile;
     root.querySelector('[data-ai-profile]').innerHTML = Object.entries(profileLabels).filter(([key]) => profile[key] && profile[key] !== 'Не указано').map(([key, label]) => `<div class="col-md-6"><div class="wizard-card h-100"><div class="small text-muted mb-1">${escapeHtml(label)}</div><strong class="ai-profile-value">${escapeHtml(profile[key])}</strong></div></div>`).join('');
+    const readiness = root.querySelector('[data-ai-profile-readiness]');
+    const ready = facility.readiness?.canFinalizeChecklist;
+    readiness.className = `alert mb-3 ${ready ? 'alert-success' : 'alert-warning'}`;
+    readiness.innerHTML = ready
+      ? '<strong>Готовность карточки:</strong> карточка подтверждена, обязательные признаки заполнены.'
+      : `<strong>Готовность карточки:</strong> ${escapeHtml((facility.readiness?.reasons || ['Карточка требует проверки.']).join(' '))} <a class="alert-link" href="/Facilities/Edit/${encodeURIComponent(facility.slug)}">Открыть карточку объекта</a>`;
   };
   const renderSearch = (run) => {
     root.querySelector('[data-ai-queries]').innerHTML = '';
-    root.querySelector('[data-ai-evidence-count]').textContent = `${run.batches.length} критериев`;
-    root.querySelector('[data-ai-evidence]').innerHTML = run.batches.map((item) => `<article class="ai-criterion-preview"><span class="ai-criterion-code">${escapeHtml((item.criterionCodes || []).join(', '))}</span><div><strong>${escapeHtml(item.fallbackTitle || item.topic)}</strong><p>${escapeHtml(item.applicabilityReason || 'Базовый критерий классификатора.')}</p></div></article>`).join('');
+    const snapshot = run.snapshot;
+    if (!snapshot) {
+      root.querySelector('[data-ai-composition-summary]').innerHTML = '';
+      root.querySelector('[data-ai-coverage-gaps]').innerHTML = '';
+      root.querySelector('[data-ai-excluded-list]').innerHTML = '<p class="muted-note mb-0">Для старого запуска подробная трассировка не сохранялась.</p>';
+      root.querySelector('[data-ai-item-traces]').innerHTML = '';
+      root.querySelector('[data-ai-evidence-count]').textContent = `${run.batches.length} пакетов`;
+      root.querySelector('[data-ai-evidence]').innerHTML = run.batches.map((item) => `<article class="ai-criterion-preview"><span class="ai-criterion-code">${escapeHtml((item.criterionCodes || []).join(', '))}</span><div><strong>${escapeHtml(item.fallbackTitle || item.topic)}</strong><p>${escapeHtml(item.applicabilityReason || 'Базовый критерий классификатора.')}</p></div></article>`).join('');
+      return;
+    }
+    const decisions = snapshot.classifierDecisions || [];
+    const included = decisions.filter((item) => item.outcome === 'included');
+    const excluded = decisions.filter((item) => item.outcome !== 'included');
+    root.querySelector('[data-ai-evidence-count]').textContent = `${snapshot.includedCriterionCount} критериев`;
+    root.querySelector('[data-ai-composition-summary]').innerHTML = [
+      ['Включено критериев', snapshot.includedCriterionCount], ['Исключено критериев', snapshot.excludedCriterionCount],
+      ['Выбрано требований', snapshot.selectedRequirementCount], ['Ожидается пунктов', snapshot.expectedItemCount]
+    ].map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
+    const gaps = snapshot.coverageGaps || [];
+    const coverage = root.querySelector('[data-ai-coverage-gaps]');
+    coverage.className = `alert mb-3 ${gaps.length ? 'alert-danger' : 'alert-success'}`;
+    coverage.innerHTML = gaps.length
+      ? `<strong>Разрывы покрытия: ${gaps.length}.</strong> Итоговое сохранение заблокировано до привязки требований.`
+      : '<strong>Разрывы покрытия: 0.</strong> Каждое выбранное требование имеет проверочный пункт.';
+    root.querySelector('[data-ai-evidence]').innerHTML = included.map((item) => `<article class="ai-criterion-preview"><span class="ai-criterion-code">${escapeHtml(item.code)}</span><div><strong>${escapeHtml(item.reason)}</strong><p>${escapeHtml((item.facts || []).map((fact) => `${fact.code}: ${fact.state}`).join(' · ') || 'Базовый или идентификационный критерий')}</p></div></article>`).join('');
+    root.querySelector('[data-ai-excluded-list]').innerHTML = excluded.map((item) => `<div class="ai-excluded-row"><span class="ai-criterion-code">${escapeHtml(item.code)}</span><div><strong>${item.outcome === 'blocked_unknown' ? 'Нужно уточнить' : 'Не применяется'}</strong><p>${escapeHtml(item.reason)}</p></div></div>`).join('') || '<p class="muted-note mb-0">Нет исключённых критериев.</p>';
+    const decisionsByCode = Object.fromEntries(decisions.map((item) => [item.code, item]));
+    root.querySelector('[data-ai-item-traces]').innerHTML = (snapshot.itemTraces || []).map((item, index) => {
+      const facts = item.classifierCodes.flatMap((code) => decisionsByCode[code]?.facts || []).filter((fact, factIndex, all) => all.findIndex((other) => other.code === fact.code) === factIndex);
+      const factText = facts.length ? facts.map((fact) => `${fact.code} = ${fact.state}${fact.details ? ` (${fact.details})` : ''}`).join('; ') : 'идентификационные данные или базовый критерий';
+      return `<details class="ai-trace"><summary><span>${index + 1}</span><strong>${escapeHtml(item.title)}</strong></summary><ol><li><b>Факт:</b> ${escapeHtml(factText)}</li><li><b>Критерий:</b> ${escapeHtml(item.classifierCodes.join(', '))}</li><li><b>Требование:</b> ${escapeHtml(item.requirementIds.join(', '))}</li><li><b>Проверка и основание:</b> ${escapeHtml(item.basis)}</li></ol><p>${escapeHtml(item.explanation)} · ${escapeHtml(item.provenance)}</p></details>`;
+    }).join('');
   };
   const formatElapsed = (from) => {
     const seconds = Math.max(0, Math.floor((Date.now() - new Date(from).getTime()) / 1000));
@@ -152,12 +193,18 @@
     slug = select.value;
     if (!slug) { showError('[data-ai-error]', new Error('Выберите объект проверки.')); return; }
     const button = event.currentTarget; button.dataset.idleLabel = button.textContent; setBusy(button, true, 'Анализ карточки…');
-    try { const data = await post('/api/ai-checklists/analyze', { facilitySlug: slug }); renderProfile(data.facility.profile); showStep(1); } catch (error) { showError('[data-ai-error]', error); } finally { setBusy(button, false, ''); }
+    try { const data = await post('/api/ai-checklists/analyze', { facilitySlug: slug }); renderProfile(data.facility); showStep(1); } catch (error) { showError('[data-ai-error]', error); } finally { setBusy(button, false, ''); }
   });
   root.querySelector('[data-ai-search]').addEventListener('click', async (event) => {
     const button = event.currentTarget; button.dataset.idleLabel = button.textContent; setBusy(button, true, 'Сопоставляем с классификатором…');
     root.querySelector('[data-ai-search-error]').hidden = true;
-    try { currentRun = await post('/api/ai-checklists/runs', { facilitySlug: slug }); renderSearch(currentRun); history.replaceState(null, '', `?run=${encodeURIComponent(currentRun.id)}`); showStep(2); } catch (error) { showError('[data-ai-search-error]', error); } finally { setBusy(button, false, ''); }
+    try { currentRun = await post('/api/ai-checklists/runs', { facilitySlug: slug }); renderSearch(currentRun); history.replaceState(null, '', `?run=${encodeURIComponent(currentRun.id)}`); showStep(2); } catch (error) {
+      showError('[data-ai-search-error]', error);
+      if (error.code === 'facility_profile_incomplete') {
+        const node = root.querySelector('[data-ai-search-error]');
+        node.insertAdjacentHTML('beforeend', ` <a class="alert-link" href="/Facilities/Edit/${encodeURIComponent(slug)}">Заполнить и подтвердить карточку</a>`);
+      }
+    } finally { setBusy(button, false, ''); }
   });
   root.querySelector('[data-ai-next]').addEventListener('click', () => { renderRun(currentRun); showStep(3); });
   root.querySelectorAll('[data-ai-prev]').forEach((button) => button.addEventListener('click', () => showStep(Math.max(0, step - 1))));
@@ -192,7 +239,7 @@
 
   const restoreRunId = params.get('run');
   if (restoreRunId) request(`/api/ai-checklists/runs/${encodeURIComponent(restoreRunId)}`).then((run) => {
-    currentRun = run; slug = run.facility.slug; renderProfile(run.facility.profile); renderSearch(run); renderRun(run);
+    currentRun = run; slug = run.facility.slug; renderProfile(run.facility); renderSearch(run); renderRun(run);
     if (run.checklistId) { root.querySelector('[data-ai-result-name]').textContent = 'Автоматизированный чек-лист'; root.querySelector('[data-ai-result-facility]').textContent = run.facilityName; root.querySelector('[data-ai-result-count]').textContent = run.batches.reduce((sum, item) => sum + item.itemCount, 0); root.querySelector('[data-ai-result-link]').href = `/Checklists/Result?id=${encodeURIComponent(run.checklistId)}`; showStep(4); }
     else { showStep(3); poll(); }
   }).catch((error) => showError('[data-ai-error]', error));
