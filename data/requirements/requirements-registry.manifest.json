@@ -1,0 +1,9 @@
+{
+  "sourceFile": "Общий Реестр требований.xlsx",
+  "sourceSha256": "5512cd53d2acd07665df9aff51270f6532f769162ee8958fc081581476e4b1b6",
+  "sourceRows": 5564,
+  "catalogEntries": 3109,
+  "excludedClassifierCodes": [
+    "2.7"
+  ]
+}
