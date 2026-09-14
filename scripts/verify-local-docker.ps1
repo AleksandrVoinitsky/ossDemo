@@ -1,5 +1,6 @@
 param(
     [switch]$Live,
+    [switch]$RequireIndexedRag,
     [ValidateRange(10, 1800)]
     [int]$StartupTimeoutSeconds = 900
 )
@@ -113,6 +114,39 @@ if ($facilities.Count -lt 1) {
     throw 'The local database does not contain seeded facilities.'
 }
 
+try {
+    $ragStatus = Invoke-RestMethod -Uri 'http://127.0.0.1:18080/api/rag/status' -Headers @{ Cookie = 'oss.auth=true' } -TimeoutSec 10
+}
+catch {
+    throw "The RAG status API is unavailable: $($_.Exception.Message)"
+}
+if (-not $ragStatus.databaseConfigured) {
+    throw 'The RAG status API reports that PostgreSQL is not configured.'
+}
+if (-not [string]::IsNullOrWhiteSpace([string]$ragStatus.problem)) {
+    throw "The RAG schema is not ready: $($ragStatus.problem)"
+}
+if ($RequireIndexedRag) {
+    if (-not $ragStatus.ready -or [int]$ragStatus.documentCount -lt 1 -or [int]$ragStatus.chunkCount -lt 1) {
+        throw "The RAG index is empty or incomplete. Documents: $($ragStatus.documentCount); chunks: $($ragStatus.chunkCount)."
+    }
+
+    $probeBody = @{
+        message = '!производственный экологический контроль требования'
+        conversation = @()
+        stream = $false
+    } | ConvertTo-Json -Compress
+    try {
+        $ragProbe = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:18080/api/ai/chat' -Headers @{ Cookie = 'oss.auth=true' } -ContentType 'application/json; charset=utf-8' -Body $probeBody -TimeoutSec 180
+    }
+    catch {
+        throw "The indexed RAG search probe failed: $($_.Exception.Message)"
+    }
+    if ($ragProbe.mode -ne 'rag-debug-candidates' -or -not $ragProbe.grounded -or [string]::IsNullOrWhiteSpace([string]$ragProbe.answer)) {
+        throw 'The indexed RAG search probe did not return grounded diagnostic matches.'
+    }
+}
+
 $extension = & docker compose --project-name ossdemo-local --env-file $environmentFile -f $composeFile exec -T database psql -U ossdemo -d ossdemo -Atc "SELECT extname FROM pg_extension WHERE extname='vector';"
 if ($LASTEXITCODE -ne 0 -or ([string]$extension).Trim() -ne 'vector') {
     throw 'The pgvector extension is not installed in the local database.'
@@ -123,4 +157,9 @@ if ($LASTEXITCODE -ne 0 -or [int]$tableCount -lt 10) {
     throw "Application schema is incomplete. Found $tableCount app_* tables."
 }
 
-Write-Output "Local Docker live checks passed. Application tables: $tableCount."
+$ragSummary = if ($RequireIndexedRag) {
+    " RAG documents: $($ragStatus.documentCount); chunks: $($ragStatus.chunkCount)."
+} else {
+    ''
+}
+Write-Output "Local Docker live checks passed. Application tables: $tableCount.$ragSummary"

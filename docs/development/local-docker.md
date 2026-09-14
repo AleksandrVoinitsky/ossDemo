@@ -25,11 +25,14 @@ Copy-Item .env.local.example .env.local
 ```powershell
 ./scripts/local-docker.ps1 Status
 ./scripts/local-docker.ps1 Verify
+./scripts/local-docker.ps1 Verify -RequireIndexedRag
 ./scripts/local-docker.ps1 Logs
 ./scripts/local-docker.ps1 Down
 ```
 
 `Down` удаляет контейнеры и сеть, но сохраняет данные в volumes. Скрипт намеренно не содержит автоматического удаления volumes.
+
+`Verify -RequireIndexedRag` дополнительно требует непустой индекс и выполняет диагностический гибридный поиск без обращения к LLM.
 
 ## Подключение LLM
 

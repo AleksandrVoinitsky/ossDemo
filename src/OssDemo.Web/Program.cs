@@ -96,6 +96,7 @@ builder.Services.AddSingleton<IAiChecklistHistoryReferenceSource, AiChecklistHis
 builder.Services.AddHostedService<AiChecklistBatchWorker>();
 
 var app = builder.Build();
+await app.Services.GetRequiredService<RagDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);
 await app.Services.GetRequiredService<ChecklistDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);
 await app.Services.GetRequiredService<AiChecklistDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);
 await app.Services.GetRequiredService<ClassifierDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);
