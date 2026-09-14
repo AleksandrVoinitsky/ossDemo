@@ -157,6 +157,11 @@ app.MapGet("/api/operations/dashboard", async (OperationalDataService operationa
     Results.Ok(await operationalData.GetDashboardAsync(cancellationToken)));
 app.MapGet("/api/operations/facilities", async (OperationalDataService operationalData, CancellationToken cancellationToken) =>
     Results.Ok(await operationalData.GetFacilitiesAsync(cancellationToken)));
+app.MapGet("/api/operations/facility-profile-dictionaries", () => Results.Ok(new
+{
+    features = FacilityProfileDictionaries.Features,
+    states = FacilityProfileDictionaries.States
+}));
 app.MapGet("/api/operations/facility-profiles/{slug}", async (string slug, FacilityProfileService profileService, CancellationToken cancellationToken) =>
 {
     var profile = await profileService.GetAsync(slug, cancellationToken);
@@ -164,13 +169,21 @@ app.MapGet("/api/operations/facility-profiles/{slug}", async (string slug, Facil
 });
 app.MapPost("/api/operations/facility-profiles", async (FacilityProfileSaveRequest request, FacilityProfileService profileService, CancellationToken cancellationToken) =>
 {
-    var slug = await profileService.SaveAsync(null, request.Profile, request.Latitude, request.Longitude, cancellationToken);
+    var slug = await profileService.SaveAsync(null, request.Profile, request.Latitude, request.Longitude, request.StructuredProfile, cancellationToken);
     return slug is null ? Results.BadRequest(new { error = "Заполните полное и краткое наименования объекта." }) : Results.Created($"/Facilities/Card/{slug}", new { slug });
 });
 app.MapPut("/api/operations/facility-profiles/{slug}", async (string slug, FacilityProfileSaveRequest request, FacilityProfileService profileService, CancellationToken cancellationToken) =>
 {
-    var savedSlug = await profileService.SaveAsync(slug, request.Profile, request.Latitude, request.Longitude, cancellationToken);
+    var savedSlug = await profileService.SaveAsync(slug, request.Profile, request.Latitude, request.Longitude, request.StructuredProfile, cancellationToken);
     return savedSlug is null ? Results.BadRequest(new { error = "Заполните полное и краткое наименования объекта." }) : Results.Ok(new { slug = savedSlug });
+});
+app.MapPost("/api/operations/facility-profiles/{slug}/confirm", async (string slug, FacilityProfileService profileService, CancellationToken cancellationToken) =>
+{
+    var readiness = await profileService.ConfirmAsync(slug, OssDemo.Web.Pages.LoginModel.UserName, cancellationToken);
+    if (readiness is null) return Results.NotFound();
+    return readiness.CanFinalizeChecklist
+        ? Results.Ok(new { readiness })
+        : Results.Conflict(new { error = "Сначала укажите состояние всех обязательных признаков.", readiness });
 });
 app.MapGet("/api/operations/schedule", async (ScheduleService scheduleService, CancellationToken cancellationToken) =>
     Results.Ok(await scheduleService.GetAllAsync(cancellationToken)));

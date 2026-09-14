@@ -4163,3 +4163,23 @@ a { color: var(--primary); }
 .ai-criterion-preview strong { display: block; line-height: 1.35; }
 .ai-criterion-preview p { margin: .35rem 0 0; color: var(--ink-muted); font-size: .82rem; }
 @media (max-width: 767.98px) { .ai-selected-criteria { grid-template-columns: 1fr; } .experiment-entry { grid-template-columns: auto 1fr; } .experiment-entry-arrow { display: none; } }
+
+/* Verified facility facts */
+.facility-feature-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.facility-feature { min-width: 0; padding: 1rem; border: 1px solid var(--border-soft); border-radius: .9rem; background: var(--surface-soft); }
+.facility-feature-title { float: none; width: auto; margin: 0 0 .25rem; color: var(--ink); font-size: .98rem; font-weight: 750; }
+.facility-feature-hint { min-height: 2.5rem; margin: 0 0 .7rem; color: var(--ink-muted); font-size: .82rem; }
+.facility-state-options { display: flex; flex-wrap: wrap; gap: .45rem; }
+.facility-state-option { display: inline-flex; align-items: center; gap: .35rem; padding: .38rem .6rem; border: 1px solid var(--border-soft); border-radius: 2rem; background: var(--surface); cursor: pointer; font-size: .83rem; }
+.facility-state-option:has(input:checked) { border-color: var(--primary); color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, white); font-weight: 700; }
+.facility-state-option input { accent-color: var(--primary); }
+.facility-fact-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+.facility-fact { display: grid; grid-template-columns: 1fr auto; gap: .2rem .75rem; padding: .8rem .9rem; border: 1px solid var(--border-soft); border-left-width: .3rem; border-radius: .7rem; }
+.facility-fact small { grid-column: 1 / -1; color: var(--ink-muted); }
+.facility-fact-present { border-left-color: #198754; }
+.facility-fact-absent { border-left-color: #6c757d; }
+.facility-fact-unknown { border-left-color: #ffc107; }
+.facility-fact-present .badge { color: #fff; background: #198754; }
+.facility-fact-absent .badge { color: #fff; background: #6c757d; }
+.facility-fact-unknown .badge { color: #332701; background: #ffc107; }
+@media (max-width: 767.98px) { .facility-feature-grid, .facility-fact-list { grid-template-columns: 1fr; } .facility-feature-hint { min-height: 0; } }

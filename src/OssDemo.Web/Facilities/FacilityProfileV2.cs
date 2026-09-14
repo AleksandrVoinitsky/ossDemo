@@ -1,13 +1,16 @@
-internal enum FacilityFactState
+using System.Text.Json.Serialization;
+
+[JsonConverter(typeof(JsonStringEnumConverter<FacilityFactState>))]
+public enum FacilityFactState
 {
     Unknown,
     Present,
     Absent
 }
 
-internal sealed record FacilityFeatureFact(FacilityFactState State, string Details = "");
+public sealed record FacilityFeatureFact(FacilityFactState State, string Details = "");
 
-internal sealed record FacilityDocumentFact(
+public sealed record FacilityDocumentFact(
     string TypeCode,
     FacilityFactState State,
     string Number = "",
@@ -15,7 +18,7 @@ internal sealed record FacilityDocumentFact(
     DateOnly? ValidTo = null,
     string Details = "");
 
-internal sealed record FacilityLegacySource(
+public sealed record FacilityLegacySource(
     string Type,
     string SpecialZones,
     string Zones,
@@ -30,7 +33,7 @@ internal sealed record FacilityLegacySource(
     string WasteStandard,
     string SanitaryZoneProject);
 
-internal sealed class FacilityProfileV2
+public sealed class FacilityProfileV2
 {
     public const int CurrentSchemaVersion = 2;
 

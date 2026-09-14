@@ -14,7 +14,10 @@ public sealed class FacilityProfileService(IConfiguration configuration, Operati
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (await reader.ReadAsync(cancellationToken))
         {
-            return new FacilityProfile(reader.GetString(0), JsonSerializer.Deserialize<FacilityProfileFields>(reader.GetString(1)) ?? new FacilityProfileFields(), reader.IsDBNull(2) ? null : reader.GetDecimal(2), reader.IsDBNull(3) ? null : reader.GetDecimal(3));
+            var savedSlug = reader.GetString(0);
+            var fields = JsonSerializer.Deserialize<FacilityProfileFields>(reader.GetString(1)) ?? new FacilityProfileFields();
+            var structured = fields.StructuredProfile ?? FacilityProfileMigration.FromLegacy(savedSlug, fields);
+            return new FacilityProfile(savedSlug, fields, reader.IsDBNull(2) ? null : reader.GetDecimal(2), reader.IsDBNull(3) ? null : reader.GetDecimal(3), structured, FacilityProfileReadiness.Evaluate(structured));
         }
 
         await reader.CloseAsync();
@@ -22,10 +25,12 @@ public sealed class FacilityProfileService(IConfiguration configuration, Operati
         facilityCommand.Parameters.AddWithValue("slug", slug);
         await using var facilityReader = await facilityCommand.ExecuteReaderAsync(cancellationToken);
         if (!await facilityReader.ReadAsync(cancellationToken)) return null;
-        return new FacilityProfile(slug, CreateInitialProfile(slug, facilityReader.GetString(0), facilityReader.GetString(1), facilityReader.GetString(2)), facilityReader.IsDBNull(3) ? null : facilityReader.GetDecimal(3), facilityReader.IsDBNull(4) ? null : facilityReader.GetDecimal(4));
+        var initial = CreateInitialProfile(slug, facilityReader.GetString(0), facilityReader.GetString(1), facilityReader.GetString(2));
+        var initialStructured = FacilityProfileMigration.FromLegacy(slug, initial);
+        return new FacilityProfile(slug, initial, facilityReader.IsDBNull(3) ? null : facilityReader.GetDecimal(3), facilityReader.IsDBNull(4) ? null : facilityReader.GetDecimal(4), initialStructured, FacilityProfileReadiness.Evaluate(initialStructured));
     }
 
-    public async Task<string?> SaveAsync(string? slug, FacilityProfileFields profile, decimal? latitude, decimal? longitude, CancellationToken cancellationToken)
+    public async Task<string?> SaveAsync(string? slug, FacilityProfileFields profile, decimal? latitude, decimal? longitude, FacilityProfileV2? structuredProfile, CancellationToken cancellationToken)
     {
         if (!IsDatabaseConfigured || string.IsNullOrWhiteSpace(profile.FullName) || string.IsNullOrWhiteSpace(profile.ShortName)) return null;
         await operationalData.GetFacilitiesAsync(cancellationToken);
@@ -35,6 +40,7 @@ public sealed class FacilityProfileService(IConfiguration configuration, Operati
         var savedSlug = string.IsNullOrWhiteSpace(slug)
             ? await CreateAvailableSlugAsync(connection, transaction, profile.ShortName, cancellationToken)
             : slug;
+        profile.StructuredProfile = NormalizeStructuredProfile(savedSlug, profile.ShortName, structuredProfile ?? profile.StructuredProfile ?? FacilityProfileMigration.FromLegacy(savedSlug, profile));
         await using (var existingFacilityCommand = new NpgsqlCommand("SELECT slug FROM app_facilities WHERE name = @name", connection, transaction))
         {
             existingFacilityCommand.Parameters.AddWithValue("name", profile.ShortName.Trim());
@@ -70,6 +76,44 @@ public sealed class FacilityProfileService(IConfiguration configuration, Operati
         await facilityCommand.ExecuteNonQueryAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return savedSlug;
+    }
+
+    public async Task<FacilityProfileReadinessResult?> ConfirmAsync(string slug, string verifiedBy, CancellationToken cancellationToken)
+    {
+        var facility = await GetAsync(slug, cancellationToken);
+        if (facility is null) return null;
+        var structured = facility.StructuredProfile ?? FacilityProfileMigration.FromLegacy(slug, facility.Profile);
+        var unknown = FacilityProfileV2.RequiredFeatureCodes
+            .Where(code => !structured.Features.TryGetValue(code, out var fact) || fact.State == FacilityFactState.Unknown)
+            .ToArray();
+        if (unknown.Length > 0) return FacilityProfileReadiness.Evaluate(structured);
+
+        structured.VerificationStatus = "verified";
+        structured.VerifiedAt = DateTimeOffset.UtcNow;
+        structured.VerifiedBy = verifiedBy;
+        facility.Profile.StructuredProfile = structured;
+        await EnsureTableAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand("UPDATE app_facility_profiles SET profile = CAST(@profile AS jsonb), updated_at = now() WHERE slug = @slug", connection);
+        command.Parameters.AddWithValue("slug", slug);
+        command.Parameters.AddWithValue("profile", JsonSerializer.Serialize(facility.Profile));
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        return FacilityProfileReadiness.Evaluate(structured);
+    }
+
+    private static FacilityProfileV2 NormalizeStructuredProfile(string slug, string shortName, FacilityProfileV2 source)
+    {
+        var normalized = FacilityProfileV2.CreateEmpty(slug, shortName);
+        foreach (var code in FacilityProfileV2.RequiredFeatureCodes)
+        {
+            if (source.Features.TryGetValue(code, out var fact))
+                normalized.Features[code] = new(fact.State, fact.Details?.Trim() ?? "");
+        }
+        normalized.ObjectTypeCodes.AddRange(source.ObjectTypeCodes.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim()).Distinct(StringComparer.OrdinalIgnoreCase));
+        normalized.Documents.AddRange(source.Documents);
+        normalized.LegacySource = source.LegacySource;
+        normalized.VerificationStatus = "needs_review";
+        return normalized;
     }
 
     private async Task EnsureTableAsync(CancellationToken cancellationToken)
@@ -137,10 +181,11 @@ public sealed class FacilityProfileService(IConfiguration configuration, Operati
     }
 }
 
-public sealed record FacilityProfile(string Slug, FacilityProfileFields Profile, decimal? Latitude, decimal? Longitude);
-public sealed record FacilityProfileSaveRequest(FacilityProfileFields Profile, decimal? Latitude, decimal? Longitude);
+public sealed record FacilityProfile(string Slug, FacilityProfileFields Profile, decimal? Latitude, decimal? Longitude, FacilityProfileV2? StructuredProfile = null, FacilityProfileReadinessResult? Readiness = null);
+public sealed record FacilityProfileSaveRequest(FacilityProfileFields Profile, decimal? Latitude, decimal? Longitude, FacilityProfileV2? StructuredProfile = null);
 public sealed class FacilityProfileFields
 {
+    public FacilityProfileV2? StructuredProfile { get; set; }
     public string FullName { get; set; } = "";
     public string ShortName { get; set; } = "";
     public string Type { get; set; } = "";

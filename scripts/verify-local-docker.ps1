@@ -114,6 +114,18 @@ if ($facilities.Count -lt 1) {
     throw 'The local database does not contain seeded facilities.'
 }
 
+$profileDictionary = Invoke-RestMethod -Uri 'http://127.0.0.1:18080/api/operations/facility-profile-dictionaries' -Headers @{ Cookie = 'oss.auth=true' } -TimeoutSec 10
+if ($profileDictionary.features.code -notcontains 'water.discharge') {
+    throw 'The facility profile dictionary is missing stable water.discharge feature.'
+}
+if ($profileDictionary.states.code -notcontains 'unknown') {
+    throw 'The facility profile dictionary is missing tri-state unknown value.'
+}
+$facilityEditPage = Invoke-WebRequest -Uri "http://127.0.0.1:18080/Facilities/Edit/$($facilities[0].slug)" -Headers @{ Cookie = 'oss.auth=true' } -UseBasicParsing -TimeoutSec 10
+if ($facilityEditPage.Content -notmatch 'data-facility-readiness' -or $facilityEditPage.Content -notmatch 'data-structured-features') {
+    throw 'The facility editor does not expose structured readiness controls.'
+}
+
 try {
     $ragStatus = Invoke-RestMethod -Uri 'http://127.0.0.1:18080/api/rag/status' -Headers @{ Cookie = 'oss.auth=true' } -TimeoutSec 10
 }

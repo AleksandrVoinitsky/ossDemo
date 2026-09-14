@@ -1,6 +1,6 @@
-internal static class FacilityProfileMigration
+public static class FacilityProfileMigration
 {
-    internal static readonly FacilityLegacySource EmptyLegacySource = new("", "", "", "", "", "", "", "", "", "", "", "", "");
+    public static readonly FacilityLegacySource EmptyLegacySource = new("", "", "", "", "", "", "", "", "", "", "", "", "");
 
     public static FacilityProfileV2 FromLegacy(string slug, FacilityProfileFields legacy)
     {

@@ -31,6 +31,12 @@ internal static class FacilityProfileV2Checks
         var verified = FacilityProfileReadiness.Evaluate(empty);
         AssertTrue(verified.CanFinalizeChecklist);
         AssertEqual(0, verified.UnknownFeatureCodes.Count);
+
+        AssertTrue(FacilityProfileDictionaries.Features.Any(item => item.Code == "water.discharge"),
+            "Справочник должен публиковать стабильный код сброса сточных вод.");
+        AssertTrue(FacilityProfileDictionaries.States.Any(item => item.Code == "unknown"),
+            "Справочник должен явно публиковать состояние unknown.");
+        AssertEqual(FacilityFactState.Unknown, FacilityProfileDictionaries.ParseState("unknown"));
     }
 
     private static void AssertTrue(bool value, string message = "Assertion failed")

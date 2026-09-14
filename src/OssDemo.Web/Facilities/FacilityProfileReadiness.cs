@@ -1,9 +1,9 @@
-internal sealed record FacilityProfileReadinessResult(
+public sealed record FacilityProfileReadinessResult(
     bool CanFinalizeChecklist,
     IReadOnlyList<string> UnknownFeatureCodes,
     IReadOnlyList<string> Reasons);
 
-internal static class FacilityProfileReadiness
+public static class FacilityProfileReadiness
 {
     public static FacilityProfileReadinessResult Evaluate(FacilityProfileV2 profile)
     {
