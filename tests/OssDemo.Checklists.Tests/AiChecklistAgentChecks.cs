@@ -226,6 +226,31 @@ internal static class AiChecklistAgentChecks
         AssertTrue(deterministicResult.Value.Items.All(item => !string.IsNullOrWhiteSpace(item.Basis)),
             "Основания рабочего шаблона должны переноситься без генерации моделью.");
 
+        var verifiedStructured = FacilityProfileV2.CreateEmpty("verified", "Проверенный объект");
+        foreach (var code in FacilityProfileV2.RequiredFeatureCodes) verifiedStructured.Features[code] = new(FacilityFactState.Absent);
+        verifiedStructured.Features["air.emissions"] = new(FacilityFactState.Present, "Стационарный источник");
+        verifiedStructured.VerificationStatus = "verified";
+        var verifiedFields = new FacilityProfileFields { FullName = "Проверенный объект", ShortName = "Проверенный объект", Type = "Компрессорная станция", Category = "III категория", Region = "Пермский край", StructuredProfile = verifiedStructured };
+        var verifiedSource = new FakeFacilitySource(new FacilityProfile("verified", verifiedFields, null, null, verifiedStructured, FacilityProfileReadiness.Evaluate(verifiedStructured)),
+            new OperationalFacility(facilityId, "Проверенный объект", "Адрес", "III", null, null, "verified"));
+        var catalogSearch = new FakeSearch(evidence);
+        var catalogSynthesis = new FakeSynthesis("{}");
+        var catalogAgent = new AiChecklistAgent(verifiedSource, catalogSearch, catalogSynthesis, repository, new InMemoryAiChecklistRunStore(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance, checklistCatalogs: new FacilityChecklistCatalogs());
+        var catalogRun = await catalogAgent.CreateRunAsync("verified", CancellationToken.None);
+        AssertTrue(catalogRun.IsSuccess && catalogRun.Value!.Batches.Count is > 0 and < 20,
+            "Каталог должен формировать небольшое число пакетных операций вместо сотен одиночных.");
+        var catalogRunValue = catalogRun.Value ?? throw new InvalidOperationException("Каталог не создал запуск.");
+        AssertTrue(catalogRunValue.Batches.All(batch => batch.Query is null && batch.EvidenceIds.All(id => id.StartsWith("CAT-", StringComparison.Ordinal))),
+            "Полностью покрытый профиль должен использовать только детерминированный каталог.");
+        await catalogAgent.QueueBatchesAsync(catalogRunValue.Id, catalogRunValue.Batches.Select(batch => batch.Index).ToArray(), CancellationToken.None);
+        while (await catalogAgent.ProcessNextBatchAsync(CancellationToken.None)) { }
+        var catalogChecklist = await catalogAgent.FinalizeRunAsync(catalogRunValue.Id, CancellationToken.None);
+        AssertTrue(catalogChecklist.IsSuccess && catalogChecklist.Value!.Items.Count > 100,
+            "Большой нормативный чек-лист не должен обрезаться лимитом ответа LLM.");
+        AssertEqual(0, catalogSearch.Calls);
+        AssertEqual(0, catalogSynthesis.Calls);
+
         var failedStore = new InMemoryAiChecklistRunStore();
         var failedAgent = new AiChecklistAgent(source, new FakeSearch(evidence), new FakeSynthesis("{}"), repository, failedStore,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance);

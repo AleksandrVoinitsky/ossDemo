@@ -14,7 +14,7 @@ internal static class AiChecklistCriterionConsolidator
 
     public static IReadOnlyList<AiGeneratedDraftItem> Consolidate(IReadOnlyList<AiChecklistBatchState> batches)
     {
-        var templateBatches=batches.Where(batch=>batch.BatchEvidence?.Any(evidence=>evidence.Id.StartsWith("TPL-",StringComparison.OrdinalIgnoreCase))==true)
+        var templateBatches=batches.Where(batch=>batch.BatchEvidence?.Any(evidence=>evidence.Id.StartsWith("TPL-",StringComparison.OrdinalIgnoreCase)||evidence.Id.StartsWith("CAT-",StringComparison.OrdinalIgnoreCase))==true)
             .OrderBy(batch=>batch.Index).ToArray();
         var templateItems=templateBatches.SelectMany(batch=>BuildTemplateItems(batch)).ToArray();
         var classifierBatches=batches.Except(templateBatches).ToArray();

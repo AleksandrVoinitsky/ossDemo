@@ -10,7 +10,8 @@ internal sealed class AiChecklistAgent(
     ILogger<AiChecklistAgent> logger,
     IClassifierRepository? classifierRepository = null,
     IAiChecklistHistoryReferenceSource? historyReferenceSource = null,
-    IInspectorChecklistTemplateSource? inspectorTemplateSource = null)
+    IInspectorChecklistTemplateSource? inspectorTemplateSource = null,
+    FacilityChecklistCatalogs? checklistCatalogs = null)
 {
     public async Task<ChecklistOperationResult<AiChecklistAnalysis>> AnalyzeAsync(string? facilitySlug, CancellationToken cancellationToken)
     {
@@ -86,6 +87,41 @@ internal sealed class AiChecklistAgent(
         var facts = FacilityFactNormalizer.Normalize(analysis.Value.Facility.Profile, null);
         var history = historyReferenceSource is null ? [] : await historyReferenceSource.GetAsync(facility.Name,tree,cancellationToken);
         var decisions = ClassifierApplicabilityMatcher.Decide(tree, facts, history);
+        if (checklistCatalogs is not null)
+        {
+            var composition = new FacilityChecklistComposer(tree, checklistCatalogs.Requirements, checklistCatalogs.Items)
+                .Compose(analysis.Value.Facility.Profile, history);
+            var structured = analysis.Value.Facility.Profile.StructuredProfile;
+            if (structured is null || !FacilityProfileReadiness.Evaluate(structured).CanFinalizeChecklist)
+            {
+                var unknown = structured is null ? FacilityProfileV2.RequiredFeatureCodes : FacilityProfileReadiness.Evaluate(structured).UnknownFeatureCodes;
+                return ChecklistOperationResult<AiChecklistRunState>.Fail("facility_profile_incomplete", "Подтвердите карточку объекта и заполните все обязательные признаки.",
+                    new Dictionary<string, string[]> { ["features"] = unknown.ToArray() });
+            }
+            if (composition.Gaps.Count > 0)
+                return ChecklistOperationResult<AiChecklistRunState>.Fail("coverage_gap", "Для части применимых требований нет утвержденных проверочных пунктов.",
+                    new Dictionary<string, string[]> { ["requirementIds"] = composition.Gaps.Select(item => item.RequirementId).ToArray() });
+
+            var catalogEvidence = composition.Items.Select(item => new AiChecklistEvidence(
+                $"CAT-{item.Id}", item.Section, "Утверждённый реестр требований", item.Basis, item.Title, 1)).ToArray();
+            var catalogPlans = composition.Items.GroupBy(item => item.Section)
+                .SelectMany(section => section.Select((item, index) => (Item: item, Index: index))
+                    .GroupBy(pair => pair.Index / 50)
+                    .Select(batch => new
+                    {
+                        Section = section.Key,
+                        Items = batch.Select(pair => pair.Item).ToArray()
+                    }))
+                .Select((batch, index) => new AiChecklistBatchPlan(
+                    index, batch.Section, batch.Items.Select(item => $"CAT-{item.Id}").ToArray(),
+                    batch.Items.Sum(item => item.Title.Length + item.Basis.Length),
+                    batch.Items.SelectMany(item => item.ClassifierCodes).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                    "Пункты выбраны по подтвержденным фактам карточки, классификатору и утвержденному реестру требований.",
+                    null, null, batch.Section)).ToArray();
+            var catalogRun = await runStore.CreateAsync(analysis.Value.Facility, facility.Id, facility.Name, catalogEvidence, catalogPlans, cancellationToken);
+            logger.LogInformation("Создан детерминированный запуск {RunId}: {RequirementCount} требований, {ItemCount} пунктов, LLM не требуется.", catalogRun.Id, composition.SelectedRequirements.Count, composition.Items.Count);
+            return ChecklistOperationResult<AiChecklistRunState>.Success(catalogRun);
+        }
         var applicable = ClassifierApplicabilityMatcher.Match(decisions, facts);
         var blockedCount = decisions.Count(item => item.Outcome == "blocked_unknown");
         if (blockedCount > 0)
@@ -126,6 +162,16 @@ internal sealed class AiChecklistAgent(
         logger.LogInformation("Запуск {RunId}, критерий {BatchIndex}: начат поиск оснований.", work.RunId, work.Batch.Index);
         try
         {
+            var catalogEvidence = work.Evidence.Where(item => item.Id.StartsWith("CAT-", StringComparison.OrdinalIgnoreCase)).ToArray();
+            if (catalogEvidence.Length > 0)
+            {
+                var catalogItems = catalogEvidence.Select(item => new AiGeneratedChecklistItem(
+                    item.QueryLabel, item.Text, work.Batch.ApplicabilityReason ?? "Требование применимо к подтвержденной карточке объекта.", 1,
+                    [new(item.Id, item.Text)])).ToArray();
+                await runStore.UpdateProgressAsync(work.RunId, work.Batch.Index, "validating", "Пункт выбран из утвержденного реестра требований", catalogItems.Length, string.Empty, cancellationToken);
+                await PersistOutcomeAsync(() => runStore.CompleteCriterionAsync(work.RunId, work.Batch.Index, catalogEvidence, catalogItems, timer.ElapsedMilliseconds, cancellationToken), work.RunId, work.Batch.Index, cancellationToken);
+                return true;
+            }
             var sectionCode=work.Batch.CriterionCodes?.FirstOrDefault()?.Split('.')[0];
             var templateItems=string.IsNullOrWhiteSpace(sectionCode) || inspectorTemplateSource is null
                 ? []

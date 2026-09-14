@@ -95,7 +95,7 @@ internal sealed class InMemoryAiChecklistRunStore : IAiChecklistRunStore
         lock (gate)
         {
             var run = runs[runId]; var batch = run.Batches.Single(item => item.Index == batchIndex);
-            var isTemplate = evidence.Any(item => item.Id.StartsWith("TPL-", StringComparison.OrdinalIgnoreCase));
+            var isTemplate = evidence.Any(item => item.Id.StartsWith("TPL-", StringComparison.OrdinalIgnoreCase) || item.Id.StartsWith("CAT-", StringComparison.OrdinalIgnoreCase));
             Replace(run, batch with { Status = "completed", Stage = isTemplate ? "completed_template" : items.Count > 0 ? "completed_ai" : "completed_base", StageMessage = isTemplate ? "Пункты утверждённого рабочего слоя проверены и сохранены" : items.Count > 0 ? "ИИ-формулировка проверена и сохранена" : "Сохранён базовый пункт классификатора", ItemCount = items.Count, Items = items.ToArray(), BatchEvidence = evidence.ToArray(), Error = null, DurationMs = durationMs, UpdatedAt = DateTimeOffset.UtcNow });
             SettleStop(runId);
         }

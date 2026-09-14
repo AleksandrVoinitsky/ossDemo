@@ -94,6 +94,7 @@ builder.Services.AddSingleton<IClassifierRepository, PostgresClassifierRepositor
 builder.Services.AddSingleton<ClassifierDatabaseInitializer>();
 builder.Services.AddSingleton<IAiChecklistHistoryReferenceSource, AiChecklistHistoryReferenceSource>();
 builder.Services.AddSingleton<IInspectorChecklistTemplateSource, JsonlInspectorChecklistTemplateSource>();
+builder.Services.AddSingleton<FacilityChecklistCatalogs>();
 builder.Services.AddHostedService<AiChecklistBatchWorker>();
 
 var app = builder.Build();
