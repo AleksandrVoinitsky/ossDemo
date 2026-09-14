@@ -1,7 +1,8 @@
 param(
     [ValidateSet('Up', 'Down', 'Build', 'Status', 'Logs', 'Verify')]
     [string]$Action = 'Status',
-    [switch]$RequireIndexedRag
+    [switch]$RequireIndexedRag,
+    [switch]$RequireLlm
 )
 
 $ErrorActionPreference = 'Stop'
@@ -44,7 +45,7 @@ try {
             Invoke-Compose logs --tail 200
         }
         'Verify' {
-            & $verificationScript -Live -RequireIndexedRag:$RequireIndexedRag
+            & $verificationScript -Live -RequireIndexedRag:$RequireIndexedRag -RequireLlm:$RequireLlm
         }
     }
 }

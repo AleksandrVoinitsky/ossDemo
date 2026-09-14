@@ -33,6 +33,7 @@ services:
       Embeddings__CacheDirectory: /data/ragify-model
       KnowledgeImport__Directory: /data/inbox
       AI__ApiToken: ${AI__ApiToken:-}
+      AI__Model: ${AI__Model:-qwen3_30b}
     ports:
       - "127.0.0.1:${OSSD_APP_PORT:-18080}:8080"
     volumes:

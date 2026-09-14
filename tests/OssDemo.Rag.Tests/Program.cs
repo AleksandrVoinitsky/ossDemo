@@ -33,6 +33,7 @@ AssertTrue(RagDebugResponse.Build("тест", new RagSearchResult(new[] { native
 
 var documentOverviewPrompt = ChatPrompt.BuildSystemMessage("[S1] Документ: Изменение", true, Array.Empty<string>());
 AssertTrue(documentOverviewPrompt.Contains("максимально полезный ответ", StringComparison.Ordinal));
+AssertTrue(documentOverviewPrompt.Contains("Каждый фактический вывод сопровождай ссылкой", StringComparison.Ordinal));
 AssertThrows(() => ChatPrompt.BuildSystemMessage(string.Empty, false, Array.Empty<string>()));
 var searchRewritePrompt = ChatPrompt.BuildSearchRewriteMessage();
 AssertTrue(searchRewritePrompt.Contains("ровно 8 разных", StringComparison.Ordinal));

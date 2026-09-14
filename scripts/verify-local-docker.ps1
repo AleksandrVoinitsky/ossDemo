@@ -1,6 +1,7 @@
 param(
     [switch]$Live,
     [switch]$RequireIndexedRag,
+    [switch]$RequireLlm,
     [ValidateRange(10, 1800)]
     [int]$StartupTimeoutSeconds = 900
 )
@@ -264,6 +265,40 @@ if ($RequireIndexedRag) {
     }
 }
 
+$llmSummary = ''
+if ($RequireLlm) {
+    if (-not $RequireIndexedRag) {
+        throw 'RequireLlm requires RequireIndexedRag because generation without indexed sources is forbidden.'
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$configuration.services.application.environment.AI__ApiToken)) {
+        throw 'RequireLlm needs AI__ApiToken in .env.local.'
+    }
+
+    $llmBody = @{
+        message = 'Назови один обязательный элемент программы производственного экологического контроля. Ответь только по найденным источникам.'
+        conversation = @()
+        stream = $false
+    } | ConvertTo-Json -Compress
+    $llmTimer = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        $llmProbe = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:18080/api/ai/chat' -Headers @{ Cookie = 'oss.auth=true' } `
+            -ContentType 'application/json; charset=utf-8' -Body $llmBody -TimeoutSec 300
+    }
+    catch {
+        throw "The grounded LLM probe failed: $($_.Exception.Message)"
+    }
+    finally {
+        $llmTimer.Stop()
+    }
+    if (-not $llmProbe.grounded -or [string]::IsNullOrWhiteSpace([string]$llmProbe.answer) -or @($llmProbe.sources).Count -lt 1 -or [string]::IsNullOrWhiteSpace([string]$llmProbe.model)) {
+        throw 'The LLM probe did not return a grounded answer with model and sources.'
+    }
+    if ([string]$llmProbe.answer -notmatch '\[S\d+\]') {
+        throw 'The grounded LLM answer does not cite any returned source marker.'
+    }
+    $llmSummary = " LLM model: $($llmProbe.model); sources: $(@($llmProbe.sources).Count); seconds: $([math]::Round($llmTimer.Elapsed.TotalSeconds, 1))."
+}
+
 $extension = & docker compose --project-name ossdemo-local --env-file $environmentFile -f $composeFile exec -T database psql -U ossdemo -d ossdemo -Atc "SELECT extname FROM pg_extension WHERE extname='vector';"
 if ($LASTEXITCODE -ne 0 -or ([string]$extension).Trim() -ne 'vector') {
     throw 'The pgvector extension is not installed in the local database.'
@@ -279,4 +314,4 @@ $ragSummary = if ($RequireIndexedRag) {
 } else {
     ''
 }
-Write-Output "Local Docker live checks passed. Application tables: $tableCount.$ragSummary"
+Write-Output "Local Docker live checks passed. Application tables: $tableCount.$ragSummary$llmSummary"
