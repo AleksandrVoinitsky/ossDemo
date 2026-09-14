@@ -15,5 +15,13 @@
       <Link>requirements/inspector-checklist-template.jsonl</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="../../data/requirements/requirements-registry.jsonl">
+      <Link>requirements/requirements-registry.jsonl</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="../../data/requirements/checklist-item-catalog.jsonl">
+      <Link>requirements/checklist-item-catalog.jsonl</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 </Project>

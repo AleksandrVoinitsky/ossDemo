@@ -1,0 +1,30 @@
+{
+  "algorithmVersion": "legal-lexical-v2",
+  "sources": {
+    "requirements": "a27b62b3a15e188a55fadf355d478a5b5834c9163498ae46fb8cc14e8b017265",
+    "template": "2a307ecb5028b3e23fe2516af993b4708830858a88fcb34bb5b94e526efbc3cf",
+    "overrides": "eb281d7661fed61b479d2633ba3f2e45a90136def0a0b46bc0503d2bc6f16d2f"
+  },
+  "thresholds": {
+    "minimumScore": 0.78,
+    "minimumMargin": 0.035,
+    "requiresLawAndArticle": true,
+    "requiresMatchingClauseWhenSpecified": true
+  },
+  "counts": {
+    "templateItems": 235,
+    "approvedItems": 34,
+    "needsReviewItems": 201,
+    "linkedRequirements": 29,
+    "uncoveredRequirements": 3080
+  },
+  "approvedBySection": {
+    "1": 9,
+    "2": 6,
+    "3": 6,
+    "4": 10,
+    "5": 1,
+    "6": 2,
+    "7": 0
+  }
+}

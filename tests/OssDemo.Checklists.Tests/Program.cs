@@ -82,6 +82,7 @@ AiChecklistAgentChecks.RunBatchPlanningChecks();
 await AiChecklistRunChecks.RunAsync();
 ClassifierChecks.Run();
 FacilityProfileV2Checks.Run();
+ChecklistItemCatalogChecks.Run();
 
 var boundedConnection = new Npgsql.NpgsqlConnectionStringBuilder(PostgresConnectionPolicy.Apply("Host=localhost;Database=oss;Username=oss;Maximum Pool Size=100"));
 AssertEqual(3, boundedConnection.MaxPoolSize);
