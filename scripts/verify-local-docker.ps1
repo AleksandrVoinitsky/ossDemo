@@ -132,6 +132,10 @@ foreach ($marker in @('data-ai-profile-readiness', 'data-ai-composition-summary'
         throw "The automated checklist page is missing explainability marker '$marker'."
     }
 }
+$aiChecklistScript = Invoke-WebRequest -Uri 'http://127.0.0.1:18080/js/ai-checklists.js' -Headers @{ Cookie = 'oss.auth=true' } -UseBasicParsing -TimeoutSec 10
+if ($aiChecklistScript.Content -notmatch 'Чек-лист будет сформирован по известным данным') {
+    throw 'The checklist UI does not explain partial, non-blocking composition.'
+}
 
 $probeSuffix = [Guid]::NewGuid().ToString('N')
 $probeNames = @("acceptance-office-$probeSuffix", "acceptance-industrial-$probeSuffix")
@@ -213,7 +217,8 @@ try {
         }
         $tracePage = Invoke-RestMethod -Uri "http://127.0.0.1:18080/api/ai-checklists/runs/$($run.id)/traces?offset=0&limit=50" `
             -Headers @{ Cookie = 'oss.auth=true' } -TimeoutSec 30
-        if (@($tracePage.items).Count -ne 50 -or [int]$tracePage.total -ne [int]$run.snapshot.expectedItemCount) {
+        $expectedFirstPageCount = [Math]::Min(50, [int]$run.snapshot.expectedItemCount)
+        if (@($tracePage.items).Count -ne $expectedFirstPageCount -or [int]$tracePage.total -ne [int]$run.snapshot.expectedItemCount) {
             throw 'The first checklist provenance page is incomplete or inconsistent with the snapshot.'
         }
         $run
@@ -226,6 +231,12 @@ try {
     }
     if (($officeIds -join "`n") -eq ($industrialIds -join "`n")) {
         throw 'Contrasting facility profiles returned identical checklist item sets.'
+    }
+    if ($officeIds.Count -ne 31) {
+        throw "The no-impact profile must select 31 base controls; got $($officeIds.Count)."
+    }
+    if ($industrialIds.Count -ne 68) {
+        throw "The emissions profile must select 68 section 1+2 controls; got $($industrialIds.Count)."
     }
 }
 finally {

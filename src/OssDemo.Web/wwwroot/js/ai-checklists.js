@@ -45,7 +45,7 @@
     readiness.className = `alert mb-3 ${ready ? 'alert-success' : 'alert-warning'}`;
     readiness.innerHTML = ready
       ? '<strong>Готовность карточки:</strong> карточка подтверждена, обязательные признаки заполнены.'
-      : `<strong>Готовность карточки:</strong> ${escapeHtml((facility.readiness?.reasons || ['Карточка требует проверки.']).join(' '))} <a class="alert-link" href="/Facilities/Edit/${encodeURIComponent(facility.slug)}">Открыть карточку объекта</a>`;
+      : `<strong>Готовность карточки:</strong> Чек-лист будет сформирован по известным данным. Неуточнённые признаки не войдут в область проверки. ${escapeHtml((facility.readiness?.reasons || []).join(' '))} <a class="alert-link" href="/Facilities/Edit/${encodeURIComponent(facility.slug)}">Открыть карточку объекта</a>`;
   };
   const renderTraceItems = (items, startIndex) => items.map((item, index) => {
     const facts = item.classifierCodes.flatMap((code) => traceDecisionsByCode[code]?.facts || []).filter((fact, factIndex, all) => all.findIndex((other) => other.code === fact.code) === factIndex);

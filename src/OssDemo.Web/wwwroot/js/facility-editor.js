@@ -34,7 +34,7 @@
     const verified = structuredProfile?.verificationStatus === 'verified';
     readiness.className = `alert mb-0 ${verified && unknown.length === 0 ? 'alert-success' : 'alert-warning'}`;
     readiness.textContent = unknown.length
-      ? `Нужно уточнить признаков: ${unknown.length}. Итоговый чек-лист пока заблокирован.`
+      ? `Нужно уточнить признаков: ${unknown.length}. Чек-лист можно сформировать по известным данным; эти признаки не войдут в область проверки.`
       : verified ? 'Карточка подтверждена и готова к формированию чек-листа.' : 'Все признаки заполнены. Сохраните и подтвердите карточку.';
     verification.className = `badge align-self-start ${verified ? 'text-bg-success' : 'text-bg-warning'}`;
     verification.textContent = verified ? `Подтверждено${structuredProfile.verifiedBy ? `: ${structuredProfile.verifiedBy}` : ''}` : 'Не подтверждено';

@@ -15,7 +15,9 @@
     setLines('[data-list="zones"]', profile.zones, true); setLines('[data-list="environmentalAspects"]', profile.environmentalAspects, true); setLines('[data-lines="equipment"]', profile.equipment, false); setLines('[data-lines="emissionSources"]', profile.emissionSources, false); setLines('[data-lines="permits"]', profile.permits, false);
     const status = card.querySelector('[data-profile-verification]'); const verified = data.structuredProfile.verificationStatus === 'verified';
     status.className = `badge align-self-start ${verified ? 'text-bg-success' : 'text-bg-warning'}`; status.textContent = verified ? 'Подтверждено' : 'Требует подтверждения';
-    card.querySelector('[data-profile-readiness]').textContent = data.readiness.canFinalizeChecklist ? 'Готова к формированию итогового чек-листа.' : data.readiness.reasons.join(' ');
+    card.querySelector('[data-profile-readiness]').textContent = data.readiness.canFinalizeChecklist
+      ? 'Готова к формированию итогового чек-листа.'
+      : `Чек-лист можно сформировать по известным данным. Неуточнённые признаки не войдут в область проверки. ${(data.readiness.reasons || []).join(' ')}`;
     const host = card.querySelector('[data-profile-features]'); host.replaceChildren();
     dictionary.features.forEach((feature) => {
       const fact = data.structuredProfile.features[feature.code] || { state: 'unknown', details: '' }; const state = String(fact.state).toLowerCase();
