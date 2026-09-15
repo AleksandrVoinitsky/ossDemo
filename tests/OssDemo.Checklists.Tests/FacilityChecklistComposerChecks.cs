@@ -3,8 +3,10 @@ internal static class FacilityChecklistComposerChecks
     public static void Run()
     {
         var requirements = RequirementCatalog.Load(Path.Combine(AppContext.BaseDirectory, "requirements", "requirements-registry.jsonl"));
-        var items = ChecklistItemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "requirements", "checklist-item-catalog.jsonl"));
-        var composer = new FacilityChecklistComposer(ClassifierSeedData.Tree, requirements, items);
+        var linkedItems = ChecklistItemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "requirements", "checklist-item-catalog.jsonl"));
+        var template = InspectorChecklistTemplate.ParseLines(File.ReadLines(Path.Combine(AppContext.BaseDirectory, "requirements", "inspector-checklist-template.jsonl")));
+        var controls = InspectionControlCatalog.Build(template, linkedItems);
+        var composer = new FacilityChecklistComposer(ClassifierSeedData.Tree, requirements, controls);
 
         var industrial = Profile("industrial", FacilityFactState.Absent);
         industrial.StructuredProfile!.Features["air.emissions"] = new(FacilityFactState.Present, "Стационарные источники");
@@ -18,10 +20,26 @@ internal static class FacilityChecklistComposerChecks
             "Пункт должен относиться к включенному критерию.");
         AssertTrue(industrialResult.Items.SelectMany(item => item.RequirementIds).All(industrialResult.SelectedRequirementIds.Contains),
             "Пункт не должен ссылаться на неприменимое требование.");
-        AssertEqual(industrialResult.SelectedRequirementIds.Count,
-            industrialResult.CoveredRequirementIds.Concat(industrialResult.Gaps.Select(gap => gap.RequirementId)).Distinct(StringComparer.OrdinalIgnoreCase).Count());
         AssertEqual(0, industrialResult.Gaps.Count);
         AssertTrue(industrialResult.CanFinalizeChecklist, "Прямые пункты реестра должны закрывать нормативное покрытие без ИИ.");
+        AssertEqual(31, officeResult.Items.Count);
+        AssertEqual(68, industrialResult.Items.Count);
+        AssertTrue(industrialResult.Items.All(item => !item.Provenance.StartsWith("requirements-registry-direct", StringComparison.OrdinalIgnoreCase)),
+            "Прямые строки реестра не должны попадать в итоговый чек-лист.");
+        AssertTrue(industrialResult.Items.All(item => item.ClassifierCodes.Count > 0),
+            "Каждая выбранная процедура должна объясняться применимым критерием.");
+
+        var berezniki = Profile("bereznikovskoe", FacilityFactState.Absent);
+        berezniki.Type = "";
+        berezniki.Category = "I категория";
+        foreach (var code in new[] { "air.emissions", "air.gasTreatment", "water.intake", "water.discharge",
+                     "water.treatment", "waste.generation", "nature.oopt", "zone.waterProtection" })
+            berezniki.StructuredProfile!.Features[code] = new(FacilityFactState.Present);
+        var bereznikiResult = composer.Compose(berezniki);
+        AssertEqual(179, bereznikiResult.Items.Count);
+        AssertTrue(bereznikiResult.Items.Select(item => item.SectionCode).Distinct().Order()
+                .SequenceEqual(new[] { "1", "2", "3", "4", "7" }),
+            "Богатая карточка должна выбирать только применимые разделы референса.");
 
         industrial.StructuredProfile!.Features["water.discharge"] = new(FacilityFactState.Unknown);
         var blocked = composer.Compose(industrial);

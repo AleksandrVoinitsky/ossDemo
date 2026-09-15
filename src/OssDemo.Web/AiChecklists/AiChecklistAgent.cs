@@ -89,7 +89,7 @@ internal sealed class AiChecklistAgent(
         var decisions = ClassifierApplicabilityMatcher.Decide(tree, facts, history);
         if (checklistCatalogs is not null)
         {
-            var composition = new FacilityChecklistComposer(tree, checklistCatalogs.Requirements, checklistCatalogs.Items)
+            var composition = new FacilityChecklistComposer(tree, checklistCatalogs.Requirements, checklistCatalogs.Controls)
                 .Compose(analysis.Value.Facility.Profile, history);
             var structured = analysis.Value.Facility.Profile.StructuredProfile
                 ?? FacilityProfileMigration.FromLegacy(analysis.Value.Facility.Slug, analysis.Value.Facility.Profile);
@@ -108,10 +108,11 @@ internal sealed class AiChecklistAgent(
                 composition.Gaps.Select(gap => new AiChecklistCoverageGapSnapshot(gap.RequirementId, gap.Reason)).ToArray(),
                 checklistCatalogs.CatalogHashes,
                 composition.Items.Select(item => new AiChecklistItemTraceSnapshot(item.Id, item.Title, item.Basis,
-                    item.ClassifierCodes, item.RequirementIds, item.Provenance, item.LinkExplanation)).ToArray());
+                    item.ClassifierCodes, item.RequirementIds, item.Provenance,
+                    $"{item.LinkExplanation} Статус нормативной связи: {item.LinkStatus}.")).ToArray());
 
             var catalogEvidence = composition.Items.Select(item => new AiChecklistEvidence(
-                $"CAT-{item.Id}", item.Section, "Утверждённый реестр требований", item.Basis, item.Title, 1)).ToArray();
+                $"CAT-{item.Id}", item.Section, "Утверждённая контрольная процедура", item.Basis, item.Title, 1)).ToArray();
             var catalogPlans = composition.Items.GroupBy(item => item.Section)
                 .SelectMany(section => section.Select((item, index) => (Item: item, Index: index))
                     .GroupBy(pair => pair.Index / 50)
