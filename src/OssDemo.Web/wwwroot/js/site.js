@@ -1,4 +1,32 @@
 (() => {
+  window.announceStatus = (element, kind, message) => {
+    if (!element) return;
+    element.setAttribute('role', 'status');
+    element.setAttribute('aria-live', kind === 'error' ? 'assertive' : 'polite');
+    element.textContent = message;
+    element.classList.remove('status-message-success', 'status-message-error', 'status-message-muted');
+    element.classList.add(`status-message-${kind === 'success' || kind === 'error' ? kind : 'muted'}`);
+  };
+
+  document.querySelectorAll('[data-table-filter]').forEach((input) => {
+    const body = document.querySelector(input.dataset.tableFilter);
+    if (!body) return;
+    const rows = Array.from(body.querySelectorAll('tr'));
+    const status = input.closest('section')?.querySelector('[data-table-filter-status]');
+    const apply = () => {
+      const query = input.value.trim().toLocaleLowerCase('ru');
+      let visible = 0;
+      rows.forEach((row) => {
+        const match = !query || row.textContent.toLocaleLowerCase('ru').includes(query);
+        row.hidden = !match;
+        if (match) visible++;
+      });
+      window.announceStatus(status, 'muted', `Показано записей: ${visible} из ${rows.length}`);
+    };
+    input.addEventListener('input', apply);
+    apply();
+  });
+
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
   const updateFacilityMap = (button) => {
     const mapUrl = button.dataset.facilityMapUrl;

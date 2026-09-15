@@ -1493,6 +1493,42 @@ a {
   gap: .5rem;
 }
 
+.workflow-toolbar {
+  display: grid;
+  grid-template-columns: minmax(16rem, 2fr) minmax(12rem, 1fr);
+  gap: 1rem;
+  align-items: end;
+}
+
+.status-message {
+  min-height: 1.5rem;
+  margin-bottom: .75rem;
+  font-size: .9rem;
+}
+
+.status-message-muted { color: var(--ink-muted); }
+.status-message-success { color: var(--success); }
+.status-message-error { color: var(--danger); font-weight: 650; }
+
+.sticky-action-row {
+  position: sticky;
+  z-index: 20;
+  top: .5rem;
+  padding: .65rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(10px);
+}
+
+.facility-search { width: min(18rem, 100%); }
+
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: .2rem solid color-mix(in srgb, var(--primary) 35%, transparent);
+  outline-offset: .15rem;
+}
+
 .knowledge-page {
   min-width: 0;
 }
@@ -3468,6 +3504,10 @@ a {
   font-weight: 700;
 }
 
+.schedule-event-title,
+.schedule-event-state { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-event-state { opacity: .86; font-size: .72rem; font-weight: 600; }
+
 .schedule-event-ready { background: var(--success) !important; color: #fff !important; }
 .schedule-event-profile { background: var(--warning) !important; color: #fff !important; }
 .schedule-event-missing { background: var(--danger) !important; color: #fff !important; }
@@ -3625,6 +3665,10 @@ a {
 }
 
 @media (max-width: 767.98px) {
+  .workflow-toolbar { grid-template-columns: 1fr; }
+  .page-header { align-items: stretch; flex-direction: column; }
+  .page-header .btn { width: 100%; }
+  .sticky-action-row { position: static; }
   .app-navbar-container {
     min-height: 3.75rem;
   }

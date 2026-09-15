@@ -5,9 +5,7 @@
     ViewData["Breadcrumb"] = "Шаблоны \\ Чек-листы";
 }
 
-<div class="page-actions mb-3">
-    <a class="btn btn-primary" asp-page="/Checklists/New">Выбрать в мастере</a>
-</div>
+<header class="page-header mb-4"><div><h1 class="h3 section-title mb-1">Шаблоны чек-листов</h1><p class="muted-note mb-0">Два системных уровня отличаются шапкой; состав пунктов определяется объектом и классификатором.</p></div><a class="btn btn-primary" asp-page="/Checklists/AiNew">Выбрать при формировании</a></header>
 
 <section class="row g-4">
     <div class="col-lg-5">
@@ -16,14 +14,14 @@
             <div class="list-group">
                 <button class="list-group-item list-group-item-action" type="button" data-panel-group="templates" data-panel-target="template-company" aria-selected="false">
                     <div class="d-flex justify-content-between gap-3">
-                        <strong>Уровень Общества v2026</strong>
+                        <strong>Уровень Общества</strong>
                         <span class="badge text-bg-secondary">базовый</span>
                     </div>
                     <div class="small text-muted">Единая табличная структура для всех филиалов.</div>
                 </button>
                 <button class="list-group-item list-group-item-action active" type="button" data-panel-group="templates" data-panel-target="template-branch" aria-selected="true">
                     <div class="d-flex justify-content-between gap-3">
-                        <strong>Уровень филиала Пермь v2026</strong>
+                        <strong>Уровень филиала</strong>
                         <span class="badge text-bg-success">выбран</span>
                     </div>
                     <div class="small text-muted">Расширен разделами по компрессорным станциям, водным объектам и недрам.</div>
@@ -40,10 +38,10 @@
         </article>
         <article id="template-branch" class="soft-panel p-4 tab-panel" data-panel-owner="templates">
             <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
-                <h2 class="h4 section-title mb-0">Шаблон уровня филиала Пермь v2026</h2>
+                <h2 class="h4 section-title mb-0">Шаблон уровня филиала</h2>
                 <span class="badge text-bg-success">доступен в основном сценарии</span>
             </div>
-            <p class="muted-note">Именно этот шаблон выбран в мастере для Березниковского ЛПУМГ.</p>
+            <p class="muted-note">Универсальная шапка филиала без города и конкретного наименования организации.</p>
             <div class="table-responsive">
                 <table class="table align-middle mb-0">
                     <thead><tr><th>Колонка</th><th>Назначение</th><th>Видимость</th></tr></thead>

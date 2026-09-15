@@ -9,13 +9,23 @@
     <link rel="preload" href="~/lib/fullcalendar/index.global.min.js" as="script" />
 }
 
+<header class="page-header mb-4">
+    <div><p class="eyebrow">Планирование контроля</p><h1 class="h3 section-title mb-1">График проверок</h1><p class="muted-note mb-0">Периоды выездов, готовность объектов и переход к подготовке чек-листа.</p></div>
+    <a class="btn btn-primary" asp-page="/ScheduleEdit">Добавить событие</a>
+</header>
+
 <section class="soft-panel schedule-toolbar p-3 p-lg-4 mb-4" aria-label="Поиск по графику">
     <div class="row g-3 align-items-end">
-        <div class="col-lg-6">
+        <div class="col-lg-7">
             <label class="form-label" for="scheduleSearch">Объект или ответственный</label>
             <input id="scheduleSearch" class="form-control" value="" placeholder="Например: Березниковское" data-schedule-search aria-label="Поиск по графику" />
         </div>
+        <div class="col-lg-5">
+            <label class="form-label" for="scheduleStatus">Статус подготовки</label>
+            <select id="scheduleStatus" class="form-select" data-schedule-status><option value="">Все статусы</option><option value="ready">Готово к генерации</option><option value="profile">Профиль требует доработки</option><option value="draft">В подготовке</option><option value="control">Контрольный срок</option></select>
+        </div>
     </div>
+    <div class="d-flex flex-wrap gap-2 mt-3" aria-label="Обозначения статусов"><span class="schedule-legend-item"><span class="legend-dot ready"></span>Готово</span><span class="schedule-legend-item"><span class="legend-dot profile"></span>Нужны данные</span><span class="schedule-legend-item"><span class="legend-dot draft"></span>В подготовке</span><span class="schedule-legend-item"><span class="legend-dot control"></span>Контроль</span></div>
 </section>
 
 <section class="schedule-workspace">
@@ -23,9 +33,9 @@
         <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
             <div>
                 <h2 class="h4 section-title mb-1">План-график выездных проверок</h2>
-                <p class="muted-note mb-0" data-schedule-result>Загружаем календарь...</p>
+                <p class="muted-note mb-0" data-schedule-result role="status" aria-live="polite">Загружаем календарь...</p>
             </div>
-            <a class="btn btn-primary align-self-start" asp-page="/ScheduleEdit">Добавить событие</a>
+            <a class="btn btn-outline-primary align-self-start" asp-page="/Facilities">Проверить карточки объектов</a>
         </div>
         <div id="scheduleCalendar" class="schedule-calendar" aria-label="Календарь проверок"></div>
     </div>

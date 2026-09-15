@@ -5,10 +5,10 @@
     ViewData["Breadcrumb"] = "Объекты \\ Реестр и цифровые профили";
 }
 
-<div class="page-actions mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
+<header class="page-header mb-4">
     <div><h1 class="h3 section-title mb-1">Объекты контроля</h1><p class="muted-note mb-0">Реестр ведётся в рабочей базе данных.</p></div>
     <a class="btn btn-primary" asp-page="/FacilityEdit">Создать объект</a>
-</div>
+</header>
 
 <section class="facility-workspace">
     <div class="soft-panel p-3 p-lg-4 facility-list-panel">
@@ -17,10 +17,11 @@
                 <h2 class="section-title h4 mb-1">Объекты проверки</h2>
                 <p class="muted-note mb-0">Выберите объект, чтобы показать его на карте и открыть цифровой профиль.</p>
             </div>
-            <div class="d-flex align-items-center gap-2"><span class="badge text-bg-primary" data-facility-count>—</span><a class="btn btn-outline-primary btn-sm" asp-page="/FacilityCard" data-facility-card-link-target>Открыть карточку</a></div>
+            <div class="d-flex flex-wrap align-items-center gap-2"><label class="visually-hidden" for="facilitySearch">Найти объект</label><input class="form-control form-control-sm facility-search" id="facilitySearch" type="search" placeholder="Найти объект" data-facility-search /><span class="badge text-bg-primary" data-facility-count>—</span><a class="btn btn-outline-primary btn-sm" asp-page="/FacilityCard" data-facility-card-link-target aria-disabled="true" hidden>Открыть карточку</a></div>
         </div>
 
-        <div class="facility-list" role="tablist" aria-label="Объекты" data-facility-list></div>
+        <div class="facility-list" aria-label="Объекты" data-facility-list></div>
+        <p class="status-message status-message-muted mt-3 mb-0" data-facility-status role="status" aria-live="polite">Загрузка объектов…</p>
     </div>
 
     <div class="soft-panel p-3 p-lg-4 facility-map-panel">

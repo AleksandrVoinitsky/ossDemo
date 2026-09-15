@@ -8,7 +8,7 @@
 
 <div class="page-actions mb-3 d-flex flex-wrap justify-content-between gap-2">
     <a class="btn btn-outline-primary" asp-page="/Schedule">Назад к графику</a>
-    <div class="d-flex gap-2"><a class="btn btn-outline-primary" href="/Schedule/Edit/@id">Редактировать</a><a class="btn btn-primary" asp-page="/Checklists/New">Создать чек-лист</a></div>
+    <div class="d-flex gap-2"><a class="btn btn-outline-primary" href="/Schedule/Edit/@id">Редактировать</a><a class="btn btn-primary" asp-page="/Checklists/AiNew" data-schedule-checklist-link>Создать чек-лист</a></div>
 </div>
 
 <div data-schedule-event data-schedule-event-id="@id">
@@ -45,7 +45,7 @@
             <h2 class="section-title h4 mb-3">Примечание</h2>
             <p class="muted-note" data-field="note"></p>
             <div class="d-grid">
-                <a class="btn btn-primary btn-lg" asp-page="/Checklists/New">Создать чек-лист</a>
+                <a class="btn btn-primary btn-lg" asp-page="/Checklists/AiNew" data-schedule-checklist-link>Создать чек-лист</a>
             </div>
         </aside>
     </div>

@@ -5,16 +5,16 @@
     ViewData["Breadcrumb"] = "Журнал \\ Действия";
 }
 
-<div class="page-actions mb-3">
-    <button class="btn btn-outline-primary" data-file-action>Экспорт журнала</button>
-</div>
+<header class="page-header mb-4"><div><h1 class="h3 section-title mb-1">Журнал действий</h1><p class="muted-note mb-0">Последовательность операций пользователя и системы для проверки результата.</p></div><button class="btn btn-outline-primary" data-file-action>Экспорт журнала</button></header>
 
 <section class="soft-panel p-3 p-lg-4">
-    <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Дата и время</th><th>Пользователь</th><th>Действие</th><th>Сущность</th><th>Описание</th><th>Результат</th></tr></thead><tbody>
+    <div class="workflow-toolbar mb-3"><div><label class="form-label" for="auditSearch">Найти действие</label><input class="form-control" id="auditSearch" type="search" placeholder="Пользователь, действие или сущность" data-table-filter="#auditRows" /></div></div>
+    <p class="status-message status-message-muted" data-table-filter-status role="status" aria-live="polite"></p>
+    <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Дата и время</th><th>Пользователь</th><th>Действие</th><th>Сущность</th><th>Описание</th><th>Результат</th></tr></thead><tbody id="auditRows">
         <tr><td>21.08.2026 21:08</td><td>inspector</td><td>Выбор объекта</td><td>ScheduleItem #18</td><td>Березниковское ЛПУМГ выбрано из графика</td><td><span class="badge text-bg-success">успех</span></td></tr>
         <tr><td>21.08.2026 21:09</td><td>inspector</td><td>Выбор ОРД</td><td>DocumentPackage #BER-2026</td><td>Выбраны приказ ПЭК, распоряжение и приложение к лицензии</td><td><span class="badge text-bg-success">успех</span></td></tr>
-        <tr><td>21.08.2026 21:09</td><td>inspector</td><td>Выбор шаблона</td><td>Template branch-v2026</td><td>Использован шаблон уровня филиала Пермь v2026</td><td><span class="badge text-bg-success">успех</span></td></tr>
-        <tr><td>21.08.2026 21:10</td><td>system</td><td>Завершение генерации</td><td>Checklist draft</td><td>4 агента сформировали проект: БЗ, ОРД, нарушения, история</td><td><span class="badge text-bg-success">успех</span></td></tr>
+        <tr><td>21.08.2026 21:09</td><td>inspector</td><td>Выбор шаблона</td><td>Template branch</td><td>Использован системный шаблон уровня филиала</td><td><span class="badge text-bg-success">успех</span></td></tr>
+        <tr><td>21.08.2026 21:10</td><td>system</td><td>Завершение генерации</td><td>Checklist draft</td><td>Автоматический конвейер собрал требования, ОРД, нарушения и историю</td><td><span class="badge text-bg-success">успех</span></td></tr>
         <tr><td>21.08.2026 21:11</td><td>inspector</td><td>Разрешение эскалации</td><td>ChecklistItem #23</td><td>Пункт по лицензии включён решением инспектора</td><td><span class="badge text-bg-success">успех</span></td></tr>
         <tr><td>21.08.2026 21:12</td><td>inspector</td><td>Ручное добавление пункта</td><td>ChecklistItem #43</td><td>Добавлен пункт по журналу учета отходов, дублей не найдено</td><td><span class="badge text-bg-success">успех</span></td></tr>
         <tr><td>21.08.2026 21:13</td><td>inspector</td><td>Подтверждение чек-листа</td><td>Checklist #2026-08-BER</td><td>Статус изменён с «В работе» на «Готов»</td><td><span class="badge text-bg-success">готово</span></td></tr>
