@@ -23,7 +23,8 @@ internal sealed class FacilityChecklistComposer(
     public FacilityChecklistComposition Compose(
         FacilityProfileFields profile,
         IReadOnlyList<ChecklistHistoryReference>? history = null,
-        string? scheduleCriteria = null)
+        string? scheduleCriteria = null,
+        IReadOnlySet<string>? allowedRequirementIds = null)
     {
         var facts = FacilityFactNormalizer.Normalize(profile, scheduleCriteria);
         var decisions = ClassifierApplicabilityMatcher.Decide(tree, facts, history ?? []);
@@ -39,16 +40,29 @@ internal sealed class FacilityChecklistComposer(
                     .Where(decision => decision.Outcome == "included"
                         && decision.Code.StartsWith(control.SectionCode + ".", StringComparison.OrdinalIgnoreCase))
                     .Select(decision => decision.Code)
-                    .ToArray()
+                    .ToArray(),
+                RequirementIds = allowedRequirementIds is null
+                    ? control.RequirementIds
+                    : control.RequirementIds.Where(allowedRequirementIds.Contains).ToArray()
             })
+            .Where(control => allowedRequirementIds is null
+                || control.RequirementIds.Count > 0
+                || control.LinkStatus == "unmapped")
             .OrderBy(item => item.Position)
             .ToArray();
-        var selectedIds = selectedItems.SelectMany(item => item.RequirementIds)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var selectedIds = allowedRequirementIds is null
+            ? selectedItems.SelectMany(item => item.RequirementIds).ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : requirements.Items.Where(item => allowedRequirementIds.Contains(item.Id)).Select(item => item.Id)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var selectedRequirements = requirements.Items.Where(item => selectedIds.Contains(item.Id)).ToArray();
         var coveredIds = selectedItems.SelectMany(item => item.RequirementIds)
             .Where(selectedIds.Contains).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var gaps = Array.Empty<CoverageGap>();
+        var gaps = allowedRequirementIds is null
+            ? Array.Empty<CoverageGap>()
+            : selectedRequirements.Where(item => !coveredIds.Contains(item.Id))
+                .Select(item => new CoverageGap(item.Id, item.ClassifierCodes, item.Basis, item.Requirement,
+                    "Для применимого требования пока не подтверждена проверочная процедура."))
+                .ToArray();
         var canFinalize = selectedItems.Length > 0;
         return new(decisions, includedCodes, selectedRequirements, selectedIds, selectedItems, coveredIds, gaps, canFinalize);
     }

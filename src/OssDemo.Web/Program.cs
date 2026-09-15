@@ -92,6 +92,8 @@ builder.Services.AddSingleton<IAiChecklistRunStore, PostgresAiChecklistRunStore>
 builder.Services.AddSingleton<AiChecklistDatabaseInitializer>();
 builder.Services.AddSingleton<IClassifierRepository, PostgresClassifierRepository>();
 builder.Services.AddSingleton<ClassifierDatabaseInitializer>();
+builder.Services.AddSingleton<RequirementDatabaseInitializer>();
+builder.Services.AddSingleton<IRequirementWorkspace, PostgresRequirementWorkspace>();
 builder.Services.AddSingleton<IAiChecklistHistoryReferenceSource, AiChecklistHistoryReferenceSource>();
 builder.Services.AddSingleton<IInspectorChecklistTemplateSource, JsonlInspectorChecklistTemplateSource>();
 builder.Services.AddSingleton<FacilityChecklistCatalogs>();
@@ -102,6 +104,7 @@ await app.Services.GetRequiredService<RagDatabaseInitializer>().EnsureInitialize
 await app.Services.GetRequiredService<ChecklistDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);
 await app.Services.GetRequiredService<AiChecklistDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);
 await app.Services.GetRequiredService<ClassifierDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);
+await app.Services.GetRequiredService<RequirementDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -214,6 +217,7 @@ app.MapGet("/api/operations/violations", async (OperationalDataService operation
 app.MapChecklistApi();
 app.MapAiChecklistApi();
 app.MapClassifierApi();
+app.MapRequirementApi();
 app.MapGet("/api/knowledge/documents", async (
     RagService ragService,
     ILogger<Program> logger,

@@ -11,7 +11,8 @@ internal sealed class AiChecklistAgent(
     IClassifierRepository? classifierRepository = null,
     IAiChecklistHistoryReferenceSource? historyReferenceSource = null,
     IInspectorChecklistTemplateSource? inspectorTemplateSource = null,
-    FacilityChecklistCatalogs? checklistCatalogs = null)
+    FacilityChecklistCatalogs? checklistCatalogs = null,
+    IRequirementWorkspace? requirementWorkspace = null)
 {
     public async Task<ChecklistOperationResult<AiChecklistAnalysis>> AnalyzeAsync(string? facilitySlug, CancellationToken cancellationToken)
     {
@@ -89,13 +90,24 @@ internal sealed class AiChecklistAgent(
         var decisions = ClassifierApplicabilityMatcher.Decide(tree, facts, history);
         if (checklistCatalogs is not null)
         {
+            IReadOnlySet<string>? allowedRequirementIds = null;
+            if (requirementWorkspace is not null)
+            {
+                var resolved = await Task.WhenAll(decisions
+                    .Where(item => item.Outcome == "included")
+                    .Select(item => requirementWorkspace.ResolveCriterionAsync(item.Criterion.Id, cancellationToken)));
+                allowedRequirementIds = resolved.Where(item => item is not null)
+                    .SelectMany(item => item!.Items)
+                    .Select(item => item.Id)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            }
             var composition = new FacilityChecklistComposer(tree, checklistCatalogs.Requirements, checklistCatalogs.Controls)
-                .Compose(analysis.Value.Facility.Profile, history);
+                .Compose(analysis.Value.Facility.Profile, history, allowedRequirementIds: allowedRequirementIds);
             var structured = analysis.Value.Facility.Profile.StructuredProfile
                 ?? FacilityProfileMigration.FromLegacy(analysis.Value.Facility.Slug, analysis.Value.Facility.Profile);
             if (composition.Gaps.Count > 0)
-                return ChecklistOperationResult<AiChecklistRunState>.Fail("coverage_gap", "Для части применимых требований нет утвержденных проверочных пунктов.",
-                    new Dictionary<string, string[]> { ["requirementIds"] = composition.Gaps.Select(item => item.RequirementId).ToArray() });
+                logger.LogWarning("Для объекта {FacilitySlug} у {GapCount} применимых требований пока нет подтверждённой проверочной процедуры; формирование продолжается по найденному покрытию.",
+                    facilitySlug, composition.Gaps.Count);
 
             var snapshot = new AiChecklistRunSnapshot(
                 structured.SchemaVersion,

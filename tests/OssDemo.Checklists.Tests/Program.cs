@@ -81,6 +81,7 @@ await AiChecklistAgentChecks.RunOrchestrationChecksAsync();
 AiChecklistAgentChecks.RunBatchPlanningChecks();
 await AiChecklistRunChecks.RunAsync();
 ClassifierChecks.Run();
+RequirementWorkspaceChecks.Run();
 FacilityProfileV2Checks.Run();
 ChecklistItemCatalogChecks.Run();
 FacilityChecklistComposerChecks.Run();

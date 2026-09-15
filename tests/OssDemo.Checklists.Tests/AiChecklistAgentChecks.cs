@@ -235,8 +235,9 @@ internal static class AiChecklistAgentChecks
             new OperationalFacility(facilityId, "Проверенный объект", "Адрес", "III", null, null, "verified"));
         var catalogSearch = new FakeSearch(evidence);
         var catalogSynthesis = new FakeSynthesis("{}");
+        var facilityCatalogs = new FacilityChecklistCatalogs();
         var catalogAgent = new AiChecklistAgent(verifiedSource, catalogSearch, catalogSynthesis, repository, new InMemoryAiChecklistRunStore(),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance, checklistCatalogs: new FacilityChecklistCatalogs());
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance, checklistCatalogs: facilityCatalogs);
         var catalogRun = await catalogAgent.CreateRunAsync("verified", CancellationToken.None);
         AssertTrue(catalogRun.IsSuccess && catalogRun.Value!.Batches.Count is > 0 and < 20,
             "Каталог должен формировать небольшое число пакетных операций вместо сотен одиночных.");
@@ -257,6 +258,15 @@ internal static class AiChecklistAgentChecks
         AssertTrue(catalogRunValue.Snapshot.ItemTraces.All(item => item.Explanation.Contains("Статус нормативной связи:", StringComparison.Ordinal)),
             "Трассировка должна явно показывать статус нормативной связи процедуры.");
         AssertEqual(68, catalogRunValue.Batches.Sum(batch => batch.EvidenceIds.Count));
+
+        var retainedRequirement = facilityCatalogs.Requirements.Find(catalogRunValue.Snapshot.SelectedRequirementIds.First())!;
+        var markedAgent = new AiChecklistAgent(verifiedSource, catalogSearch, catalogSynthesis, repository, new InMemoryAiChecklistRunStore(),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<AiChecklistAgent>.Instance,
+            checklistCatalogs: facilityCatalogs, requirementWorkspace: new FakeRequirementWorkspace(retainedRequirement));
+        var markedRun = await markedAgent.CreateRunAsync("verified", CancellationToken.None);
+        AssertTrue(markedRun.IsSuccess, "Неполная ручная разметка не должна блокировать формирование.");
+        AssertEqual(1, markedRun.Value!.Snapshot!.SelectedRequirementIds.Count);
+        AssertEqual(retainedRequirement.Id, markedRun.Value.Snapshot.SelectedRequirementIds[0]);
         var firstTracePage = await catalogAgent.GetTracePageAsync(catalogRunValue.Id, 0, 50, CancellationToken.None);
         var secondTracePage = await catalogAgent.GetTracePageAsync(catalogRunValue.Id, 50, 50, CancellationToken.None);
         var clampedTracePage = await catalogAgent.GetTracePageAsync(catalogRunValue.Id, 0, 500, CancellationToken.None);
@@ -359,6 +369,23 @@ internal static class AiChecklistAgentChecks
     private sealed class FakeInspectorTemplateSource(IReadOnlyList<InspectorChecklistTemplateItem> items) : IInspectorChecklistTemplateSource
     {
         public IReadOnlyList<InspectorChecklistTemplateItem> Items { get; } = items;
+    }
+
+    private sealed class FakeRequirementWorkspace(RequirementCatalogItem item) : IRequirementWorkspace
+    {
+        private readonly ResolvedRequirement resolved = new(item.Id, item.Levels, item.Groups, item.ClassifierCodes,
+            item.Basis, item.Requirement, item.Categories, "manual", false, 1);
+
+        public Task<ResolvedCriterionRequirements?> ResolveCriterionAsync(Guid criterionId, CancellationToken cancellationToken) =>
+            Task.FromResult<ResolvedCriterionRequirements?>(new(string.Empty, [resolved]));
+        public Task<IReadOnlyList<ResolvedRequirement>> SearchAsync(string? query, int limit, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ResolvedRequirement>>([resolved]);
+        public Task<ChecklistOperationResult<ResolvedRequirement>> SaveRevisionAsync(string requirementId, RequirementRevisionWrite request, string actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task<ChecklistOperationResult<ResolvedCriterionRequirements>> SetLinkAsync(Guid criterionId, string requirementId, string? action, string actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task<ChecklistOperationResult<ResolvedCriterionRequirements>> ClearLinkAsync(Guid criterionId, string requirementId, string actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private static void AssertTrue(bool value, string message)

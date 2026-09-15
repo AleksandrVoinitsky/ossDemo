@@ -29,6 +29,13 @@ internal static class FacilityChecklistComposerChecks
         AssertTrue(industrialResult.Items.All(item => item.ClassifierCodes.Count > 0),
             "Каждая выбранная процедура должна объясняться применимым критерием.");
 
+        var oneRequirementId = industrialResult.SelectedRequirementIds.First();
+        var narrowed = composer.Compose(industrial, allowedRequirementIds: new HashSet<string>([oneRequirementId], StringComparer.OrdinalIgnoreCase));
+        AssertTrue(narrowed.Items.Count > 0, "Ручная разметка не должна удалять связанные проверочные процедуры.");
+        AssertTrue(narrowed.Items.SelectMany(item => item.RequirementIds).All(id => id.Equals(oneRequirementId, StringComparison.OrdinalIgnoreCase)),
+            "Исключённые разметкой требования не должны оставаться в итоговых пунктах.");
+        AssertEqual(1, narrowed.SelectedRequirements.Count);
+
         var berezniki = Profile("bereznikovskoe", FacilityFactState.Absent);
         berezniki.Type = "";
         berezniki.Category = "I категория";
