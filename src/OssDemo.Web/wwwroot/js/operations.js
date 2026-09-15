@@ -10,26 +10,26 @@
     const status = document.querySelector('[data-facility-status]');
     let facilities = [];
     const select = (button) => {
-      list.querySelectorAll('button').forEach((item) => { item.classList.toggle('active', item === button); item.setAttribute('aria-pressed', item === button ? 'true' : 'false'); });
+      list.querySelectorAll('[data-facility-select]').forEach((item) => {
+        const selected = item === button;
+        item.closest('.facility-list-item')?.classList.toggle('active', selected);
+        item.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      });
       const frame = document.querySelector('[data-facility-map-frame]');
       if (frame) { frame.src = button.dataset.facilityMapUrl || 'about:blank'; frame.title = `${button.dataset.facilityName} на карте`; }
-      const cardLink = document.querySelector('[data-facility-card-link-target]');
-      if (cardLink) { cardLink.href = button.dataset.facilityCardUrl; cardLink.hidden = false; cardLink.setAttribute('aria-disabled', 'false'); }
       ['name', 'address', 'coordinates'].forEach((field) => { const target = document.querySelector(`[data-facility-map-${field}]`); if (target) target.textContent = button.dataset[`facility${field[0].toUpperCase()}${field.slice(1)}`]; });
     };
     const render = () => {
       const query = (search?.value || '').trim().toLocaleLowerCase('ru');
       const visible = facilities.filter((facility) => !query || `${facility.name} ${facility.address} ${facility.nvocCategory}`.toLocaleLowerCase('ru').includes(query));
       if (count) count.textContent = visible.length;
-      list.innerHTML = visible.map((facility, index) => `<button class="facility-list-item btn btn-light text-start ${index === 0 ? 'active' : ''}" type="button" aria-pressed="${index === 0}" data-facility-name="${escapeHtml(facility.name)}" data-facility-address="${escapeHtml(facility.address)}" data-facility-coordinates="${facility.latitude == null ? 'Координаты не указаны' : `${facility.latitude}, ${facility.longitude}`}" data-facility-map-url="${mapUrl(facility)}" data-facility-card-url="/Facilities/Card/${encodeURIComponent(facility.slug)}"><span class="facility-list-item-title">${escapeHtml(facility.name)}</span><span class="small text-muted">НВОС ${escapeHtml(facility.nvocCategory)} · цифровой профиль</span><span class="facility-list-item-meta"><span class="status-dot status-ready"></span>действующий объект</span></button>`).join('') || '<div class="schedule-empty-state mt-0">Объекты по запросу не найдены.</div>';
-      list.querySelectorAll('button').forEach((button) => button.addEventListener('click', () => select(button)));
-      const first = list.querySelector('button');
+      list.innerHTML = visible.map((facility, index) => `<article class="facility-list-item ${index === 0 ? 'active' : ''}"><button class="facility-select-button text-start" type="button" aria-pressed="${index === 0}" data-facility-select data-facility-name="${escapeHtml(facility.name)}" data-facility-address="${escapeHtml(facility.address)}" data-facility-coordinates="${facility.latitude == null ? 'Координаты не указаны' : `${facility.latitude}, ${facility.longitude}`}" data-facility-map-url="${mapUrl(facility)}"><span class="facility-list-item-title">${escapeHtml(facility.name)}</span><span class="small text-muted">НВОС ${escapeHtml(facility.nvocCategory)} · цифровой профиль</span><span class="facility-list-item-meta"><span class="status-dot status-ready"></span>действующий объект</span></button><a class="btn btn-outline-primary btn-sm facility-card-action" href="/Facilities/Card/${encodeURIComponent(facility.slug)}">Открыть карточку</a></article>`).join('') || '<div class="schedule-empty-state mt-0">Объекты по запросу не найдены.</div>';
+      list.querySelectorAll('[data-facility-select]').forEach((button) => button.addEventListener('click', () => select(button)));
+      const first = list.querySelector('[data-facility-select]');
       if (first) select(first);
       else {
         const frame = document.querySelector('[data-facility-map-frame]');
         if (frame) { frame.src = 'about:blank'; frame.title = 'Расположение объекта на карте'; }
-        const cardLink = document.querySelector('[data-facility-card-link-target]');
-        if (cardLink) { cardLink.hidden = true; cardLink.setAttribute('aria-disabled', 'true'); }
         const name = document.querySelector('[data-facility-map-name]'); if (name) name.textContent = 'Объекты не найдены';
         ['address', 'coordinates'].forEach((field) => { const target = document.querySelector(`[data-facility-map-${field}]`); if (target) target.textContent = ''; });
       }

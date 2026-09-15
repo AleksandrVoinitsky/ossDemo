@@ -163,10 +163,17 @@ public sealed class OperationalDataService(IConfiguration configuration, ILogger
                     action TEXT NOT NULL, entity_type TEXT NOT NULL, details TEXT NOT NULL);
                 INSERT INTO app_facilities (name, address, nvoc_category, latitude, longitude, slug)
                 VALUES
-                    ('Бардымское ЛПУМГ', '618150, Пермский край, Бардымский район, с. Барда', 'I категория', NULL, NULL, 'bardymskoe'),
-                    ('Березниковское ЛПУМГ', 'Пермский край, г. Березники, промзона', 'I категория', NULL, NULL, 'bereznikovskoe'),
-                    ('Воткинское ЛПУМГ', '427430, Удмуртская Республика, г. Воткинск, ул. Гавриловский тракт, ВЛПУМ', 'I категория', NULL, NULL, 'votkinskoe')
-                ON CONFLICT (name) DO UPDATE SET address = EXCLUDED.address, nvoc_category = EXCLUDED.nvoc_category, latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude, slug = EXCLUDED.slug;
+                    ('Бардымское ЛПУМГ', '618150, Пермский край, Бардымский район, с. Барда', 'I категория', 56.924030, 55.590874, 'bardymskoe'),
+                    ('Березниковское ЛПУМГ', 'Пермский край, г. Березники, промзона', 'I категория', 59.408300, 56.805800, 'bereznikovskoe'),
+                    ('Воткинское ЛПУМГ', '427430, Удмуртская Республика, г. Воткинск, ул. Гавриловский тракт, ВЛПУМ', 'I категория', 57.051900, 53.987200, 'votkinskoe'),
+                    ('Горнозаводское ЛПУМГ', '618820, Пермский край, г. Горнозаводск', 'I категория', 58.374700, 58.323100, 'горнозаводское-лпумг'),
+                    ('Пермское ЛПУМГ', 'Пермский край, г. Пермь', 'I категория', 58.010500, 56.250200, 'пермское-лпумг')
+                ON CONFLICT (name) DO UPDATE SET
+                    address = EXCLUDED.address,
+                    nvoc_category = EXCLUDED.nvoc_category,
+                    latitude = COALESCE(app_facilities.latitude, EXCLUDED.latitude),
+                    longitude = COALESCE(app_facilities.longitude, EXCLUDED.longitude),
+                    slug = EXCLUDED.slug;
                 INSERT INTO app_violations (facility_name, classifier_section, description, responsible, due_date, status)
                 SELECT 'Березниковское ЛПУМГ', '2.3 Атмосфера', 'Не представлен протокол инструментального контроля', 'Главный инженер', '2026-10-10', 'critical'
                 WHERE NOT EXISTS (SELECT 1 FROM app_violations);
