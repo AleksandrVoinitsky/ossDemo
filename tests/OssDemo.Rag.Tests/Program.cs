@@ -1,6 +1,11 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Primitives;
 
+AssertTrue(KnowledgePathMigration.Canonicalize("Документы ПАО/file.md") == "Корпоративные документы/file.md");
+AssertTrue(KnowledgePathMigration.Canonicalize("Документы ГТЧ/file.md") == "Корпоративные документы/file.md");
+AssertTrue(KnowledgePathMigration.Canonicalize("Реестр требований.md") == "Прочие нормативные документы/Реестр требований.md");
+AssertTrue(KnowledgePathMigration.Canonicalize("volume/Документы ПАО/file.md") == "volume/Корпоративные документы/file.md");
+
 var contextMatches = RagService.SelectContextMatches(new[]
 {
     new RagMatch("СТО", "1", "Первый", 0.8, 0.8),

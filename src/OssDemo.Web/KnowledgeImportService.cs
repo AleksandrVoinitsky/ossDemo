@@ -55,8 +55,9 @@ internal sealed class KnowledgeImportService(
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 result.FoundFileCount++;
-                var relativePath = Path.GetRelativePath(source.Directory, path).Replace(Path.DirectorySeparatorChar, '/');
-                var sourceFileName = $"{source.Name}/{relativePath}";
+                var relativePath = KnowledgePathMigration.Canonicalize(
+                    Path.GetRelativePath(source.Directory, path).Replace(Path.DirectorySeparatorChar, '/'));
+                var sourceFileName = KnowledgePathMigration.Canonicalize($"{source.Name}/{relativePath}");
 
                 try
                 {

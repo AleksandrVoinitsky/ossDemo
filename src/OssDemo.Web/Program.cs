@@ -78,6 +78,7 @@ builder.Services.AddSingleton<LuceneSearchIndex>();
 builder.Services.AddSingleton<RagDatabaseInitializer>();
 builder.Services.AddSingleton<RagDiagnostics>();
 builder.Services.AddSingleton<KnowledgeImportService>();
+builder.Services.AddSingleton<KnowledgePathMigration>();
 builder.Services.AddSingleton<OperationalDataService>();
 builder.Services.AddSingleton<FacilityProfileService>();
 builder.Services.AddSingleton<ScheduleService>();
@@ -102,6 +103,7 @@ builder.Services.AddHostedService<AiChecklistBatchWorker>();
 
 var app = builder.Build();
 await app.Services.GetRequiredService<RagDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);
+await app.Services.GetRequiredService<KnowledgePathMigration>().ApplyAsync(CancellationToken.None);
 await app.Services.GetRequiredService<ChecklistDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);
 await app.Services.GetRequiredService<AiChecklistDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);
 await app.Services.GetRequiredService<ClassifierDatabaseInitializer>().EnsureInitializedAsync(CancellationToken.None);

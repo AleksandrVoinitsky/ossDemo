@@ -9,6 +9,7 @@ internal sealed record KnowledgeDocumentMetadata(
 {
     public static KnowledgeDocumentMetadata FromMarkdown(Stream stream, string fallbackPath)
     {
+        fallbackPath = KnowledgePathMigration.Canonicalize(fallbackPath);
         if (!stream.CanSeek)
         {
             return FromFallback(fallbackPath);
@@ -39,7 +40,7 @@ internal sealed record KnowledgeDocumentMetadata(
         stream.Position = 0;
         return new KnowledgeDocumentMetadata(
             ValueOr(values, "title", Path.GetFileNameWithoutExtension(fallbackPath)),
-            ValueOr(values, "source_path", fallbackPath),
+            KnowledgePathMigration.Canonicalize(ValueOr(values, "source_path", fallbackPath)),
             ValueOr(values, "category", "Без категории"),
             ValueOr(values, "document_type", "other"),
             ValueOr(values, "processed_by", "Не указан"));
