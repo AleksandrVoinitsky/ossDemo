@@ -5,8 +5,7 @@ internal static class ChecklistApi
         app.MapGet("/api/checklist-templates", async (ChecklistService service, CancellationToken ct) => Results.Ok(await service.ListTemplatesAsync(ct)));
         app.MapGet("/api/checklist-templates/{id:guid}", async (Guid id, ChecklistService service, CancellationToken ct) =>
             await service.GetTemplateAsync(id, ct) is { } value ? Results.Ok(value) : Results.NotFound(new { error = "Шаблон не найден.", code = "not_found" }));
-        app.MapPost("/api/checklist-templates", async (ChecklistTemplateWriteRequest request, ChecklistService service, CancellationToken ct) =>
-            ChecklistApiResponses.ToCreatedResult(await service.CreateTemplateAsync(request, ct), value => $"/api/checklist-templates/{value.Id}"));
+        app.MapPost("/api/checklist-templates", () => Results.Json(new { error = "Доступны только два системных шаблона.", code = "system_template" }, statusCode: StatusCodes.Status409Conflict));
         app.MapPut("/api/checklist-templates/{id:guid}", async (Guid id, ChecklistTemplateWriteRequest request, ChecklistService service, CancellationToken ct) =>
             ChecklistApiResponses.ToResult(await service.UpdateTemplateAsync(id, request, ct)));
         app.MapPost("/api/checklist-templates/{id:guid}/copy", async (Guid id, CopyChecklistTemplateRequest request, ChecklistService service, CancellationToken ct) =>

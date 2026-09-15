@@ -17,7 +17,8 @@ internal static class ChecklistRules
         var errors = new Dictionary<string, string[]>();
         var name = request.Name?.Trim() ?? string.Empty;
         if (name.Length == 0) errors["name"] = ["Укажите название шаблона."];
-        if (request.FacilityId == Guid.Empty) errors["facilityId"] = ["Выберите объект проверки."];
+        if (name.Contains("ЛПУМГ", StringComparison.OrdinalIgnoreCase))
+            errors["name"] = ["Системный шаблон не должен содержать название конкретного объекта."];
 
         var sections = (request.Sections ?? [])
             .Select((section, sectionIndex) => new ChecklistTemplateSectionWrite(
@@ -57,6 +58,8 @@ internal static class ChecklistRules
             return ChecklistOperationResult<ChecklistTemplateWriteRequest>.Fail("validation", "Проверьте поля шаблона.", errors);
 
         return ChecklistOperationResult<ChecklistTemplateWriteRequest>.Success(
-            new ChecklistTemplateWriteRequest(name, request.FacilityId, request.Version, sections));
+            new ChecklistTemplateWriteRequest(name, request.FacilityId, request.Version, sections,
+                request.Header is null ? null : new ChecklistTemplateHeader(
+                    request.Header.Title?.Trim(), request.Header.ApprovalBlock?.Trim(), request.Header.IntroText?.Trim())));
     }
 }

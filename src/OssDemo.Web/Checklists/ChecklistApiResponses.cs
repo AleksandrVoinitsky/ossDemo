@@ -3,7 +3,7 @@ internal static class ChecklistApiResponses
     public static int StatusCode<T>(ChecklistOperationResult<T> result) => result.ErrorCode switch
     {
         "not_found" => StatusCodes.Status404NotFound,
-        "version_conflict" or "state_conflict" => StatusCodes.Status409Conflict,
+        "version_conflict" or "state_conflict" or "system_template" => StatusCodes.Status409Conflict,
         _ => StatusCodes.Status400BadRequest
     };
 

@@ -24,34 +24,22 @@
   const templateBody = root.querySelector('[data-template-list]');
   const renderTemplates = () => {
     if (!templateBody) return;
-    const search = root.querySelector('[data-template-search]')?.value.trim().toLocaleLowerCase('ru-RU') || '';
-    const values = templates.filter(item => !search || `${item.name} ${item.facility}`.toLocaleLowerCase('ru-RU').includes(search));
+    const values = templates;
     templateBody.innerHTML = values.length ? values.map((item, index) => `<article class="checklist-library-card checklist-template-card library-accent-${index % 4 + 1}">
       <div class="library-card-heading">
         <span class="library-card-symbol" aria-hidden="true"><span></span><span></span><span></span></span>
-        <div class="library-card-title"><span class="library-card-kicker">Быстрый шаблон</span><h2>${escapeHtml(item.name)}</h2></div>
+        <div class="library-card-title"><span class="library-card-kicker">Системный шаблон</span><h2>${escapeHtml(item.name)}</h2></div>
         <span class="library-card-version">v${escapeHtml(item.version)}</span>
       </div>
-      <div class="library-facility"><span class="library-pin" aria-hidden="true"></span><span>${escapeHtml(item.facility)}</span></div>
+      <div class="library-facility"><span class="library-pin" aria-hidden="true"></span><span>${escapeHtml(item.scope === 'society' ? 'Уровень Общества' : 'Уровень филиала')}</span></div>
       <div class="library-card-metrics">
         <div><strong>${item.sectionCount}</strong><span>${plural(item.sectionCount, 'раздел', 'раздела', 'разделов')}</span></div>
         <div><strong>${item.itemCount}</strong><span>${plural(item.itemCount, 'пункт', 'пункта', 'пунктов')}</span></div>
       </div>
-      <div class="library-card-footer"><span class="library-card-date">Изменён ${formatDate(item.updatedAt)}</span><div class="library-row-actions"><a class="btn btn-sm btn-primary" href="/Checklists/TemplateEditor?id=${encodeURIComponent(item.id)}">Редактировать</a><button class="btn btn-sm btn-outline-secondary" type="button" data-copy-template="${escapeHtml(item.id)}">Копировать</button><button class="btn btn-sm btn-outline-danger" type="button" data-delete-template="${escapeHtml(item.id)}" aria-label="Удалить шаблон ${escapeHtml(item.name)}">Удалить</button></div></div>
-    </article>`).join('') : emptyState('Шаблоны не найдены', search ? 'Попробуйте изменить поисковый запрос.' : 'Создайте первый шаблон для быстрого формирования чек-листа.');
+      <div class="library-card-footer"><span class="library-card-date">Изменён ${formatDate(item.updatedAt)}</span><div class="library-row-actions"><a class="btn btn-sm btn-primary" href="/Checklists/TemplateEditor?id=${encodeURIComponent(item.id)}">Редактировать</a></div></div>
+    </article>`).join('') : emptyState('Шаблоны не найдены', 'Системные шаблоны ещё не подготовлены.');
   };
   if (templateBody) request('/api/checklist-templates').then(values => { templates = values; renderTemplates(); }).catch(error => { templateBody.innerHTML = emptyState('Не удалось загрузить шаблоны', error.message, true); showError(error.message); });
-  root.querySelector('[data-template-search]')?.addEventListener('input', renderTemplates);
-
-  let selectedTemplate = null;
-  root.addEventListener('click', (event) => {
-    const copy = event.target.closest('[data-copy-template]');
-    const remove = event.target.closest('[data-delete-template]');
-    if (copy) { selectedTemplate = templates.find(item => item.id === copy.dataset.copyTemplate); document.querySelector('[data-copy-name]').value = `${selectedTemplate.name} — копия`; bootstrap.Modal.getOrCreateInstance(document.getElementById('templateCopyModal')).show(); }
-    if (remove) { selectedTemplate = templates.find(item => item.id === remove.dataset.deleteTemplate); document.querySelector('[data-delete-name]').textContent = selectedTemplate.name; bootstrap.Modal.getOrCreateInstance(document.getElementById('templateDeleteModal')).show(); }
-  });
-  document.querySelector('[data-copy-form]')?.addEventListener('submit', async (event) => { event.preventDefault(); if (!selectedTemplate) return; try { const value = await request(`/api/checklist-templates/${selectedTemplate.id}/copy`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: document.querySelector('[data-copy-name]').value }) }); location.href = `/Checklists/TemplateEditor?id=${encodeURIComponent(value.id)}`; } catch (error) { showError(error.message); } });
-  document.querySelector('[data-confirm-delete]')?.addEventListener('click', async () => { if (!selectedTemplate) return; try { await request(`/api/checklist-templates/${selectedTemplate.id}`, { method: 'DELETE' }); templates = templates.filter(item => item.id !== selectedTemplate.id); bootstrap.Modal.getOrCreateInstance(document.getElementById('templateDeleteModal')).hide(); renderTemplates(); } catch (error) { showError(error.message); } });
 
   const historyBody = root.querySelector('[data-history-list]');
   const filters = root.querySelector('[data-history-filters]');

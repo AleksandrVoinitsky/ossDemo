@@ -26,6 +26,8 @@ internal sealed class ChecklistService(IChecklistRepository repository)
 
     public async Task<ChecklistOperationResult<ChecklistTemplateDetails>> CopyTemplateAsync(Guid id, string? name, CancellationToken cancellationToken)
     {
+        if (await repository.GetTemplateAsync(id, cancellationToken) is { IsSystem: true })
+            return ChecklistOperationResult<ChecklistTemplateDetails>.Fail("system_template", "Системный шаблон нельзя копировать.");
         var normalizedName = name?.Trim() ?? string.Empty;
         return normalizedName.Length == 0
             ? ChecklistOperationResult<ChecklistTemplateDetails>.Fail("validation", "Укажите название копии.", new Dictionary<string, string[]> { ["name"] = ["Укажите название копии."] })
@@ -34,6 +36,8 @@ internal sealed class ChecklistService(IChecklistRepository repository)
 
     public async Task<ChecklistOperationResult<bool>> DeleteTemplateAsync(Guid id, CancellationToken cancellationToken)
     {
+        if (await repository.GetTemplateAsync(id, cancellationToken) is { IsSystem: true })
+            return ChecklistOperationResult<bool>.Fail("system_template", "Системный шаблон нельзя удалить.");
         return await repository.DeleteTemplateAsync(id, cancellationToken)
             ? ChecklistOperationResult<bool>.Success(true)
             : ChecklistOperationResult<bool>.Fail("not_found", "Шаблон не найден.");

@@ -1,5 +1,6 @@
 using Npgsql;
 using NpgsqlTypes;
+using System.Text.Json;
 
 internal sealed class PostgresChecklistRepository(IConfiguration configuration) : IChecklistRepository
 {
@@ -7,9 +8,10 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = new NpgsqlCommand("""
-            SELECT t.id,t.name,t.facility_id,f.name,t.version,t.updated_at,
-                   count(DISTINCT s.id)::int,count(i.id)::int
-            FROM app_checklist_templates t JOIN app_facilities f ON f.id=t.facility_id
+            SELECT t.id,t.name,COALESCE(t.facility_id,'00000000-0000-0000-0000-000000000000'::uuid),
+                   COALESCE(f.name,CASE t.scope WHEN 'society' THEN 'Уровень Общества' WHEN 'branch' THEN 'Уровень филиала' ELSE 'Без объекта' END),
+                   t.version,t.updated_at,count(DISTINCT s.id)::int,count(i.id)::int,t.scope,t.header_json,t.is_system
+            FROM app_checklist_templates t LEFT JOIN app_facilities f ON f.id=t.facility_id
             LEFT JOIN app_checklist_template_sections s ON s.template_id=t.id
             LEFT JOIN app_checklist_template_items i ON i.section_id=s.id
             GROUP BY t.id,f.name ORDER BY t.updated_at DESC,t.name
@@ -17,7 +19,7 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var values = new List<ChecklistTemplateSummary>();
         while (await reader.ReadAsync(cancellationToken))
-            values.Add(new(reader.GetGuid(0),reader.GetString(1),reader.GetGuid(2),reader.GetString(3),reader.GetInt64(4),reader.GetInt32(6),reader.GetInt32(7),reader.GetFieldValue<DateTimeOffset>(5)));
+            values.Add(new(reader.GetGuid(0),reader.GetString(1),reader.GetGuid(2),reader.GetString(3),reader.GetInt64(4),reader.GetInt32(6),reader.GetInt32(7),reader.GetFieldValue<DateTimeOffset>(5),reader.GetString(8),ReadHeader(reader.GetString(9)),reader.GetBoolean(10)));
         return values;
     }
 
@@ -46,8 +48,8 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        await using var update = new NpgsqlCommand("UPDATE app_checklist_templates SET name=@name,facility_id=@facilityId,version=version+1,updated_at=now() WHERE id=@id AND version=@version", connection, transaction);
-        update.Parameters.AddWithValue("id", id); update.Parameters.AddWithValue("name", request.Name!); update.Parameters.AddWithValue("facilityId", request.FacilityId); update.Parameters.AddWithValue("version", request.Version);
+        await using var update = new NpgsqlCommand("UPDATE app_checklist_templates SET name=@name,facility_id=CASE WHEN is_system THEN NULL ELSE @facilityId END,header_json=@header,version=version+1,updated_at=now() WHERE id=@id AND version=@version", connection, transaction);
+        update.Parameters.AddWithValue("id", id); update.Parameters.AddWithValue("name", request.Name!); update.Parameters.AddWithValue("facilityId", request.FacilityId); update.Parameters.Add(new NpgsqlParameter("header", NpgsqlDbType.Jsonb) { Value = JsonSerializer.Serialize(request.Header) }); update.Parameters.AddWithValue("version", request.Version);
         if (await update.ExecuteNonQueryAsync(cancellationToken) == 0)
         {
             await using var exists = new NpgsqlCommand("SELECT EXISTS(SELECT 1 FROM app_checklist_templates WHERE id=@id)", connection, transaction);
@@ -106,7 +108,7 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         string templateName;
         string facilityName;
-        await using (var command = new NpgsqlCommand("SELECT t.name,f.name FROM app_checklist_templates t JOIN app_facilities f ON f.id=t.facility_id WHERE t.id=@templateId AND t.facility_id=@facilityId FOR SHARE", connection, transaction))
+        await using (var command = new NpgsqlCommand("SELECT t.name,f.name FROM app_checklist_templates t CROSS JOIN app_facilities f WHERE t.id=@templateId AND f.id=@facilityId FOR SHARE", connection, transaction))
         {
             command.Parameters.AddWithValue("templateId", request.TemplateId); command.Parameters.AddWithValue("facilityId", request.FacilityId);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -369,14 +371,15 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
 
     private static async Task<ChecklistTemplateDetails?> GetTemplateAsync(NpgsqlConnection connection,NpgsqlTransaction? transaction,Guid id,CancellationToken cancellationToken)
     {
-        await using var command=new NpgsqlCommand("SELECT t.id,t.name,t.facility_id,f.name,t.version,t.created_at,t.updated_at FROM app_checklist_templates t JOIN app_facilities f ON f.id=t.facility_id WHERE t.id=@id",connection,transaction);command.Parameters.AddWithValue("id",id);ChecklistTemplateDetails header;
-        await using(var reader=await command.ExecuteReaderAsync(cancellationToken)){if(!await reader.ReadAsync(cancellationToken))return null;header=new(reader.GetGuid(0),reader.GetString(1),reader.GetGuid(2),reader.GetString(3),reader.GetInt64(4),reader.GetFieldValue<DateTimeOffset>(5),reader.GetFieldValue<DateTimeOffset>(6),[]);}
+        await using var command=new NpgsqlCommand("SELECT t.id,t.name,COALESCE(t.facility_id,'00000000-0000-0000-0000-000000000000'::uuid),COALESCE(f.name,CASE t.scope WHEN 'society' THEN 'Уровень Общества' WHEN 'branch' THEN 'Уровень филиала' ELSE 'Без объекта' END),t.version,t.created_at,t.updated_at,t.scope,t.header_json,t.is_system FROM app_checklist_templates t LEFT JOIN app_facilities f ON f.id=t.facility_id WHERE t.id=@id",connection,transaction);command.Parameters.AddWithValue("id",id);ChecklistTemplateDetails header;
+        await using(var reader=await command.ExecuteReaderAsync(cancellationToken)){if(!await reader.ReadAsync(cancellationToken))return null;header=new(reader.GetGuid(0),reader.GetString(1),reader.GetGuid(2),reader.GetString(3),reader.GetInt64(4),reader.GetFieldValue<DateTimeOffset>(5),reader.GetFieldValue<DateTimeOffset>(6),[],reader.GetString(7),ReadHeader(reader.GetString(8)),reader.GetBoolean(9));}
         await using var child=new NpgsqlCommand("SELECT s.id,s.title,s.position,i.id,i.title,i.basis,i.note,i.position FROM app_checklist_template_sections s LEFT JOIN app_checklist_template_items i ON i.section_id=s.id WHERE s.template_id=@id ORDER BY s.position,i.position",connection,transaction);child.Parameters.AddWithValue("id",id);await using var childReader=await child.ExecuteReaderAsync(cancellationToken);var sections=new List<ChecklistTemplateSectionDetails>();Guid? current=null;List<ChecklistTemplateItemDetails>? items=null;while(await childReader.ReadAsync(cancellationToken)){var sectionId=childReader.GetGuid(0);if(current!=sectionId){items=[];sections.Add(new(sectionId,childReader.GetString(1),childReader.GetInt32(2),items));current=sectionId;}if(!childReader.IsDBNull(3))items!.Add(new(childReader.GetGuid(3),childReader.GetString(4),childReader.GetString(5),childReader.GetString(6),childReader.GetInt32(7)));}return header with{Sections=sections};
     }
 
     private static async Task InsertSectionsAsync(NpgsqlConnection connection,NpgsqlTransaction transaction,Guid templateId,IReadOnlyList<ChecklistTemplateSectionWrite> sections,CancellationToken cancellationToken)
     {foreach(var section in sections){var sectionId=Guid.NewGuid();await using(var command=new NpgsqlCommand("INSERT INTO app_checklist_template_sections (id,template_id,title,position) VALUES (@id,@templateId,@title,@position)",connection,transaction)){command.Parameters.AddWithValue("id",sectionId);command.Parameters.AddWithValue("templateId",templateId);command.Parameters.AddWithValue("title",section.Title!);command.Parameters.AddWithValue("position",section.Position);await command.ExecuteNonQueryAsync(cancellationToken);}foreach(var item in section.Items){await using var command=new NpgsqlCommand("INSERT INTO app_checklist_template_items (id,section_id,title,basis,note,position) VALUES (@id,@sectionId,@title,@basis,@note,@position)",connection,transaction);command.Parameters.AddWithValue("id",Guid.NewGuid());command.Parameters.AddWithValue("sectionId",sectionId);command.Parameters.AddWithValue("title",item.Title!);command.Parameters.AddWithValue("basis",item.Basis!);command.Parameters.AddWithValue("note",item.Note??"");command.Parameters.AddWithValue("position",item.Position);await command.ExecuteNonQueryAsync(cancellationToken);}}}
     private async Task<NpgsqlConnection> OpenAsync(CancellationToken cancellationToken){var connection=new NpgsqlConnection(configuration.GetConnectionString("OssDatabase")??throw new InvalidOperationException("Не задана строка подключения ConnectionStrings__OssDatabase."));await connection.OpenAsync(cancellationToken);return connection;}
+    private static ChecklistTemplateHeader? ReadHeader(string json)=>string.IsNullOrWhiteSpace(json)||json=="{}"?null:JsonSerializer.Deserialize<ChecklistTemplateHeader>(json,new JsonSerializerOptions{PropertyNameCaseInsensitive=true});
     private static void AddDate(NpgsqlCommand command,string name,DateOnly? value)=>command.Parameters.Add(name,NpgsqlDbType.Date).Value=(object?)value??DBNull.Value;
     private static void AddNullableUuid(NpgsqlCommand command,string name,Guid? value)=>command.Parameters.Add(name,NpgsqlDbType.Uuid).Value=(object?)value??DBNull.Value;
 }

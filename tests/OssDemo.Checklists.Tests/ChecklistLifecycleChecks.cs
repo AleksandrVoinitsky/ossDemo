@@ -5,6 +5,13 @@ internal static class ChecklistLifecycleChecks
         var repository = new InMemoryChecklistRepository();
         var service = new ChecklistService(repository);
         var facilityId = Guid.NewGuid();
+        var systemTemplateId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        repository.SeedTemplate(new ChecklistTemplateDetails(systemTemplateId, "Шаблон уровня Общества", Guid.Empty,
+            "Уровень Общества", 1, now, now, [], ChecklistTemplateScope.Society,
+            new("Чек-лист", "УТВЕРЖДАЮ", "Уровень Общества"), true));
+        AssertEqual("system_template", (await service.DeleteTemplateAsync(systemTemplateId, CancellationToken.None)).ErrorCode);
+        AssertEqual("system_template", (await service.CopyTemplateAsync(systemTemplateId, "Копия", CancellationToken.None)).ErrorCode);
         var request = new ChecklistTemplateWriteRequest("Шаблон", facilityId, 0,
             [new("Раздел", 1, [new("Исходный пункт", "Статья 1", "", 1)])]);
 

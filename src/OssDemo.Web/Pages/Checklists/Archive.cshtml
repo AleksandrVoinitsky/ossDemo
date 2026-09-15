@@ -5,12 +5,12 @@
     ViewData["Breadcrumb"] = "Чек-лист \\ Шаблоны и история";
     var activeTab = Request.Query["tab"] == "history" ? "history" : "templates";
 }
-<div class="page-actions mb-3"><div><h1 class="h3 section-title mb-1">Шаблоны и история чек-листов</h1><p class="muted-note mb-0">Управляйте быстрыми шаблонами и просматривайте утверждённые проверки.</p></div><a class="btn btn-primary" asp-page="/Checklists/New">Сформировать чек-лист</a></div>
+<div class="page-actions mb-3"><div><h1 class="h3 section-title mb-1">Шаблоны и история чек-листов</h1><p class="muted-note mb-0">Настраивайте два системных уровня и просматривайте утверждённые проверки.</p></div><a class="btn btn-primary" asp-page="/Checklists/AiNew">Сформировать чек-лист</a></div>
 <section class="soft-panel checklist-library" data-checklist-library data-active-tab="@activeTab">
     <nav class="checklist-tabs" aria-label="Разделы чек-листов"><a class="checklist-tab @(activeTab == "templates" ? "active" : "")" href="?tab=templates" aria-current="@(activeTab == "templates" ? "page" : null)">Шаблоны</a><a class="checklist-tab @(activeTab == "history" ? "active" : "")" href="?tab=history" aria-current="@(activeTab == "history" ? "page" : null)">История</a></nav>
     <div class="alert state-hidden mt-3" role="alert" tabindex="-1" data-library-alert hidden></div>
     <div class="checklist-library-pane @(activeTab != "templates" ? "d-none" : "")" data-library-pane="templates">
-        <div class="library-toolbar"><div><label class="form-label" for="templateSearch">Поиск шаблонов</label><input class="form-control" id="templateSearch" type="search" placeholder="Название или объект" data-template-search /></div><a class="btn btn-primary align-self-end" asp-page="/Checklists/TemplateEditor">Создать шаблон</a></div>
+        <div class="library-toolbar"><p class="muted-note mb-0">Шапка отличается уровнем согласования; объект и город подставляются только при формировании.</p></div>
         <div class="checklist-card-grid" data-template-list aria-live="polite">
             <div class="library-empty-state"><span class="library-empty-icon" aria-hidden="true">•••</span><strong>Загрузка шаблонов…</strong></div>
         </div>
@@ -22,6 +22,4 @@
         </div>
     </div>
 </section>
-<div class="modal fade" id="templateCopyModal" tabindex="-1" aria-labelledby="templateCopyTitle" aria-hidden="true"><div class="modal-dialog"><form class="modal-content" data-copy-form><div class="modal-header"><h2 class="modal-title h5" id="templateCopyTitle">Создать копию шаблона</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button></div><div class="modal-body"><label class="form-label" for="copyTemplateName">Название копии</label><input class="form-control" id="copyTemplateName" required data-copy-name /></div><div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Отмена</button><button class="btn btn-primary" type="submit">Создать копию</button></div></form></div></div>
-<div class="modal fade" id="templateDeleteModal" tabindex="-1" aria-labelledby="templateDeleteTitle" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h2 class="modal-title h5" id="templateDeleteTitle">Удалить шаблон?</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button></div><div class="modal-body">Шаблон <strong data-delete-name></strong> будет удалён. Созданные чек-листы сохранятся.</div><div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Отмена</button><button class="btn btn-danger" type="button" data-confirm-delete>Удалить</button></div></div></div></div>
 @section Scripts { <script src="~/js/checklist-library.js" asp-append-version="true"></script> }

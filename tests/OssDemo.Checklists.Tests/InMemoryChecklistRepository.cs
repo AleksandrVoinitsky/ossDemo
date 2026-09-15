@@ -4,6 +4,8 @@ internal sealed class InMemoryChecklistRepository : IChecklistRepository
     private readonly Dictionary<Guid, ChecklistDetails> checklists = [];
     private readonly Dictionary<Guid, Guid> aiRuns = [];
 
+    public void SeedTemplate(ChecklistTemplateDetails template) => templates[template.Id] = template;
+
     public Task<IReadOnlyList<ChecklistTemplateSummary>> ListTemplatesAsync(CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<ChecklistTemplateSummary>>(templates.Values.Select(ToSummary).ToArray());
 
@@ -22,7 +24,7 @@ internal sealed class InMemoryChecklistRepository : IChecklistRepository
     {
         if (!templates.TryGetValue(id, out var current)) return Task.FromResult(FailTemplate("not_found", "Шаблон не найден."));
         if (current.Version != request.Version) return Task.FromResult(FailTemplate("version_conflict", "Шаблон уже изменён."));
-        var value = current with { Name = request.Name!, FacilityId = request.FacilityId, Version = current.Version + 1, UpdatedAt = DateTimeOffset.UtcNow, Sections = MapSections(request.Sections) };
+        var value = current with { Name = request.Name!, FacilityId = request.FacilityId, Header = request.Header, Version = current.Version + 1, UpdatedAt = DateTimeOffset.UtcNow, Sections = MapSections(request.Sections) };
         templates[id] = value;
         return Task.FromResult(ChecklistOperationResult<ChecklistTemplateDetails>.Success(Clone(value)));
     }

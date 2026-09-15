@@ -6,6 +6,7 @@ internal sealed class ChecklistDatabaseInitializer(
     ILogger<ChecklistDatabaseInitializer> logger)
 {
     private const string MigrationKey = "checklists-postgres-v1";
+    private const string SystemTemplateMigrationKey = "checklists-system-templates-v2";
     private const string LegacyDraftMigrationKey = "checklists-json-drafts-v1";
     private readonly SemaphoreSlim initializationLock = new(1, 1);
     private bool initialized;
@@ -22,6 +23,7 @@ internal sealed class ChecklistDatabaseInitializer(
             await connection.OpenAsync(cancellationToken);
             await CreateSchemaAsync(connection, cancellationToken);
             await SeedAsync(connection, cancellationToken);
+            await MigrateSystemTemplatesAsync(connection, cancellationToken);
             await ImportLegacyDraftsAsync(connection, cancellationToken);
             initialized = true;
         }
@@ -46,9 +48,13 @@ internal sealed class ChecklistDatabaseInitializer(
             CREATE TABLE IF NOT EXISTS app_data_migrations (
                 key TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now());
             CREATE TABLE IF NOT EXISTS app_checklist_templates (
-                id UUID PRIMARY KEY, name TEXT NOT NULL, facility_id UUID NOT NULL REFERENCES app_facilities(id),
+                id UUID PRIMARY KEY, name TEXT NOT NULL, facility_id UUID REFERENCES app_facilities(id),
                 version BIGINT NOT NULL DEFAULT 1, created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
+            ALTER TABLE app_checklist_templates ALTER COLUMN facility_id DROP NOT NULL;
+            ALTER TABLE app_checklist_templates ADD COLUMN IF NOT EXISTS scope TEXT NOT NULL DEFAULT 'legacy';
+            ALTER TABLE app_checklist_templates ADD COLUMN IF NOT EXISTS header_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+            ALTER TABLE app_checklist_templates ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT FALSE;
             CREATE TABLE IF NOT EXISTS app_checklist_template_sections (
                 id UUID PRIMARY KEY, template_id UUID NOT NULL REFERENCES app_checklist_templates(id) ON DELETE CASCADE,
                 title TEXT NOT NULL, position INTEGER NOT NULL,
@@ -72,6 +78,7 @@ internal sealed class ChecklistDatabaseInitializer(
                 origin TEXT NOT NULL, UNIQUE(checklist_id, position));
             ALTER TABLE app_checklist_items ADD COLUMN IF NOT EXISTS source_label TEXT NOT NULL DEFAULT '';
             CREATE INDEX IF NOT EXISTS ix_checklist_templates_updated ON app_checklist_templates(updated_at DESC);
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_checklist_templates_system_scope ON app_checklist_templates(scope) WHERE is_system;
             CREATE INDEX IF NOT EXISTS ix_checklists_status_approved ON app_checklists(status, approved_at DESC);
             CREATE INDEX IF NOT EXISTS ix_checklists_facility ON app_checklists(facility_id);
             """, connection);
@@ -97,6 +104,7 @@ internal sealed class ChecklistDatabaseInitializer(
         }
 
         var facilities = ChecklistSeedData.Templates.Select(item => item.Facility)
+            .Where(item => !string.IsNullOrWhiteSpace(item))
             .Concat(ChecklistSeedData.History.Select(item => item.Facility)).Distinct(StringComparer.Ordinal).ToArray();
         foreach (var facility in facilities)
         {
@@ -105,8 +113,8 @@ internal sealed class ChecklistDatabaseInitializer(
                 VALUES (@name, 'Адрес уточняется', 'I категория', @slug)
                 ON CONFLICT (name) DO NOTHING
                 """, connection, transaction);
-            insert.Parameters.AddWithValue("name", facility);
-            insert.Parameters.AddWithValue("slug", CreateSlug(facility));
+            insert.Parameters.AddWithValue("name", facility!);
+            insert.Parameters.AddWithValue("slug", CreateSlug(facility!));
             await insert.ExecuteNonQueryAsync(cancellationToken);
         }
 
@@ -125,19 +133,29 @@ internal sealed class ChecklistDatabaseInitializer(
 
     private static async Task InsertTemplateAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, ChecklistSeedTemplate template, CancellationToken cancellationToken)
     {
-        var facilityId = await GetFacilityIdAsync(connection, transaction, template.Facility, cancellationToken);
+        Guid? facilityId = string.IsNullOrWhiteSpace(template.Facility)
+            ? null
+            : await GetFacilityIdAsync(connection, transaction, template.Facility, cancellationToken);
         var inserted = false;
         await using (var command = new NpgsqlCommand("""
-            INSERT INTO app_checklist_templates (id, name, facility_id)
-            VALUES (@id, @name, @facilityId) ON CONFLICT (id) DO NOTHING
+            INSERT INTO app_checklist_templates (id, name, facility_id, scope, header_json, is_system)
+            VALUES (@id, @name, @facilityId, @scope, @header, @system) ON CONFLICT (id) DO NOTHING
             """, connection, transaction))
         {
             command.Parameters.AddWithValue("id", template.Id);
             command.Parameters.AddWithValue("name", template.Name);
-            command.Parameters.AddWithValue("facilityId", facilityId);
+            command.Parameters.Add(new NpgsqlParameter("facilityId", NpgsqlTypes.NpgsqlDbType.Uuid) { Value = facilityId is null ? DBNull.Value : facilityId.Value });
+            command.Parameters.AddWithValue("scope", template.Scope);
+            command.Parameters.Add(new NpgsqlParameter("header", NpgsqlTypes.NpgsqlDbType.Jsonb) { Value = JsonSerializer.Serialize(template.Header) });
+            command.Parameters.AddWithValue("system", ChecklistTemplateScope.IsSystem(template.Scope));
             inserted = await command.ExecuteNonQueryAsync(cancellationToken) > 0;
         }
         if (!inserted) return;
+        await InsertTemplateSectionsAsync(connection, transaction, template, cancellationToken);
+    }
+
+    private static async Task InsertTemplateSectionsAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, ChecklistSeedTemplate template, CancellationToken cancellationToken)
+    {
         var sectionPosition = 0;
         foreach (var section in template.Sections)
         {
@@ -163,6 +181,60 @@ internal sealed class ChecklistDatabaseInitializer(
                 await command.ExecuteNonQueryAsync(cancellationToken);
             }
         }
+    }
+
+    private static async Task MigrateSystemTemplatesAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
+    {
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using (var migrationLock = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext(@key))", connection, transaction))
+        {
+            migrationLock.Parameters.AddWithValue("key", SystemTemplateMigrationKey);
+            await migrationLock.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await using (var check = new NpgsqlCommand("SELECT EXISTS(SELECT 1 FROM app_data_migrations WHERE key=@key)", connection, transaction))
+        {
+            check.Parameters.AddWithValue("key", SystemTemplateMigrationKey);
+            if ((bool)(await check.ExecuteScalarAsync(cancellationToken) ?? false))
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return;
+            }
+        }
+
+        var ids = ChecklistSeedData.Templates.Select(item => item.Id).ToArray();
+        await using (var removeLegacy = new NpgsqlCommand("DELETE FROM app_checklist_templates WHERE id <> ALL(@ids)", connection, transaction))
+        {
+            removeLegacy.Parameters.AddWithValue("ids", ids);
+            await removeLegacy.ExecuteNonQueryAsync(cancellationToken);
+        }
+        foreach (var template in ChecklistSeedData.Templates)
+        {
+            await using (var upsert = new NpgsqlCommand("""
+                INSERT INTO app_checklist_templates(id,name,facility_id,scope,header_json,is_system)
+                VALUES(@id,@name,NULL,@scope,@header,TRUE)
+                ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,facility_id=NULL,scope=EXCLUDED.scope,
+                    header_json=EXCLUDED.header_json,is_system=TRUE,updated_at=now()
+                """, connection, transaction))
+            {
+                upsert.Parameters.AddWithValue("id", template.Id);
+                upsert.Parameters.AddWithValue("name", template.Name);
+                upsert.Parameters.AddWithValue("scope", template.Scope);
+                upsert.Parameters.Add(new NpgsqlParameter("header", NpgsqlTypes.NpgsqlDbType.Jsonb) { Value = JsonSerializer.Serialize(template.Header) });
+                await upsert.ExecuteNonQueryAsync(cancellationToken);
+            }
+            await using (var clear = new NpgsqlCommand("DELETE FROM app_checklist_template_sections WHERE template_id=@id", connection, transaction))
+            {
+                clear.Parameters.AddWithValue("id", template.Id);
+                await clear.ExecuteNonQueryAsync(cancellationToken);
+            }
+            await InsertTemplateSectionsAsync(connection, transaction, template, cancellationToken);
+        }
+        await using (var record = new NpgsqlCommand("INSERT INTO app_data_migrations(key) VALUES(@key)", connection, transaction))
+        {
+            record.Parameters.AddWithValue("key", SystemTemplateMigrationKey);
+            await record.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
     }
 
     private static async Task InsertHistoryAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, ChecklistSeedHistory history, CancellationToken cancellationToken)

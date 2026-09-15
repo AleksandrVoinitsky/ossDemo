@@ -2,7 +2,17 @@ internal sealed record ChecklistTemplateWriteRequest(
     string? Name,
     Guid FacilityId,
     long Version,
-    IReadOnlyList<ChecklistTemplateSectionWrite> Sections);
+    IReadOnlyList<ChecklistTemplateSectionWrite> Sections,
+    ChecklistTemplateHeader? Header = null);
+
+internal sealed record ChecklistTemplateHeader(string? Title, string? ApprovalBlock, string? IntroText);
+
+internal static class ChecklistTemplateScope
+{
+    public const string Society = "society";
+    public const string Branch = "branch";
+    public static bool IsSystem(string? value) => value is Society or Branch;
+}
 
 internal sealed record ChecklistTemplateSectionWrite(
     string? Title,
@@ -21,8 +31,8 @@ internal enum ChecklistStatus
     Approved
 }
 
-internal sealed record ChecklistTemplateSummary(Guid Id, string Name, Guid FacilityId, string Facility, long Version, int SectionCount, int ItemCount, DateTimeOffset UpdatedAt);
-internal sealed record ChecklistTemplateDetails(Guid Id, string Name, Guid FacilityId, string Facility, long Version, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<ChecklistTemplateSectionDetails> Sections);
+internal sealed record ChecklistTemplateSummary(Guid Id, string Name, Guid FacilityId, string Facility, long Version, int SectionCount, int ItemCount, DateTimeOffset UpdatedAt, string Scope = "legacy", ChecklistTemplateHeader? Header = null, bool IsSystem = false);
+internal sealed record ChecklistTemplateDetails(Guid Id, string Name, Guid FacilityId, string Facility, long Version, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, IReadOnlyList<ChecklistTemplateSectionDetails> Sections, string Scope = "legacy", ChecklistTemplateHeader? Header = null, bool IsSystem = false);
 internal sealed record ChecklistTemplateSectionDetails(Guid Id, string Title, int Position, IReadOnlyList<ChecklistTemplateItemDetails> Items);
 internal sealed record ChecklistTemplateItemDetails(Guid Id, string Title, string Basis, string Note, int Position);
 internal sealed record CopyChecklistTemplateRequest(string? Name);
@@ -38,7 +48,7 @@ internal sealed record ChecklistItemDetails(Guid Id, int Position, string Sectio
     public bool NeedsBasisReview => ChecklistRules.RequiresBasisReview(Basis);
 }
 
-internal sealed record ChecklistSeedTemplate(Guid Id, string SourceKey, string Name, string Facility, IReadOnlyList<ChecklistSeedSection> Sections);
+internal sealed record ChecklistSeedTemplate(Guid Id, string SourceKey, string Name, string? Facility, IReadOnlyList<ChecklistSeedSection> Sections, string Scope = "legacy", ChecklistTemplateHeader? Header = null);
 internal sealed record ChecklistSeedSection(string Title, IReadOnlyList<ChecklistSeedTemplateItem> Items);
 internal sealed record ChecklistSeedTemplateItem(string Title, string Basis, string Note);
 internal sealed record ChecklistSeedHistory(Guid Id, string SourceKey, string Name, string Facility, DateOnly? StartedOn, DateOnly? FinishedOn, DateTimeOffset ApprovedAt, ChecklistStatus Status, IReadOnlyList<ChecklistSeedHistoryItem> Items);
