@@ -3,6 +3,26 @@ internal static class AiChecklistApi
     public static void MapAiChecklistApi(this WebApplication app)
     {
         var group = app.MapGroup("/api/ai-checklists");
+        group.MapPost("/drafts", async (CreateAiChecklistWorkflowDraftRequest request, IAiChecklistDraftStore drafts, CancellationToken ct) =>
+            Results.Created("/api/ai-checklists/drafts", await drafts.CreateAsync(request.FacilitySlug?.Trim() ?? string.Empty, request.TemplateId, ct)));
+        group.MapGet("/drafts/{draftId:guid}", async (Guid draftId, IAiChecklistDraftStore drafts, CancellationToken ct) =>
+            await drafts.GetAsync(draftId, ct) is { } draft ? Results.Ok(draft) : Results.NotFound(new { error = "Черновик формирования не найден.", code = "not_found" }));
+        group.MapPut("/drafts/{draftId:guid}", async (Guid draftId, UpdateAiChecklistDraftRequest request, IAiChecklistDraftStore drafts, CancellationToken ct) =>
+            ToResult(await drafts.UpdateAsync(draftId, request, ct)));
+        group.MapPost("/drafts/{draftId:guid}/documents", async (Guid draftId, HttpRequest request, IAiChecklistDraftStore drafts, CancellationToken ct) =>
+        {
+            if (!request.HasFormContentType) return Error("validation", "Передайте файл и тип документа.", new Dictionary<string, string[]>());
+            var form = await request.ReadFormAsync(ct);
+            var file = form.Files.GetFile("file");
+            return file is null
+                ? Error("validation", "Выберите файл.", new Dictionary<string, string[]>())
+                : ToResult(await drafts.AddDocumentAsync(draftId, form["type"].ToString(), file, ct));
+        }).DisableAntiforgery();
+        group.MapDelete("/drafts/{draftId:guid}/documents/{documentId:guid}", async (Guid draftId, Guid documentId, IAiChecklistDraftStore drafts, CancellationToken ct) =>
+        {
+            var result = await drafts.DeleteDocumentAsync(draftId, documentId, ct);
+            return result.IsSuccess ? Results.NoContent() : Error(result.ErrorCode, result.Error, result.Errors);
+        });
         group.MapPost("/analyze", async (AiChecklistRequest request, AiChecklistAgent agent, CancellationToken ct) =>
             ToResult(await agent.AnalyzeAsync(request.FacilitySlug, ct)));
         group.MapPost("/search", async (AiChecklistRequest request, AiChecklistAgent agent, CancellationToken ct) =>
@@ -14,9 +34,22 @@ internal static class AiChecklistApi
                 ? Results.Created($"/api/checklists/{result.Value!.Id}", result.Value)
                 : Error(result.ErrorCode, result.Error, result.Errors);
         });
-        group.MapPost("/runs", async (AiChecklistRequest request, AiChecklistAgent agent, CancellationToken ct) =>
+        group.MapPost("/runs", async (CreateAiChecklistRunRequest request, AiChecklistAgent agent, IAiChecklistDraftStore drafts, CancellationToken ct) =>
         {
-            var result = await agent.CreateRunAsync(request.FacilitySlug, ct);
+            AiChecklistDraftState? draft = null;
+            if (request.DraftId != Guid.Empty)
+            {
+                draft = await drafts.GetAsync(request.DraftId, ct);
+                if (draft is null) return Error("not_found", "Черновик формирования не найден.", new Dictionary<string, string[]>());
+                if (draft.RunId is { } existingRunId && await agent.GetRunAsync(existingRunId, ct) is { } existingRun)
+                    return Results.Ok(AiChecklistRunResponse.From(existingRun));
+            }
+            var result = await agent.CreateRunAsync(draft?.FacilitySlug ?? request.FacilitySlug, ct);
+            if (result.IsSuccess && draft is not null)
+            {
+                var attached = await drafts.AttachRunAsync(draft.Id, result.Value!.Id, ct);
+                if (!attached.IsSuccess) return Error(attached.ErrorCode, attached.Error, attached.Errors);
+            }
             return result.IsSuccess
                 ? Results.Created($"/api/ai-checklists/runs/{result.Value!.Id}", AiChecklistRunResponse.From(result.Value))
                 : Error(result.ErrorCode, result.Error, result.Errors);
@@ -93,6 +126,7 @@ internal static class AiChecklistApi
         "storage_unavailable" => StatusCodes.Status503ServiceUnavailable,
         "ai_unavailable" => StatusCodes.Status502BadGateway,
         "state_conflict" => StatusCodes.Status409Conflict,
+        "version_conflict" => StatusCodes.Status409Conflict,
         "facility_profile_incomplete" => StatusCodes.Status409Conflict,
         "coverage_gap" => StatusCodes.Status422UnprocessableEntity,
         _ => StatusCodes.Status400BadRequest

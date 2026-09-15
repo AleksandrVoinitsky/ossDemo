@@ -61,6 +61,18 @@ internal sealed class AiChecklistDatabaseInitializer(IConfiguration configuratio
             ALTER TABLE app_ai_checklist_batches ADD CONSTRAINT app_ai_checklist_batches_status CHECK (status IN ('pending','queued','running','completed','failed','skipped'));
             ALTER TABLE app_checklists ADD COLUMN IF NOT EXISTS ai_run_id uuid NULL;
             CREATE UNIQUE INDEX IF NOT EXISTS ux_app_checklists_ai_run_id ON app_checklists(ai_run_id) WHERE ai_run_id IS NOT NULL;
+            CREATE TABLE IF NOT EXISTS app_ai_checklist_drafts (
+                id uuid PRIMARY KEY, facility_slug text NOT NULL DEFAULT '', template_id uuid NULL REFERENCES app_checklist_templates(id),
+                step text NOT NULL DEFAULT 'object', version bigint NOT NULL DEFAULT 1, run_id uuid NULL REFERENCES app_ai_checklist_runs(id),
+                created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE TABLE IF NOT EXISTS app_inspection_basis_documents (
+                id uuid PRIMARY KEY, draft_id uuid NOT NULL REFERENCES app_ai_checklist_drafts(id) ON DELETE CASCADE,
+                run_id uuid NULL REFERENCES app_ai_checklist_runs(id), document_type text NOT NULL CHECK (document_type IN ('order','directive','license')),
+                original_name text NOT NULL, media_type text NOT NULL, byte_length bigint NOT NULL,
+                sha256 text NOT NULL, storage_path text NOT NULL, uploaded_at timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS ix_inspection_basis_documents_draft ON app_inspection_basis_documents(draft_id,uploaded_at);
             """, connection);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }

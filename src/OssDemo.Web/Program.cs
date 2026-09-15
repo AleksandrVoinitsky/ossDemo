@@ -90,6 +90,7 @@ builder.Services.AddSingleton<IAiChecklistFacilitySource, AiChecklistFacilitySou
 builder.Services.AddSingleton<AiChecklistAgent>();
 builder.Services.AddSingleton<IAiChecklistRunStore, PostgresAiChecklistRunStore>();
 builder.Services.AddSingleton<AiChecklistDatabaseInitializer>();
+builder.Services.AddSingleton<IAiChecklistDraftStore, PostgresAiChecklistDraftStore>();
 builder.Services.AddSingleton<IClassifierRepository, PostgresClassifierRepository>();
 builder.Services.AddSingleton<ClassifierDatabaseInitializer>();
 builder.Services.AddSingleton<RequirementDatabaseInitializer>();
