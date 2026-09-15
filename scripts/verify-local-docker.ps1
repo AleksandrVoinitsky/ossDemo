@@ -296,7 +296,32 @@ if ($RequireLlm) {
     if ([string]$llmProbe.answer -notmatch '\[S\d+\]') {
         throw 'The grounded LLM answer does not cite any returned source marker.'
     }
-    $llmSummary = " LLM model: $($llmProbe.model); sources: $(@($llmProbe.sources).Count); seconds: $([math]::Round($llmTimer.Elapsed.TotalSeconds, 1))."
+
+    $streamBody = @{
+        message = 'Как инспектору проверить наличие программы производственного экологического контроля? Ответь только по найденным источникам.'
+        conversation = @()
+        stream = $true
+    } | ConvertTo-Json -Compress
+    $streamTimer = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        $streamResponse = Invoke-WebRequest -Method Post -Uri 'http://127.0.0.1:18080/api/ai/chat' -Headers @{ Cookie = 'oss.auth=true' } `
+            -ContentType 'application/json; charset=utf-8' -Body $streamBody -TimeoutSec 300
+        $streamText = if ($streamResponse.Content -is [byte[]]) { [Text.Encoding]::UTF8.GetString($streamResponse.Content) } else { [string]$streamResponse.Content }
+        $streamEvents = @($streamText -split "`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_ | ConvertFrom-Json })
+    }
+    catch {
+        throw "The streaming grounded LLM probe failed: $($_.Exception.Message)"
+    }
+    finally {
+        $streamTimer.Stop()
+    }
+    $streamSources = $streamEvents | Where-Object type -eq 'sources' | Select-Object -First 1
+    $streamDone = $streamEvents | Where-Object type -eq 'done' | Select-Object -First 1
+    $streamAnswer = [string]::Join('', @($streamEvents | Where-Object type -eq 'delta' | ForEach-Object content))
+    if (-not $streamSources.grounded -or @($streamSources.sources).Count -lt 1 -or -not $streamDone.grounded -or $streamAnswer -notmatch '\[S\d+\]') {
+        throw 'The streaming LLM probe did not return a citation-validated grounded answer.'
+    }
+    $llmSummary = " LLM model: $($llmProbe.model); sources: $(@($llmProbe.sources).Count); seconds: $([math]::Round($llmTimer.Elapsed.TotalSeconds, 1)); stream seconds: $([math]::Round($streamTimer.Elapsed.TotalSeconds, 1))."
 }
 
 $extension = & docker compose --project-name ossdemo-local --env-file $environmentFile -f $composeFile exec -T database psql -U ossdemo -d ossdemo -Atc "SELECT extname FROM pg_extension WHERE extname='vector';"

@@ -7,5 +7,9 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/OssDemo.Web/OssDemo.Web.csproj" />
+    <Content Include="../../data/evals/rag-grounding-cases.json">
+      <Link>evals/rag-grounding-cases.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 </Project>

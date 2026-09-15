@@ -499,7 +499,7 @@ app.MapPost("/api/ai/chat", async (
             if (streamingResult.UpstreamResponse is not null)
             {
                 using var upstreamResponse = streamingResult.UpstreamResponse;
-                await ChatStreaming.WriteAsync(context.Response, upstreamResponse, streamingSources, true, cancellationToken);
+                await ChatStreaming.WriteAsync(context.Response, upstreamResponse, streamingSources, logger, cancellationToken);
                 return Results.Empty;
             }
 
@@ -523,7 +523,7 @@ app.MapPost("/api/ai/chat", async (
         return Results.Ok(new
         {
             answer = result.Answer,
-            grounded = result.Matches.Count > 0,
+            grounded = result.Grounded,
             sources,
             model
         });
@@ -662,60 +662,63 @@ internal static class ChatStreaming
         HttpResponse clientResponse,
         HttpResponseMessage upstreamResponse,
         IEnumerable<ChatSource> sources,
-        bool grounded,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
+        var sourceList = sources.ToArray();
         clientResponse.StatusCode = StatusCodes.Status200OK;
         clientResponse.ContentType = "application/x-ndjson; charset=utf-8";
         clientResponse.Headers.CacheControl = "no-cache";
         clientResponse.Headers.Append("X-Accel-Buffering", "no");
 
-        await WriteEventAsync(clientResponse, new { type = "sources", sources, grounded }, cancellationToken);
-
         try
         {
+            var answer = new StringBuilder();
             await using var contentStream = await upstreamResponse.Content.ReadAsStreamAsync(cancellationToken);
             using var reader = new StreamReader(contentStream, Encoding.UTF8);
 
             while (await reader.ReadLineAsync(cancellationToken) is { } line)
             {
-                if (!line.StartsWith("data: ", StringComparison.Ordinal))
+                if (TryReadDelta(line, out var content))
                 {
-                    continue;
-                }
-
-                var data = line[6..];
-                if (data == "[DONE]")
-                {
-                    break;
-                }
-
-                try
-                {
-                    using var chunk = JsonDocument.Parse(data);
-                    var content = chunk.RootElement
-                        .GetProperty("choices")[0]
-                        .GetProperty("delta")
-                        .TryGetProperty("content", out var contentElement)
-                        ? contentElement.GetString()
-                        : null;
-
-                    if (!string.IsNullOrEmpty(content))
-                    {
-                        await WriteEventAsync(clientResponse, new { type = "delta", content }, cancellationToken);
-                    }
-                }
-                catch (JsonException)
-                {
-                    // Служебные или неполные события провайдера не должны завершать диалог.
+                    answer.Append(content);
                 }
             }
 
-            await WriteEventAsync(clientResponse, new { type = "done" }, cancellationToken);
+            var validation = RagCitationValidator.Validate(answer.ToString(), sourceList.Length);
+            var safeAnswer = validation.IsGrounded ? answer.ToString() : RagCitationValidator.UnverifiedAnswer;
+            await WriteEventAsync(clientResponse, new { type = "sources", sources = sourceList, grounded = validation.IsGrounded }, cancellationToken);
+            await WriteEventAsync(clientResponse, new { type = "delta", content = safeAnswer }, cancellationToken);
+            await WriteEventAsync(clientResponse, new { type = "done", grounded = validation.IsGrounded }, cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            logger.LogError(exception, "Потоковый ответ LLM прерван до проверки нормативных ссылок.");
+            await WriteEventAsync(clientResponse, new { type = "sources", sources = sourceList, grounded = false }, cancellationToken);
             await WriteEventAsync(clientResponse, new { type = "interrupted", message = "Генерация ответа была прервана." }, cancellationToken);
+        }
+    }
+
+    internal static bool TryReadDelta(string line, out string? content)
+    {
+        content = null;
+        if (!line.StartsWith("data: ", StringComparison.Ordinal) || line.AsSpan(6).SequenceEqual("[DONE]")) return false;
+        try
+        {
+            using var chunk = JsonDocument.Parse(line[6..]);
+            if (!chunk.RootElement.TryGetProperty("choices", out var choices)
+                || choices.ValueKind != JsonValueKind.Array
+                || choices.GetArrayLength() == 0
+                || !choices[0].TryGetProperty("delta", out var delta)
+                || !delta.TryGetProperty("content", out var contentElement)
+                || contentElement.ValueKind != JsonValueKind.String)
+                return false;
+            content = contentElement.GetString();
+            return !string.IsNullOrEmpty(content);
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 

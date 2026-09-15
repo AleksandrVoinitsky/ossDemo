@@ -216,10 +216,11 @@ internal sealed class RagService(
         var searchResult = await FindSourcesAsync(question, cancellationToken);
         if (searchResult.Matches.Count == 0)
         {
-            return new(NoSourcesAnswer, Array.Empty<RagMatch>());
+            return new(NoSourcesAnswer, Array.Empty<RagMatch>(), false);
         }
 
-        using var response = await SendAnswerRequestAsync(question, searchResult.Matches, conversation, stream: false, cancellationToken);
+        var contextMatches = SelectContextMatches(searchResult.Matches, maxMatches: ResultCount, maxMatchesPerDocument: 3);
+        using var response = await SendAnswerRequestAsync(question, contextMatches, conversation, stream: false, cancellationToken);
         var payload = await response.Content.ReadAsStringAsync(cancellationToken);
         EnsureSuccessfulQwenResponse(response, payload);
 
@@ -230,7 +231,15 @@ internal sealed class RagService(
             throw new InvalidOperationException("Qwen вернул пустой ответ.");
         }
 
-        return new(answer, searchResult.Matches);
+        var citationValidation = RagCitationValidator.Validate(answer, contextMatches.Count);
+        if (!citationValidation.IsGrounded)
+        {
+            logger.LogWarning("Ответ LLM отклонён проверкой ссылок. Источников: {SourceCount}; некорректные ссылки: {InvalidCitations}.",
+                contextMatches.Count, string.Join(", ", citationValidation.InvalidSourceNumbers));
+            return new(RagCitationValidator.UnverifiedAnswer, contextMatches, false);
+        }
+
+        return new(answer, contextMatches, true);
     }
 
     public async Task<RagStreamingResult> StartStreamingAnswerAsync(
@@ -244,14 +253,15 @@ internal sealed class RagService(
             return new(null, Array.Empty<RagMatch>(), NoSourcesAnswer);
         }
 
-        var response = await SendAnswerRequestAsync(question, searchResult.Matches, conversation, stream: true, cancellationToken);
+        var contextMatches = SelectContextMatches(searchResult.Matches, maxMatches: ResultCount, maxMatchesPerDocument: 3);
+        var response = await SendAnswerRequestAsync(question, contextMatches, conversation, stream: true, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             var payload = await response.Content.ReadAsStringAsync(cancellationToken);
             EnsureSuccessfulQwenResponse(response, payload);
         }
 
-        return new(response, searchResult.Matches, null);
+        return new(response, contextMatches, null);
     }
 
     private const string NoSourcesAnswer = "В проиндексированных документах не найдено подтверждённых фрагментов по этому вопросу.";
@@ -346,10 +356,9 @@ internal sealed class RagService(
         bool stream,
         CancellationToken cancellationToken)
     {
-        var contextMatches = SelectContextMatches(matches, maxMatches: ResultCount, maxMatchesPerDocument: 3);
-        var context = string.Join("\n\n", contextMatches.Select((match, index) =>
+        var context = string.Join("\n\n", matches.Select((match, index) =>
             $"[S{index + 1}] Документ: {match.DocumentTitle}\nКатегория: {match.Category}\nТип: {match.DocumentType}\nРаздел: {match.SourceLabel}\n{match.Text}"));
-        if (contextMatches.Count == 0)
+        if (matches.Count == 0)
         {
             throw new InvalidOperationException("Генерация ответа без найденных источников запрещена.");
         }
@@ -698,7 +707,7 @@ internal sealed record RagSearchResult(IReadOnlyList<RagMatch> Matches, bool IsA
     public static RagSearchResult Empty { get; } = new(Array.Empty<RagMatch>(), false, Array.Empty<string>());
 }
 
-internal sealed record RagAnswerResult(string Answer, IReadOnlyList<RagMatch> Matches);
+internal sealed record RagAnswerResult(string Answer, IReadOnlyList<RagMatch> Matches, bool Grounded);
 internal sealed record RagStreamingResult(HttpResponseMessage? UpstreamResponse, IReadOnlyList<RagMatch> Matches, string? ImmediateAnswer);
 
 internal sealed record RagDocumentStatus(string Title, string SourceType, string Status, int ChunkCount);

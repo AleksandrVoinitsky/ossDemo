@@ -34,7 +34,25 @@ AssertTrue(RagDebugResponse.Build("тест", new RagSearchResult(new[] { native
 var documentOverviewPrompt = ChatPrompt.BuildSystemMessage("[S1] Документ: Изменение", true, Array.Empty<string>());
 AssertTrue(documentOverviewPrompt.Contains("максимально полезный ответ", StringComparison.Ordinal));
 AssertTrue(documentOverviewPrompt.Contains("Каждый фактический вывод сопровождай ссылкой", StringComparison.Ordinal));
+var validCitations = RagCitationValidator.Validate("Требование установлено документом [S1] и уточнено в [S2].", 2);
+AssertTrue(validCitations.IsGrounded);
+AssertTrue(validCitations.SourceIndexes.SequenceEqual(new[] { 0, 1 }));
+AssertTrue(!RagCitationValidator.Validate("Ответ без проверяемой ссылки.", 2).IsGrounded);
+AssertTrue(!RagCitationValidator.Validate("Ссылка ведёт за пределы контекста [S3].", 2).IsGrounded);
+AssertTrue(!RagCitationValidator.Validate("Смешаны корректная [S1] и некорректная [S9] ссылки.", 2).IsGrounded);
+AssertTrue(ChatStreaming.TryReadDelta("data: {\"choices\":[{\"delta\":{\"content\":\"Текст [S1]\"}}]}", out var streamedDelta));
+AssertTrue(streamedDelta == "Текст [S1]");
+AssertTrue(!ChatStreaming.TryReadDelta("data: {\"choices\":[],\"usage\":{\"total_tokens\":10}}", out _));
 AssertThrows(() => ChatPrompt.BuildSystemMessage(string.Empty, false, Array.Empty<string>()));
+using (var evaluationSuite = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "evals", "rag-grounding-cases.json"))))
+{
+    AssertTrue(evaluationSuite.RootElement.GetProperty("schemaVersion").GetInt32() == 1);
+    var evaluationCases = evaluationSuite.RootElement.GetProperty("cases").EnumerateArray().ToArray();
+    AssertTrue(evaluationCases.Length >= 8);
+    AssertTrue(evaluationCases.Select(item => item.GetProperty("id").GetString()).Distinct(StringComparer.Ordinal).Count() == evaluationCases.Length);
+    AssertTrue(evaluationCases.All(item => !string.IsNullOrWhiteSpace(item.GetProperty("question").GetString())));
+    AssertTrue(evaluationCases.All(item => item.GetProperty("expectedSourceTerms").GetArrayLength() > 0));
+}
 var searchRewritePrompt = ChatPrompt.BuildSearchRewriteMessage();
 AssertTrue(searchRewritePrompt.Contains("ровно 8 разных", StringComparison.Ordinal));
 AssertTrue(searchRewritePrompt.Contains("Не отвечай на вопрос", StringComparison.Ordinal));
