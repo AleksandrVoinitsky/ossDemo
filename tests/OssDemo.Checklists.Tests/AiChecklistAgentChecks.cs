@@ -377,7 +377,7 @@ internal static class AiChecklistAgentChecks
             item.Basis, item.Requirement, item.Categories, "manual", false, 1);
 
         public Task<ResolvedCriterionRequirements?> ResolveCriterionAsync(Guid criterionId, CancellationToken cancellationToken) =>
-            Task.FromResult<ResolvedCriterionRequirements?>(new(string.Empty, [resolved]));
+            Task.FromResult<ResolvedCriterionRequirements?>(new(string.Empty, [resolved], []));
         public Task<IReadOnlyList<ResolvedRequirement>> SearchAsync(string? query, int limit, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ResolvedRequirement>>([resolved]);
         public Task<ChecklistOperationResult<ResolvedRequirement>> SaveRevisionAsync(string requirementId, RequirementRevisionWrite request, string actor, CancellationToken cancellationToken) =>

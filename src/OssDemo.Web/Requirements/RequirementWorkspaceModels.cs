@@ -20,7 +20,8 @@ internal sealed record ResolvedRequirement(
 
 internal sealed record ResolvedCriterionRequirements(
     string CriterionCode,
-    IReadOnlyList<ResolvedRequirement> Items);
+    IReadOnlyList<ResolvedRequirement> Items,
+    IReadOnlyList<ResolvedRequirement> ExcludedItems);
 
 internal sealed record RequirementRevisionWrite(string? Requirement, string? Basis, long Version);
 internal sealed record RequirementLinkWrite(string? Action);
@@ -61,22 +62,29 @@ internal static class RequirementWorkspaceResolver
         var selected = sourceItems
             .Where(item => item.ClassifierCodes.Contains(criterionCode, StringComparer.OrdinalIgnoreCase))
             .ToDictionary(item => item.Id, _ => "automatic", StringComparer.OrdinalIgnoreCase);
+        var excluded = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var link in linkOverrides
                      .GroupBy(item => item.RequirementId, StringComparer.OrdinalIgnoreCase)
                      .Select(group => group.MaxBy(item => item.Version)!))
         {
             if (link.Action.Equals("exclude", StringComparison.OrdinalIgnoreCase))
+            {
                 selected.Remove(link.RequirementId);
+                if (sources.ContainsKey(link.RequirementId)) excluded[link.RequirementId] = "excluded";
+            }
             else if (link.Action.Equals("include", StringComparison.OrdinalIgnoreCase) && sources.ContainsKey(link.RequirementId))
+            {
                 selected[link.RequirementId] = "manual";
+                excluded.Remove(link.RequirementId);
+            }
         }
 
         var latestRevisions = revisions
             .GroupBy(item => item.RequirementId, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.MaxBy(item => item.Version)!, StringComparer.OrdinalIgnoreCase);
 
-        var items = selected.Select(pair =>
+        ResolvedRequirement ResolveItem(KeyValuePair<string, string> pair)
             {
                 var source = sources[pair.Key];
                 latestRevisions.TryGetValue(source.Id, out var revision);
@@ -91,10 +99,15 @@ internal static class RequirementWorkspaceResolver
                     pair.Value,
                     revision is not null,
                     revision?.Version ?? 1);
-            })
+            }
+
+        var items = selected.Select(ResolveItem)
+            .OrderBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var excludedItems = excluded.Select(ResolveItem)
             .OrderBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        return new ResolvedCriterionRequirements(criterionCode, items);
+        return new ResolvedCriterionRequirements(criterionCode, items, excludedItems);
     }
 }

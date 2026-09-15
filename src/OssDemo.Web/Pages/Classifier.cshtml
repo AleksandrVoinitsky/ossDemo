@@ -40,33 +40,68 @@
                 <h2 class="h4 section-title">Выберите критерий</h2>
                 <p class="muted-note mb-0">Здесь появятся формулировка, правила связи с карточкой и поисковые подсказки.</p>
             </div>
-            <form data-classifier-form hidden>
-                <div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
-                    <div><span class="badge text-bg-primary" data-classifier-card-code>—</span><h2 class="h4 section-title mt-2 mb-0" data-classifier-card-title>Карточка критерия</h2></div>
-                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="classifierActive" data-classifier-active><label class="form-check-label" for="classifierActive">Активен</label></div>
+            <div data-classifier-selected hidden>
+                <div class="classifier-detail-heading">
+                    <span class="badge text-bg-primary" data-classifier-card-code>—</span>
+                    <h2 class="h4 section-title mb-1" data-classifier-card-title>Карточка критерия</h2>
+                    <p class="muted-note mb-0" data-classifier-card-section></p>
                 </div>
-                <div class="row g-3">
-                    <div class="col-md-4"><label class="form-label" for="classifierSection">Раздел</label><select class="form-select" id="classifierSection" data-classifier-section></select></div>
-                    <div class="col-md-3"><label class="form-label" for="classifierCode">Код</label><input class="form-control" id="classifierCode" data-classifier-code /></div>
-                    <div class="col-md-5"><label class="form-label" for="classifierPosition">Порядок</label><input class="form-control" id="classifierPosition" type="number" min="0" data-classifier-position /></div>
-                    <div class="col-12"><label class="form-label" for="classifierCheck">Проверочное действие</label><textarea class="form-control classifier-primary-field" id="classifierCheck" rows="3" data-classifier-check></textarea></div>
-                    <div class="col-12"><label class="form-label" for="classifierRisk">Исходная формулировка риска</label><textarea class="form-control" id="classifierRisk" rows="4" data-classifier-risk></textarea></div>
-                    <div class="col-12"><label class="form-label" for="classifierTerms">Поисковые термины</label><textarea class="form-control" id="classifierTerms" rows="3" data-classifier-terms></textarea></div>
-                    <div class="col-12"><label class="form-label" for="classifierRules">Связь с карточкой объекта</label><textarea class="form-control font-monospace" id="classifierRules" rows="4" data-classifier-rules placeholder="поле | contains-any | значение 1, значение 2"></textarea><div class="form-text">Одно правило на строку: поле | оператор | значения через запятую.</div></div>
-                    <div class="col-12"><label class="form-label" for="classifierHints">Подсказки нормативных источников</label><textarea class="form-control" id="classifierHints" rows="2" data-classifier-hints></textarea></div>
+                <div class="classifier-tabs" role="tablist" aria-label="Разделы критерия">
+                    <button class="classifier-tab active" id="requirementsTab" type="button" role="tab" aria-selected="true" aria-controls="requirementsPanel" data-classifier-tab="requirements">Требования <span data-requirement-count>0</span></button>
+                    <button class="classifier-tab" id="settingsTab" type="button" role="tab" aria-selected="false" aria-controls="settingsPanel" data-classifier-tab="settings">Настройка критерия</button>
                 </div>
-                <div class="classifier-usage-grid mt-4">
-                    <div><span>Исторических применений</span><strong data-classifier-usage>0</strong></div>
-                    <div><span>Последние источники</span><strong data-classifier-sources>Будут собраны после запусков</strong></div>
-                </div>
-                <div class="alert mt-3" data-classifier-message hidden></div>
-                <div class="d-flex flex-wrap justify-content-between gap-2 mt-4">
-                    <button class="btn btn-outline-danger" type="button" data-classifier-delete>Отключить</button>
-                    <button class="btn btn-success" type="submit">Сохранить критерий</button>
-                </div>
-            </form>
+
+                <section id="requirementsPanel" role="tabpanel" aria-labelledby="requirementsTab" data-classifier-panel="requirements">
+                    <div class="classifier-requirement-toolbar">
+                        <p class="muted-note mb-0">Рабочая разметка требований, используемая при новом формировании чек-листа.</p>
+                        <button class="btn btn-primary btn-sm" type="button" data-requirement-add>Добавить требование</button>
+                    </div>
+                    <div class="requirement-list" data-requirement-list><div class="classifier-loading">Загружаем требования…</div></div>
+                    <details class="requirement-excluded" data-requirement-excluded-wrap hidden>
+                        <summary>Исключённые требования <span data-requirement-excluded-count>0</span></summary>
+                        <div class="requirement-list mt-2" data-requirement-excluded-list></div>
+                    </details>
+                    <div class="classifier-status" role="status" aria-live="polite" data-requirement-status></div>
+                </section>
+
+                <section id="settingsPanel" role="tabpanel" aria-labelledby="settingsTab" data-classifier-panel="settings" hidden>
+                    <form data-classifier-form>
+                        <div class="d-flex justify-content-end mb-3"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="classifierActive" data-classifier-active><label class="form-check-label" for="classifierActive">Активен</label></div></div>
+                        <div class="row g-3">
+                            <div class="col-md-4"><label class="form-label" for="classifierSection">Раздел</label><select class="form-select" id="classifierSection" data-classifier-section></select></div>
+                            <div class="col-md-3"><label class="form-label" for="classifierCode">Код</label><input class="form-control" id="classifierCode" data-classifier-code /></div>
+                            <div class="col-md-5"><label class="form-label" for="classifierPosition">Порядок</label><input class="form-control" id="classifierPosition" type="number" min="0" data-classifier-position /></div>
+                            <div class="col-12"><label class="form-label" for="classifierCheck">Проверочное действие</label><textarea class="form-control classifier-primary-field" id="classifierCheck" rows="3" data-classifier-check></textarea></div>
+                            <div class="col-12"><label class="form-label" for="classifierRisk">Исходная формулировка риска</label><textarea class="form-control" id="classifierRisk" rows="4" data-classifier-risk></textarea></div>
+                            <div class="col-12"><label class="form-label" for="classifierTerms">Поисковые термины</label><textarea class="form-control" id="classifierTerms" rows="3" data-classifier-terms></textarea></div>
+                            <div class="col-12"><label class="form-label" for="classifierRules">Связь с карточкой объекта</label><textarea class="form-control font-monospace" id="classifierRules" rows="4" data-classifier-rules placeholder="поле | contains-any | значение 1, значение 2"></textarea><div class="form-text">Одно правило на строку: поле | оператор | значения через запятую.</div></div>
+                            <div class="col-12"><label class="form-label" for="classifierHints">Подсказки нормативных источников</label><textarea class="form-control" id="classifierHints" rows="2" data-classifier-hints></textarea></div>
+                        </div>
+                        <div class="classifier-usage-grid mt-4">
+                            <div><span>Исторических применений</span><strong data-classifier-usage>0</strong></div>
+                            <div><span>Последние источники</span><strong data-classifier-sources>Будут собраны после запусков</strong></div>
+                        </div>
+                        <div class="alert mt-3" role="status" aria-live="polite" data-classifier-message hidden></div>
+                        <div class="d-flex flex-wrap justify-content-between gap-2 mt-4">
+                            <button class="btn btn-outline-danger" type="button" data-classifier-delete>Отключить</button>
+                            <button class="btn btn-success" type="submit" data-classifier-submit>Сохранить критерий</button>
+                        </div>
+                    </form>
+                </section>
+            </div>
         </div>
     </aside>
 </section>
+
+<dialog class="requirement-dialog" data-requirement-dialog aria-labelledby="requirementDialogTitle">
+    <form method="dialog" class="requirement-dialog-card">
+        <div class="requirement-dialog-heading"><div><h2 class="h4 mb-1" id="requirementDialogTitle">Добавить требование</h2><p class="muted-note mb-0">Найдите строку реестра и подтвердите связь с выбранным критерием.</p></div><button class="btn-close" value="cancel" aria-label="Закрыть"></button></div>
+        <label class="form-label mt-3" for="requirementSearch">Поиск по формулировке, основанию или коду</label>
+        <input class="form-control" id="requirementSearch" type="search" autocomplete="off" data-requirement-search />
+        <div class="requirement-search-results" data-requirement-search-results></div>
+        <div class="classifier-status" role="status" aria-live="polite" data-requirement-dialog-status></div>
+        <div class="d-flex justify-content-end gap-2 mt-3"><button class="btn btn-outline-secondary" value="cancel">Отмена</button><button class="btn btn-primary" type="button" data-requirement-confirm disabled>Добавить выбранное</button></div>
+    </form>
+</dialog>
 
 @section Scripts { <script src="~/js/classifier.js" asp-append-version="true"></script> }

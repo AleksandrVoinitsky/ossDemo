@@ -17,12 +17,16 @@ internal static class RequirementWorkspaceChecks
             [source], "2.1",
             [new RequirementLinkOverride("R1", "exclude", 1)], []);
         AssertEqual(0, excluded.Items.Count);
+        AssertEqual(1, excluded.ExcludedItems.Count);
+        AssertEqual("excluded", excluded.ExcludedItems[0].LinkSource);
 
         var manuallyIncluded = RequirementWorkspaceResolver.Resolve(
             [source], "3.1",
             [new RequirementLinkOverride("R1", "include", 1)], []);
         AssertEqual(1, manuallyIncluded.Items.Count);
         AssertEqual("manual", manuallyIncluded.Items[0].LinkSource);
+        AssertTrue(manuallyIncluded.Items.All(item => item.LinkSource is "automatic" or "manual"), "Источник связи обязателен.");
+        AssertTrue(manuallyIncluded.Items.All(item => item.Version >= 1), "Версия требования обязательна.");
 
         var invalidRevision = RequirementWorkspaceRules.NormalizeRevision(new RequirementRevisionWrite(" ", " ", 1));
         AssertEqual(false, invalidRevision.IsSuccess);
@@ -38,5 +42,10 @@ internal static class RequirementWorkspaceChecks
     {
         if (!EqualityComparer<T>.Default.Equals(expected, actual))
             throw new InvalidOperationException($"Ожидалось: {expected}; получено: {actual}.");
+    }
+
+    private static void AssertTrue(bool condition, string message)
+    {
+        if (!condition) throw new InvalidOperationException(message);
     }
 }
