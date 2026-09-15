@@ -124,7 +124,12 @@ internal static class ClassifierApplicabilityMatcher
             || rule.Field.Equals("type", StringComparison.OrdinalIgnoreCase)))
         {
             var actual = facts.Values(rule.Field).ToArray();
-            if (actual.Length == 0) return ("blocked_unknown", $"Не заполнено идентификационное поле «{rule.Field}».");
+            if (actual.Length == 0)
+            {
+                if (rule.Operator.Equals("required-any", StringComparison.OrdinalIgnoreCase))
+                    return ("blocked_unknown", $"Не заполнено обязательное идентификационное поле «{rule.Field}».");
+                continue;
+            }
             if (!actual.Any(value => rule.Values.Any(expected => ContainsExpected(value, expected))))
                 return ("excluded", $"Значение поля «{rule.Field}» не входит в область применимости критерия.");
         }

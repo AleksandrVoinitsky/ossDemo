@@ -69,6 +69,20 @@ internal static class ClassifierChecks
         AssertTrue(mappedThirdSelection.Any(item => item.Criterion.Code == "1.3"),
             "Критерий с подходящими категорией, регионом и типом должен применяться.");
 
+        var partialStructured = StructuredProfile("partial", FacilityFactState.Absent);
+        partialStructured.Features["air.emissions"] = new(FacilityFactState.Present, "Стационарные источники");
+        var partialDecisions = ClassifierApplicabilityMatcher.Decide(
+            mappedTree,
+            FacilityFactNormalizer.Normalize(new FacilityProfileFields
+            {
+                Category = "III категория",
+                Region = "Пермский край",
+                StructuredProfile = partialStructured
+            }, null), []);
+        AssertEqual("included", partialDecisions.Single(item => item.Code == "2.2").Outcome);
+        AssertTrue(partialDecisions.All(item => item.Reason != "Не заполнено идентификационное поле «type»."),
+            "Отсутствующий необязательный тип не должен блокировать подбор по известным фактам.");
+
         var approvedMappingPath = Path.Combine(AppContext.BaseDirectory, "requirements", "classifier-mapping.jsonl");
         AssertTrue(File.Exists(approvedMappingPath), "Утверждённый mapping должен входить в результат сборки.");
         var approvedMapping = ClassifierMappingCatalog.ParseLines(File.ReadLines(approvedMappingPath));

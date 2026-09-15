@@ -52,10 +52,7 @@ internal sealed class FacilityChecklistComposer(
             .Select(item => new CoverageGap(item.Id, item.ClassifierCodes.Where(includedCodes.Contains).ToArray(), item.Basis, item.Requirement,
                 "Для применимого требования нет утвержденного проверочного пункта."))
             .ToArray();
-        var profileReady = profile.StructuredProfile is not null && FacilityProfileReadiness.Evaluate(profile.StructuredProfile).CanFinalizeChecklist;
-        var canFinalize = profileReady
-            && decisions.All(item => item.Outcome != "blocked_unknown")
-            && gaps.Length == 0;
+        var canFinalize = selectedItems.Length > 0 && gaps.Length == 0;
         return new(decisions, includedCodes, selectedRequirements, selectedIds, selectedItems, coveredIds, gaps, canFinalize);
     }
 

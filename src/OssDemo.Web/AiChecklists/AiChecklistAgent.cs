@@ -91,13 +91,8 @@ internal sealed class AiChecklistAgent(
         {
             var composition = new FacilityChecklistComposer(tree, checklistCatalogs.Requirements, checklistCatalogs.Items)
                 .Compose(analysis.Value.Facility.Profile, history);
-            var structured = analysis.Value.Facility.Profile.StructuredProfile;
-            if (structured is null || !FacilityProfileReadiness.Evaluate(structured).CanFinalizeChecklist)
-            {
-                var unknown = structured is null ? FacilityProfileV2.RequiredFeatureCodes : FacilityProfileReadiness.Evaluate(structured).UnknownFeatureCodes;
-                return ChecklistOperationResult<AiChecklistRunState>.Fail("facility_profile_incomplete", "Подтвердите карточку объекта и заполните все обязательные признаки.",
-                    new Dictionary<string, string[]> { ["features"] = unknown.ToArray() });
-            }
+            var structured = analysis.Value.Facility.Profile.StructuredProfile
+                ?? FacilityProfileMigration.FromLegacy(analysis.Value.Facility.Slug, analysis.Value.Facility.Profile);
             if (composition.Gaps.Count > 0)
                 return ChecklistOperationResult<AiChecklistRunState>.Fail("coverage_gap", "Для части применимых требований нет утвержденных проверочных пунктов.",
                     new Dictionary<string, string[]> { ["requirementIds"] = composition.Gaps.Select(item => item.RequirementId).ToArray() });

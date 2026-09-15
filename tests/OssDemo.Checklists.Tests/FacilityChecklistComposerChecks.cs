@@ -25,8 +25,8 @@ internal static class FacilityChecklistComposerChecks
 
         industrial.StructuredProfile!.Features["water.discharge"] = new(FacilityFactState.Unknown);
         var blocked = composer.Compose(industrial);
-        AssertTrue(!blocked.CanFinalizeChecklist && blocked.ClassifierDecisions.Any(item => item.Outcome == "blocked_unknown"),
-            "Неизвестный критический факт должен блокировать финализацию.");
+        AssertTrue(blocked.CanFinalizeChecklist && blocked.ClassifierDecisions.Any(item => item.Outcome == "blocked_unknown"),
+            "Неизвестный факт должен быть виден в трассировке, но не блокировать чек-лист по известным данным.");
     }
 
     private static FacilityProfileFields Profile(string slug, FacilityFactState defaultState)
