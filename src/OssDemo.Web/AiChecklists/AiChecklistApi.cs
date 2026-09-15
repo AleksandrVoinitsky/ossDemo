@@ -44,11 +44,12 @@ internal static class AiChecklistApi
                 if (draft.RunId is { } existingRunId && await agent.GetRunAsync(existingRunId, ct) is { } existingRun)
                     return Results.Ok(AiChecklistRunResponse.From(existingRun));
             }
-            var result = await agent.CreateRunAsync(draft?.FacilitySlug ?? request.FacilitySlug, ct);
+            var result = await agent.CreateRunAsync(draft?.FacilitySlug ?? request.FacilitySlug, ct, draft?.Id, draft?.TemplateId);
             if (result.IsSuccess && draft is not null)
             {
                 var attached = await drafts.AttachRunAsync(draft.Id, result.Value!.Id, ct);
                 if (!attached.IsSuccess) return Error(attached.ErrorCode, attached.Error, attached.Errors);
+                result = ChecklistOperationResult<AiChecklistRunState>.Success((await agent.GetRunAsync(result.Value.Id, ct))!);
             }
             return result.IsSuccess
                 ? Results.Created($"/api/ai-checklists/runs/{result.Value!.Id}", AiChecklistRunResponse.From(result.Value))

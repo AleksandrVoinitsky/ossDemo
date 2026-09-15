@@ -7,6 +7,14 @@ internal static class AiChecklistRunChecks
         var evidence = new[] { new AiChecklistEvidence("S1", "ПЭК", "ФЗ-7", "67", "Проверить программу ПЭК", .9) };
         var run = await store.CreateAsync(profile, Guid.NewGuid(), "Объект", evidence, AiChecklistBatchPlanner.Build(evidence), CancellationToken.None);
         AssertEqual("pending", run.Batches[0].Status);
+        var draftId = Guid.NewGuid();
+        var templateId = Guid.NewGuid();
+        var linkedSnapshot = new AiChecklistRunSnapshot(2, "verified", [], ["R1"], ["I1"], [],
+            new Dictionary<string, string>(), [], templateId);
+        var linkedRun = await store.CreateAsync(profile, Guid.NewGuid(), "Объект", evidence,
+            AiChecklistBatchPlanner.Build(evidence), CancellationToken.None, linkedSnapshot, draftId);
+        AssertEqual(draftId, linkedRun.DraftId);
+        AssertEqual(templateId, linkedRun.Snapshot!.TemplateId);
         AssertTrue(await store.QueueBatchAsync(run.Id, 0, CancellationToken.None));
         AssertTrue(await store.QueueBatchAsync(run.Id, 0, CancellationToken.None), "Повторная постановка должна быть идемпотентной.");
         var work = await store.ClaimNextBatchAsync(CancellationToken.None);

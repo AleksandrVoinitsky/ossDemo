@@ -3,11 +3,11 @@ internal sealed class InMemoryAiChecklistRunStore : IAiChecklistRunStore
     private readonly object gate = new();
     private readonly Dictionary<Guid, AiChecklistRunState> runs = [];
 
-    public Task<AiChecklistRunState> CreateAsync(FacilityProfile profile, Guid facilityId, string facilityName, IReadOnlyList<AiChecklistEvidence> evidence, IReadOnlyList<AiChecklistBatchPlan> batches, CancellationToken cancellationToken, AiChecklistRunSnapshot? snapshot = null)
+    public Task<AiChecklistRunState> CreateAsync(FacilityProfile profile, Guid facilityId, string facilityName, IReadOnlyList<AiChecklistEvidence> evidence, IReadOnlyList<AiChecklistBatchPlan> batches, CancellationToken cancellationToken, AiChecklistRunSnapshot? snapshot = null, Guid? draftId = null)
     {
         var now = DateTimeOffset.UtcNow;
         var run = new AiChecklistRunState(Guid.NewGuid(), profile, facilityId, facilityName, "ready", now, now, evidence,
-            batches.Select(item => new AiChecklistBatchState(item.Index, item.Topic, item.EvidenceIds, "pending", 0, null, null, now, [], item.CriterionCodes, item.ApplicabilityReason, item.Query, item.FallbackTitle, item.Section, [], RequirementIds: item.RequirementIds)).ToArray(), null, snapshot);
+            batches.Select(item => new AiChecklistBatchState(item.Index, item.Topic, item.EvidenceIds, "pending", 0, null, null, now, [], item.CriterionCodes, item.ApplicabilityReason, item.Query, item.FallbackTitle, item.Section, [], RequirementIds: item.RequirementIds)).ToArray(), null, snapshot, draftId);
         lock (gate) runs[run.Id] = run;
         return Task.FromResult(run);
     }

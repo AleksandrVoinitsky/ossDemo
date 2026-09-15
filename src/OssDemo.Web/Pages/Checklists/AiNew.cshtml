@@ -13,7 +13,7 @@
 <section class="soft-panel checklist-wizard" data-ai-checklist-wizard>
     <div class="wizard-progress-area">
         <div class="d-flex flex-wrap justify-content-between gap-2">
-            <span class="badge text-bg-primary" data-ai-wizard-status>Этап 1 из 5 · Объект</span>
+            <span class="badge text-bg-primary" data-ai-wizard-status>Этап 1 из 6 · Объект</span>
             <span class="badge text-bg-success">Рабочий режим</span>
         </div>
         <div class="wizard-progress-line" aria-hidden="true"><div data-ai-wizard-progress></div></div>
@@ -26,19 +26,26 @@
             <select class="form-select form-select-lg" id="aiFacility" data-ai-facility><option value="">Загрузка объектов…</option></select>
             <div class="alert alert-danger mt-3 mb-0" data-ai-error hidden tabindex="-1"></div>
         </div>
-        <div class="wizard-actions"><button class="btn btn-primary btn-lg" type="button" data-ai-analyze>Проанализировать карточку</button></div>
+        <div class="mt-3" data-ai-profile-wrap hidden><div class="alert mb-3" data-ai-profile-readiness role="status"></div><div class="row g-3" data-ai-profile></div></div>
+        <div class="wizard-actions"><button class="btn btn-primary btn-lg" type="button" data-ai-analyze>Проверить карточку</button><button class="btn btn-primary btn-lg" type="button" data-ai-object-next hidden>Продолжить</button></div>
     </div>
 
     <div class="wizard-panel" data-ai-step="1" hidden>
-        <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 2. Признаки объекта</h2><p class="muted-note mb-0">Проверьте поля карточки, по которым система определит применимые критерии классификатора.</p></div></div>
-        <div class="alert mb-3" data-ai-profile-readiness role="status"></div>
-        <div class="row g-3" data-ai-profile></div>
+        <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 2. Документы-основания</h2><p class="muted-note mb-0">ОРД пока не влияет на расчёт. Можно продолжить без файлов или приложить несколько документов.</p></div><span class="badge text-bg-secondary">Необязательно</span></div>
+        <form class="wizard-card ord-upload" data-ai-ord-form><div><label class="form-label" for="ordType">Тип документа</label><select class="form-select" id="ordType" required data-ai-ord-type><option value="">Выберите тип</option><option value="order">Приказ</option><option value="directive">Распоряжение</option><option value="license">Лицензия</option></select></div><div><label class="form-label" for="ordFile">Файл</label><input class="form-control" id="ordFile" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.rtf,.txt" required data-ai-ord-file></div><button class="btn btn-outline-primary" type="submit" data-ai-ord-upload>Загрузить</button></form>
+        <div class="ord-document-list mt-3" data-ai-ord-list><p class="muted-note mb-0">Документы не загружены.</p></div><p class="muted-note mt-2" role="status" aria-live="polite" data-ai-save-status></p>
+        <div class="wizard-actions"><button class="btn btn-outline-primary btn-lg" type="button" data-ai-prev>Назад</button><button class="btn btn-primary btn-lg" type="button" data-ai-basis-next>Продолжить без ОРД</button></div>
+    </div>
+
+    <div class="wizard-panel" data-ai-step="2" hidden>
+        <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 3. Уровень шаблона</h2><p class="muted-note mb-0">Выберите универсальную шапку. Объект будет подставлен в созданный чек-лист отдельно.</p></div></div>
+        <div class="wizard-card"><label class="form-label" for="aiTemplate">Шаблон результата</label><select class="form-select form-select-lg" id="aiTemplate" data-ai-template><option value="">Загрузка шаблонов…</option></select></div>
         <div class="alert alert-danger mt-3 mb-0" data-ai-search-error hidden tabindex="-1"></div>
         <div class="wizard-actions"><button class="btn btn-outline-primary btn-lg" type="button" data-ai-prev>Назад</button><button class="btn btn-primary btn-lg" type="button" data-ai-search>Подобрать критерии</button></div>
     </div>
 
-    <div class="wizard-panel" data-ai-step="2" hidden>
-        <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 3. Применимые критерии</h2><p class="muted-note mb-0">Классификатор задал структуру будущего чек-листа. Для каждого критерия показана причина включения.</p></div><span class="badge text-bg-primary" data-ai-evidence-count>0 критериев</span></div>
+    <div class="wizard-panel" data-ai-step="3" hidden>
+        <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 4. Применимые критерии</h2><p class="muted-note mb-0">Классификатор задал структуру будущего чек-листа. Для каждого критерия показана причина включения.</p></div><span class="badge text-bg-primary" data-ai-evidence-count>0 критериев</span></div>
         <div class="ai-composition-summary mb-3" data-ai-composition-summary></div>
         <div class="alert mb-3" data-ai-coverage-gaps role="status"></div>
         <div class="ai-selected-criteria" data-ai-evidence></div><div data-ai-queries hidden></div>
@@ -47,8 +54,8 @@
         <div class="wizard-actions"><button class="btn btn-outline-primary btn-lg" type="button" data-ai-prev>Назад</button><button class="btn btn-primary btn-lg" type="button" data-ai-next>Перейти к формированию</button></div>
     </div>
 
-    <div class="wizard-panel" data-ai-step="3" hidden>
-        <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 4. Сформировать проект</h2><p class="muted-note mb-0">Система собирает утверждённые пункты по сохранённому снимку карточки и нормативных каталогов. Применимость не передаётся ИИ.</p></div></div>
+    <div class="wizard-panel" data-ai-step="4" hidden>
+        <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 5. Сформировать проект</h2><p class="muted-note mb-0">Система собирает утверждённые пункты по сохранённому снимку карточки и нормативных каталогов. ИИ подключается только для незакрытых процедур.</p></div></div>
         <div class="generation-stage"><div class="generation-orbit" aria-hidden="true"><span></span><span></span><span></span></div><div><div class="d-flex flex-wrap justify-content-between gap-2"><strong data-ai-generation-title>Система готова к запуску</strong><span class="muted-note">Прошло: <b data-ai-elapsed>00:00</b></span></div><p class="muted-note mb-2" data-ai-generation-status role="status" aria-live="polite" aria-atomic="true">Разделы будут обработаны последовательно и сохранены в черновик.</p><div class="generation-progress"><div class="generation-progress-bar" data-ai-generation-progress></div></div></div></div>
         <div class="ai-live-metrics mt-3">
             <div><span>Общий прогресс</span><strong data-ai-total-progress>0 из 0</strong></div>
@@ -74,8 +81,8 @@
         <div class="wizard-actions"><button class="btn btn-outline-primary btn-lg" type="button" data-ai-prev>Назад</button><button class="btn btn-primary btn-lg" type="button" data-ai-generate>Сформировать чек-лист</button><button class="btn btn-outline-danger btn-lg" type="button" data-ai-stop hidden>Остановить формирование</button><button class="btn btn-success btn-lg" type="button" data-ai-continue hidden>Перейти к чек-листу с доступными данными</button></div>
     </div>
 
-    <div class="wizard-panel" data-ai-step="4" hidden>
-        <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 5. Проект сохранён</h2><p class="muted-note mb-0">Дальше работает обычный цикл: редактирование, заполнение результатов, утверждение, история и экспорт.</p></div><span class="badge text-bg-success">Черновик</span></div>
+    <div class="wizard-panel" data-ai-step="5" hidden>
+        <div class="wizard-panel-header"><div><h2 class="h4 section-title mb-1">Шаг 6. Проект сохранён</h2><p class="muted-note mb-0">Дальше работает обычный цикл: редактирование, заполнение результатов, утверждение, история и экспорт.</p></div><span class="badge text-bg-success">Черновик</span></div>
         <div class="wizard-card"><table class="table compact-detail-table mb-0"><tbody><tr><th>Название</th><td data-ai-result-name>—</td></tr><tr><th>Объект</th><td data-ai-result-facility>—</td></tr><tr><th>Пунктов</th><td data-ai-result-count>—</td></tr><tr><th>Источник</th><td>Подтверждённая карточка → классификатор → реестр требований → утверждённые проверки</td></tr></tbody></table></div>
         <div class="wizard-actions"><a class="btn btn-success btn-lg" data-ai-result-link>Открыть интерактивный чек-лист</a></div>
     </div>

@@ -77,7 +77,7 @@ internal sealed class AiChecklistAgent(
         }
     }
 
-    public async Task<ChecklistOperationResult<AiChecklistRunState>> CreateRunAsync(string? facilitySlug, CancellationToken cancellationToken)
+    public async Task<ChecklistOperationResult<AiChecklistRunState>> CreateRunAsync(string? facilitySlug, CancellationToken cancellationToken, Guid? draftId = null, Guid? templateId = null)
     {
         var started = System.Diagnostics.Stopwatch.StartNew();
         var analysis = await AnalyzeAsync(facilitySlug, cancellationToken);
@@ -121,7 +121,8 @@ internal sealed class AiChecklistAgent(
                 checklistCatalogs.CatalogHashes,
                 composition.Items.Select(item => new AiChecklistItemTraceSnapshot(item.Id, item.Title, item.Basis,
                     item.ClassifierCodes, item.RequirementIds, item.Provenance,
-                    $"{item.LinkExplanation} Статус нормативной связи: {item.LinkStatus}.")).ToArray());
+                    $"{item.LinkExplanation} Статус нормативной связи: {item.LinkStatus}.")).ToArray(),
+                templateId);
 
             var catalogEvidence = composition.Items.Select(item => new AiChecklistEvidence(
                 $"CAT-{item.Id}", item.Section, "Утверждённая контрольная процедура", item.Basis, item.Title, 1)).ToArray();
@@ -140,7 +141,7 @@ internal sealed class AiChecklistAgent(
                     "Пункты выбраны по подтвержденным фактам карточки, классификатору и утвержденному реестру требований.",
                     null, null, batch.Section,
                     batch.Items.SelectMany(item => item.RequirementIds).Distinct(StringComparer.OrdinalIgnoreCase).ToArray())).ToArray();
-            var catalogRun = await runStore.CreateAsync(analysis.Value.Facility, facility.Id, facility.Name, catalogEvidence, catalogPlans, cancellationToken, snapshot);
+            var catalogRun = await runStore.CreateAsync(analysis.Value.Facility, facility.Id, facility.Name, catalogEvidence, catalogPlans, cancellationToken, snapshot, draftId);
             logger.LogInformation("Создан детерминированный запуск {RunId}: {RequirementCount} требований, {ItemCount} пунктов, LLM не требуется.", catalogRun.Id, composition.SelectedRequirements.Count, composition.Items.Count);
             return ChecklistOperationResult<AiChecklistRunState>.Success(catalogRun);
         }
@@ -166,7 +167,7 @@ internal sealed class AiChecklistAgent(
             }
         }
         var batches = plans.ToArray();
-        var run = await runStore.CreateAsync(analysis.Value.Facility, facility.Id, facility.Name, [], batches, cancellationToken);
+        var run = await runStore.CreateAsync(analysis.Value.Facility, facility.Id, facility.Name, [], batches, cancellationToken, draftId: draftId);
         logger.LogInformation("Создан запуск ИИ-чек-листа {RunId}: {CriterionCount} критериев классификатора за {DurationMs} мс.", run.Id, batches.Length, started.ElapsedMilliseconds);
         return ChecklistOperationResult<AiChecklistRunState>.Success(run);
     }

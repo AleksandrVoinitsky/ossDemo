@@ -6,16 +6,17 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<AiChecklistRunState> CreateAsync(FacilityProfile profile, Guid facilityId, string facilityName, IReadOnlyList<AiChecklistEvidence> evidence, IReadOnlyList<AiChecklistBatchPlan> batches, CancellationToken cancellationToken, AiChecklistRunSnapshot? snapshot = null)
+    public async Task<AiChecklistRunState> CreateAsync(FacilityProfile profile, Guid facilityId, string facilityName, IReadOnlyList<AiChecklistEvidence> evidence, IReadOnlyList<AiChecklistBatchPlan> batches, CancellationToken cancellationToken, AiChecklistRunSnapshot? snapshot = null, Guid? draftId = null)
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         var runId = Guid.NewGuid();
-        await using (var insert = new NpgsqlCommand("INSERT INTO app_ai_checklist_runs(id,facility_id,facility_name,facility_profile,composition_snapshot,coverage) VALUES(@id,@facilityId,@facilityName,CAST(@profile AS jsonb),CAST(@snapshot AS jsonb),CAST(@coverage AS jsonb))", connection, transaction))
+        await using (var insert = new NpgsqlCommand("INSERT INTO app_ai_checklist_runs(id,facility_id,facility_name,facility_profile,composition_snapshot,coverage,draft_id) VALUES(@id,@facilityId,@facilityName,CAST(@profile AS jsonb),CAST(@snapshot AS jsonb),CAST(@coverage AS jsonb),@draft)", connection, transaction))
         {
             insert.Parameters.AddWithValue("id", runId); insert.Parameters.AddWithValue("facilityId", facilityId); insert.Parameters.AddWithValue("facilityName", facilityName); insert.Parameters.AddWithValue("profile", JsonSerializer.Serialize(profile, JsonOptions));
             insert.Parameters.AddWithValue("snapshot", JsonSerializer.Serialize(snapshot, JsonOptions));
             insert.Parameters.AddWithValue("coverage", JsonSerializer.Serialize(snapshot?.CoverageGaps ?? [], JsonOptions));
+            insert.Parameters.Add("draft", NpgsqlDbType.Uuid).Value = (object?)draftId ?? DBNull.Value;
             await insert.ExecuteNonQueryAsync(cancellationToken);
         }
         for (var index = 0; index < evidence.Count; index++)
@@ -41,15 +42,16 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
     public async Task<AiChecklistRunState?> GetAsync(Guid runId, CancellationToken cancellationToken)
     {
         await using var connection = await OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("SELECT facility_id,facility_name,facility_profile::text,status,created_at,updated_at,checklist_id,composition_snapshot::text FROM app_ai_checklist_runs WHERE id=@id", connection);
+        await using var command = new NpgsqlCommand("SELECT facility_id,facility_name,facility_profile::text,status,created_at,updated_at,checklist_id,composition_snapshot::text,draft_id FROM app_ai_checklist_runs WHERE id=@id", connection);
         command.Parameters.AddWithValue("id", runId);
-        FacilityProfile profile; Guid facilityId; string facilityName; string status; DateTimeOffset createdAt; DateTimeOffset updatedAt; Guid? checklistId; AiChecklistRunSnapshot? snapshot;
+        FacilityProfile profile; Guid facilityId; string facilityName; string status; DateTimeOffset createdAt; DateTimeOffset updatedAt; Guid? checklistId; AiChecklistRunSnapshot? snapshot; Guid? draftId;
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {
             if (!await reader.ReadAsync(cancellationToken)) return null;
             facilityId = reader.GetGuid(0); facilityName = reader.GetString(1); profile = JsonSerializer.Deserialize<FacilityProfile>(reader.GetString(2), JsonOptions)!; status = reader.GetString(3); createdAt = reader.GetFieldValue<DateTimeOffset>(4); updatedAt = reader.GetFieldValue<DateTimeOffset>(5); checklistId = reader.IsDBNull(6) ? null : reader.GetGuid(6);
             var snapshotJson = reader.GetString(7);
             snapshot = snapshotJson is "{}" or "null" ? null : JsonSerializer.Deserialize<AiChecklistRunSnapshot>(snapshotJson, JsonOptions);
+            draftId = reader.IsDBNull(8) ? null : reader.GetGuid(8);
         }
         var evidence = new List<AiChecklistEvidence>();
         await using (var evidenceCommand = new NpgsqlCommand("SELECT evidence_id,query_label,document_title,source_label,content,score FROM app_ai_checklist_evidence WHERE run_id=@id ORDER BY position", connection))
@@ -70,7 +72,7 @@ internal sealed class PostgresAiChecklistRunStore(IConfiguration configuration) 
                     reader.GetString(14),reader.GetString(15),reader.GetInt32(16),reader.GetString(17),reader.GetFieldValue<string[]>(18)));
             }
         }
-        return new(runId,profile,facilityId,facilityName,status,createdAt,updatedAt,evidence,batches,checklistId,snapshot);
+        return new(runId,profile,facilityId,facilityName,status,createdAt,updatedAt,evidence,batches,checklistId,snapshot,draftId);
     }
 
     public async Task<AiChecklistTracePage?> GetTracePageAsync(Guid runId, int offset, int limit, CancellationToken cancellationToken)

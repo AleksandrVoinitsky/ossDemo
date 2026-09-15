@@ -81,7 +81,8 @@ internal sealed record AiChecklistRunSnapshot(
     IReadOnlyList<string> SelectedItemIds,
     IReadOnlyList<AiChecklistCoverageGapSnapshot> CoverageGaps,
     IReadOnlyDictionary<string, string> CatalogHashes,
-    IReadOnlyList<AiChecklistItemTraceSnapshot>? ItemTraces = null)
+    IReadOnlyList<AiChecklistItemTraceSnapshot>? ItemTraces = null,
+    Guid? TemplateId = null)
 {
     public int IncludedCriterionCount => ClassifierDecisions.Count(item => item.Outcome == "included");
     public int ExcludedCriterionCount => ClassifierDecisions.Count(item => item.Outcome == "excluded");
@@ -97,7 +98,8 @@ internal sealed record AiChecklistRunSnapshotResponse(
     IReadOnlyList<string> SelectedRequirementIds,
     IReadOnlyList<string> SelectedItemIds,
     IReadOnlyList<AiChecklistCoverageGapSnapshot> CoverageGaps,
-    IReadOnlyDictionary<string, string> CatalogHashes)
+    IReadOnlyDictionary<string, string> CatalogHashes,
+    Guid? TemplateId)
 {
     public int IncludedCriterionCount => ClassifierDecisions.Count(item => item.Outcome == "included");
     public int ExcludedCriterionCount => ClassifierDecisions.Count(item => item.Outcome == "excluded");
@@ -107,7 +109,7 @@ internal sealed record AiChecklistRunSnapshotResponse(
 
     public static AiChecklistRunSnapshotResponse From(AiChecklistRunSnapshot snapshot) => new(
         snapshot.ProfileSchemaVersion, snapshot.ProfileVerificationStatus, snapshot.ClassifierDecisions,
-        snapshot.SelectedRequirementIds, snapshot.SelectedItemIds, snapshot.CoverageGaps, snapshot.CatalogHashes);
+        snapshot.SelectedRequirementIds, snapshot.SelectedItemIds, snapshot.CoverageGaps, snapshot.CatalogHashes, snapshot.TemplateId);
 }
 
 internal sealed record AiChecklistRunState(
@@ -121,7 +123,8 @@ internal sealed record AiChecklistRunState(
     IReadOnlyList<AiChecklistEvidence> Evidence,
     IReadOnlyList<AiChecklistBatchState> Batches,
     Guid? ChecklistId,
-    AiChecklistRunSnapshot? Snapshot = null);
+    AiChecklistRunSnapshot? Snapshot = null,
+    Guid? DraftId = null);
 
 internal sealed record AiChecklistRunResponse(
     Guid Id,
@@ -133,12 +136,13 @@ internal sealed record AiChecklistRunResponse(
     DateTimeOffset UpdatedAt,
     IReadOnlyList<AiChecklistBatchState> Batches,
     Guid? ChecklistId,
-    AiChecklistRunSnapshotResponse? Snapshot)
+    AiChecklistRunSnapshotResponse? Snapshot,
+    Guid? DraftId)
 {
     public static AiChecklistRunResponse From(AiChecklistRunState run) => new(
         run.Id, run.Facility, run.FacilityId, run.FacilityName, run.Status, run.CreatedAt, run.UpdatedAt,
         run.Batches, run.ChecklistId,
-        run.Snapshot is null ? null : AiChecklistRunSnapshotResponse.From(run.Snapshot));
+        run.Snapshot is null ? null : AiChecklistRunSnapshotResponse.From(run.Snapshot), run.DraftId);
 }
 
 internal sealed record AiChecklistTracePage(

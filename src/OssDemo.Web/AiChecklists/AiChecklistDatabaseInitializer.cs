@@ -73,6 +73,8 @@ internal sealed class AiChecklistDatabaseInitializer(IConfiguration configuratio
                 sha256 text NOT NULL, storage_path text NOT NULL, uploaded_at timestamptz NOT NULL DEFAULT now()
             );
             CREATE INDEX IF NOT EXISTS ix_inspection_basis_documents_draft ON app_inspection_basis_documents(draft_id,uploaded_at);
+            ALTER TABLE app_ai_checklist_runs ADD COLUMN IF NOT EXISTS draft_id uuid NULL REFERENCES app_ai_checklist_drafts(id);
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_ai_checklist_runs_draft ON app_ai_checklist_runs(draft_id) WHERE draft_id IS NOT NULL;
             """, connection);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }

@@ -14,7 +14,7 @@
   };
   const post = (url, body) => request(url, { method: 'POST', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
   const panels = [...root.querySelectorAll('[data-ai-step]')];
-  const stages = ['Объект', 'Карточка', 'Критерии', 'Формирование', 'Черновик'];
+  const stages = ['Объект', 'ОРД', 'Шаблон', 'Критерии', 'Формирование', 'Черновик'];
   const statusText = { pending: 'Ожидает запуска', queued: 'Ожидает последовательной обработки', running: 'Формирует раздел', completed: 'Раздел готов', failed: 'Резервный пункт из классификатора', skipped: 'Резервный пункт: остановлено до обработки' };
   let step = 0;
   let slug = '';
@@ -25,19 +25,21 @@
   let traceOffset = 0;
   let traceTotal = 0;
   let traceDecisionsByCode = {};
+  let workflowDraft = null;
   const tracePageSize = 50;
 
   const showStep = (next) => {
     step = next;
     panels.forEach((panel, index) => { panel.hidden = index !== step; panel.classList.toggle('active', index === step); });
-    root.querySelector('[data-ai-wizard-status]').textContent = `Этап ${step + 1} из 5 · ${stages[step]}`;
-    root.querySelector('[data-ai-wizard-progress]').style.width = `${(step + 1) * 20}%`;
+    root.querySelector('[data-ai-wizard-status]').textContent = `Этап ${step + 1} из 6 · ${stages[step]}`;
+    root.querySelector('[data-ai-wizard-progress]').style.width = `${(step + 1) * 100 / 6}%`;
     root.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
   const setBusy = (button, busy, label) => { button.disabled = busy; button.textContent = busy ? label : button.dataset.idleLabel; };
   const showError = (selector, error) => { const node = root.querySelector(selector); node.textContent = error.message; node.hidden = false; node.focus(); };
   const profileLabels = { shortName: 'Краткое название', fullName: 'Полное название', type: 'Тип объекта', category: 'Категория НВОС', region: 'Регион', specialZones: 'Специальные зоны', zones: 'Зоны объекта', environmentalAspects: 'Экологические аспекты', equipment: 'Оборудование', gasTreatment: 'Газоочистка', treatmentFacilities: 'Очистные сооружения', waterSupply: 'Водоснабжение', emissionSources: 'Источники выбросов', permits: 'Разрешения', pecProgram: 'Программа ПЭК', wasteStandard: 'Нормативы отходов', sanitaryZoneProject: 'Проект СЗЗ' };
   const renderProfile = (facility) => {
+    root.querySelector('[data-ai-profile-wrap]').hidden = false;
     const profile = facility.profile;
     root.querySelector('[data-ai-profile]').innerHTML = Object.entries(profileLabels).filter(([key]) => profile[key] && profile[key] !== 'Не указано').map(([key, label]) => `<div class="col-md-6"><div class="wizard-card h-100"><div class="small text-muted mb-1">${escapeHtml(label)}</div><strong class="ai-profile-value">${escapeHtml(profile[key])}</strong></div></div>`).join('');
     const readiness = root.querySelector('[data-ai-profile-readiness]');
@@ -198,13 +200,13 @@
       root.querySelector('[data-ai-result-facility]').textContent = checklist.facility;
       root.querySelector('[data-ai-result-count]').textContent = checklist.items.length;
       root.querySelector('[data-ai-result-link]').href = `/Checklists/Result?id=${encodeURIComponent(checklist.id)}`;
-      history.replaceState(null, '', `?run=${encodeURIComponent(currentRun.id)}`);
-      showStep(4);
+      history.replaceState(null, '', `${workflowDraft ? `?draft=${encodeURIComponent(workflowDraft.id)}&` : '?'}run=${encodeURIComponent(currentRun.id)}`);
+      showStep(5);
     } catch (error) { showError('[data-ai-generation-error]', error); finalizing = false; pollTimer = setTimeout(poll, 2000); }
   };
   const poll = async () => {
     clearTimeout(pollTimer);
-    if (!currentRun || step !== 3) return;
+    if (!currentRun || step !== 4) return;
     try {
       const run = await request(`/api/ai-checklists/runs/${encodeURIComponent(currentRun.id)}`);
       renderRun(run);
@@ -219,22 +221,67 @@
   };
 
   const select = root.querySelector('[data-ai-facility]');
+  const templateSelect = root.querySelector('[data-ai-template]');
   const params = new URLSearchParams(location.search);
   const selectedFromUrl = params.get('facility');
-  fetch('/api/operations/facilities').then((response) => response.ok ? response.json() : Promise.reject()).then((facilities) => {
+  const facilitiesPromise = fetch('/api/operations/facilities').then((response) => response.ok ? response.json() : Promise.reject()).then((facilities) => {
     select.innerHTML = '<option value="">Выберите объект</option>' + facilities.map((item) => `<option value="${escapeHtml(item.slug)}" ${item.slug === selectedFromUrl ? 'selected' : ''}>${escapeHtml(item.name)} · ${escapeHtml(item.nvocCategory)}</option>`).join('');
   }).catch(() => { select.innerHTML = '<option value="">Не удалось загрузить объекты</option>'; showError('[data-ai-error]', new Error('Рабочий реестр объектов недоступен.')); });
+  const templatesPromise = request('/api/checklist-templates').then((templates) => {
+    templateSelect.innerHTML = '<option value="">Выберите уровень шаблона</option>' + templates.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.scope === 'society' ? 'Уровень Общества' : 'Уровень филиала')} · ${item.itemCount} пунктов</option>`).join('');
+  }).catch(() => { templateSelect.innerHTML = '<option value="">Не удалось загрузить шаблоны</option>'; });
+
+  const renderDocuments = () => {
+    const documents = workflowDraft?.documents || [];
+    const labels = { order: 'Приказ', directive: 'Распоряжение', license: 'Лицензия' };
+    root.querySelector('[data-ai-ord-list]').innerHTML = documents.length ? documents.map((item) => `<article class="ord-document"><div><span class="badge text-bg-light">${escapeHtml(labels[item.type] || item.type)}</span><strong>${escapeHtml(item.originalName)}</strong><small>${(item.byteLength / 1024).toFixed(1)} КБ · SHA-256 ${escapeHtml(item.sha256.slice(0, 12))}…</small></div><button class="btn btn-sm btn-outline-danger" type="button" data-ai-ord-delete="${escapeHtml(item.id)}">Удалить</button></article>`).join('') : '<p class="muted-note mb-0">Документы не загружены. Это не блокирует продолжение.</p>';
+    root.querySelector('[data-ai-basis-next]').textContent = documents.length ? 'Продолжить' : 'Продолжить без ОРД';
+  };
+  const saveStatus = (text, danger = false) => { const node = root.querySelector('[data-ai-save-status]'); node.textContent = text; node.classList.toggle('text-danger', danger); };
+  const persistDraft = async (nextStep) => {
+    saveStatus('Сохранение…');
+    try {
+      if (!workflowDraft) workflowDraft = await post('/api/ai-checklists/drafts', { facilitySlug: slug, templateId: templateSelect.value || null });
+      workflowDraft = await request(`/api/ai-checklists/drafts/${encodeURIComponent(workflowDraft.id)}`, { method: 'PUT', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ facilitySlug: slug, templateId: templateSelect.value || null, step: nextStep, version: workflowDraft.version }) });
+      history.replaceState(null, '', `?draft=${encodeURIComponent(workflowDraft.id)}`);
+      renderDocuments();
+      saveStatus('Сохранено');
+      return true;
+    } catch (error) { saveStatus(`Не сохранено: ${error.message}`, true); return false; }
+  };
 
   root.querySelector('[data-ai-analyze]').addEventListener('click', async (event) => {
     slug = select.value;
     if (!slug) { showError('[data-ai-error]', new Error('Выберите объект проверки.')); return; }
     const button = event.currentTarget; button.dataset.idleLabel = button.textContent; setBusy(button, true, 'Анализ карточки…');
-    try { const data = await post('/api/ai-checklists/analyze', { facilitySlug: slug }); renderProfile(data.facility); showStep(1); } catch (error) { showError('[data-ai-error]', error); } finally { setBusy(button, false, ''); }
+    try { const data = await post('/api/ai-checklists/analyze', { facilitySlug: slug }); renderProfile(data.facility); button.hidden = true; root.querySelector('[data-ai-object-next]').hidden = false; } catch (error) { showError('[data-ai-error]', error); } finally { setBusy(button, false, ''); }
   });
+  root.querySelector('[data-ai-object-next]').addEventListener('click', async () => { if (await persistDraft('basis')) showStep(1); });
+  root.querySelector('[data-ai-ord-form]').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!workflowDraft && !await persistDraft('basis')) return;
+    const button = root.querySelector('[data-ai-ord-upload]');
+    const file = root.querySelector('[data-ai-ord-file]').files[0];
+    const type = root.querySelector('[data-ai-ord-type]').value;
+    if (!file || !type) { saveStatus('Выберите тип документа и файл.', true); return; }
+    const form = new FormData(); form.append('type', type); form.append('file', file);
+    button.disabled = true; saveStatus('Загрузка…');
+    try { const document = await request(`/api/ai-checklists/drafts/${encodeURIComponent(workflowDraft.id)}/documents`, { method: 'POST', body: form }); workflowDraft.documents.push(document); renderDocuments(); event.currentTarget.reset(); saveStatus('Сохранено'); }
+    catch (error) { saveStatus(error.message, true); }
+    finally { button.disabled = false; }
+  });
+  root.querySelector('[data-ai-ord-list]').addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-ai-ord-delete]'); if (!button) return;
+    button.disabled = true; saveStatus('Удаление…');
+    try { await request(`/api/ai-checklists/drafts/${encodeURIComponent(workflowDraft.id)}/documents/${encodeURIComponent(button.dataset.aiOrdDelete)}`, { method: 'DELETE' }); workflowDraft.documents = workflowDraft.documents.filter((item) => item.id !== button.dataset.aiOrdDelete); renderDocuments(); saveStatus('Сохранено'); }
+    catch (error) { button.disabled = false; saveStatus(error.message, true); }
+  });
+  root.querySelector('[data-ai-basis-next]').addEventListener('click', async () => { if (await persistDraft('template')) showStep(2); });
   root.querySelector('[data-ai-search]').addEventListener('click', async (event) => {
+    if (!templateSelect.value) { showError('[data-ai-search-error]', new Error('Выберите уровень шаблона.')); return; }
     const button = event.currentTarget; button.dataset.idleLabel = button.textContent; setBusy(button, true, 'Сопоставляем с классификатором…');
     root.querySelector('[data-ai-search-error]').hidden = true;
-    try { currentRun = await post('/api/ai-checklists/runs', { facilitySlug: slug }); renderSearch(currentRun); history.replaceState(null, '', `?run=${encodeURIComponent(currentRun.id)}`); showStep(2); } catch (error) {
+    try { if (!await persistDraft('criteria')) return; currentRun = await post('/api/ai-checklists/runs', { draftId: workflowDraft.id }); renderSearch(currentRun); history.replaceState(null, '', `?draft=${encodeURIComponent(workflowDraft.id)}&run=${encodeURIComponent(currentRun.id)}`); showStep(3); } catch (error) {
       showError('[data-ai-search-error]', error);
       if (error.code === 'facility_profile_incomplete') {
         const node = root.querySelector('[data-ai-search-error]');
@@ -242,7 +289,7 @@
       }
     } finally { setBusy(button, false, ''); }
   });
-  root.querySelector('[data-ai-next]').addEventListener('click', () => { renderRun(currentRun); showStep(3); });
+  root.querySelector('[data-ai-next]').addEventListener('click', () => { renderRun(currentRun); showStep(4); poll(); });
   root.querySelector('[data-ai-load-traces]').addEventListener('click', () => loadTracePage());
   root.querySelectorAll('[data-ai-prev]').forEach((button) => button.addEventListener('click', () => showStep(Math.max(0, step - 1))));
   root.querySelector('[data-ai-generate]').addEventListener('click', async (event) => {
@@ -272,12 +319,19 @@
     button.disabled = true;
     try { await queueBatches([{ index: Number(button.dataset.aiRetry) }]); } catch (error) { showError('[data-ai-generation-error]', error); button.disabled = false; }
   });
-  setInterval(() => { if (currentRun && step === 3) renderRun(currentRun); }, 1000);
+  setInterval(() => { if (currentRun && step === 4) renderRun(currentRun); }, 1000);
 
   const restoreRunId = params.get('run');
-  if (restoreRunId) request(`/api/ai-checklists/runs/${encodeURIComponent(restoreRunId)}`).then((run) => {
+  const restoreDraftId = params.get('draft');
+  if (restoreDraftId) Promise.all([facilitiesPromise, templatesPromise, request(`/api/ai-checklists/drafts/${encodeURIComponent(restoreDraftId)}`)]).then(async ([, , draft]) => {
+    workflowDraft = draft; slug = draft.facilitySlug; select.value = slug; templateSelect.value = draft.templateId || ''; renderDocuments();
+    if (slug) { const data = await post('/api/ai-checklists/analyze', { facilitySlug: slug }); renderProfile(data.facility); root.querySelector('[data-ai-analyze]').hidden = true; root.querySelector('[data-ai-object-next]').hidden = false; }
+    if (draft.runId) { currentRun = await request(`/api/ai-checklists/runs/${encodeURIComponent(draft.runId)}`); renderSearch(currentRun); renderRun(currentRun); showStep(currentRun.checklistId ? 5 : 4); if (!currentRun.checklistId) poll(); }
+    else showStep({ object:0, basis:1, template:2, criteria:3, generation:4 }[draft.step] ?? 0);
+  }).catch((error) => showError('[data-ai-error]', error));
+  else if (restoreRunId) request(`/api/ai-checklists/runs/${encodeURIComponent(restoreRunId)}`).then((run) => {
     currentRun = run; slug = run.facility.slug; renderProfile(run.facility); renderSearch(run); renderRun(run);
-    if (run.checklistId) { root.querySelector('[data-ai-result-name]').textContent = 'Автоматизированный чек-лист'; root.querySelector('[data-ai-result-facility]').textContent = run.facilityName; root.querySelector('[data-ai-result-count]').textContent = run.batches.reduce((sum, item) => sum + item.itemCount, 0); root.querySelector('[data-ai-result-link]').href = `/Checklists/Result?id=${encodeURIComponent(run.checklistId)}`; showStep(4); }
-    else { showStep(3); poll(); }
+    if (run.checklistId) { root.querySelector('[data-ai-result-name]').textContent = 'Автоматизированный чек-лист'; root.querySelector('[data-ai-result-facility]').textContent = run.facilityName; root.querySelector('[data-ai-result-count]').textContent = run.batches.reduce((sum, item) => sum + item.itemCount, 0); root.querySelector('[data-ai-result-link]').href = `/Checklists/Result?id=${encodeURIComponent(run.checklistId)}`; showStep(5); }
+    else { showStep(4); poll(); }
   }).catch((error) => showError('[data-ai-error]', error));
 })();
