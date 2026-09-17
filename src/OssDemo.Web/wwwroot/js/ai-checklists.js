@@ -14,7 +14,7 @@
   };
   const post = (url, body) => request(url, { method: 'POST', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
   const panels = [...root.querySelectorAll('[data-ai-step]')];
-  const stages = ['Объект', 'ОРД', 'Шаблон', 'Критерии', 'Формирование', 'Черновик'];
+  const stages = ['Объект', 'ОРД', 'Шаблон', 'Критерии', 'Требования', 'Черновик'];
   const statusText = { pending: 'Ожидает запуска', queued: 'Ожидает последовательной обработки', running: 'Формирует раздел', completed: 'Раздел готов', failed: 'Резервный пункт из классификатора', skipped: 'Резервный пункт: остановлено до обработки' };
   let step = 0;
   let slug = '';
@@ -27,6 +27,8 @@
   let traceDecisionsByCode = {};
   let workflowDraft = null;
   const tracePageSize = 50;
+  let requirementOffset = 0;
+  let requirementTotal = 0;
 
   const showStep = (next) => {
     step = next;
@@ -42,12 +44,6 @@
     root.querySelector('[data-ai-profile-wrap]').hidden = false;
     const profile = facility.profile;
     root.querySelector('[data-ai-profile]').innerHTML = Object.entries(profileLabels).filter(([key]) => profile[key] && profile[key] !== 'Не указано').map(([key, label]) => `<div class="col-md-6"><div class="wizard-card h-100"><div class="small text-muted mb-1">${escapeHtml(label)}</div><strong class="ai-profile-value">${escapeHtml(profile[key])}</strong></div></div>`).join('');
-    const readiness = root.querySelector('[data-ai-profile-readiness]');
-    const ready = facility.readiness?.canFinalizeChecklist;
-    readiness.className = `alert mb-3 ${ready ? 'alert-success' : 'alert-warning'}`;
-    readiness.innerHTML = ready
-      ? '<strong>Готовность карточки:</strong> карточка подтверждена, обязательные признаки заполнены.'
-      : `<strong>Готовность карточки:</strong> Чек-лист будет сформирован по известным данным. Неуточнённые признаки не войдут в область проверки. ${escapeHtml((facility.readiness?.reasons || []).join(' '))} <a class="alert-link" href="/Facilities/Edit/${encodeURIComponent(facility.slug)}">Открыть карточку объекта</a>`;
   };
   const renderTraceItems = (items, startIndex) => items.map((item, index) => {
     const facts = item.classifierCodes.flatMap((code) => traceDecisionsByCode[code]?.facts || []).filter((fact, factIndex, all) => all.findIndex((other) => other.code === fact.code) === factIndex);
@@ -219,6 +215,17 @@
     await post(`/api/ai-checklists/runs/${encodeURIComponent(currentRun.id)}/queue`, { batchIndexes: batches.map((batch) => batch.index) });
     poll();
   };
+  const loadRequirements = async (reset = false) => {
+    if (!currentRun) return;
+    const offset = reset ? 0 : requirementOffset;
+    const page = await request(`/api/ai-checklists/runs/${encodeURIComponent(currentRun.id)}/requirements?offset=${offset}&limit=100`);
+    const host = root.querySelector('[data-ai-requirements]');
+    if (reset) host.innerHTML = '';
+    host.insertAdjacentHTML('beforeend', (page.items || []).map((item) => `<article class="wizard-card"><div class="d-flex flex-wrap gap-2 mb-2"><span class="badge text-bg-primary">${escapeHtml((item.classifierCodes || []).join(', '))}</span><span class="badge text-bg-light">${escapeHtml((item.levels || []).join(', '))}</span></div><strong>${escapeHtml(item.requirement)}</strong><p class="muted-note mt-2 mb-0">${escapeHtml(item.basis)}</p></article>`).join(''));
+    requirementOffset = offset + (page.items || []).length; requirementTotal = page.total || 0;
+    root.querySelector('[data-ai-requirement-count]').textContent = `${requirementTotal} требований`;
+    root.querySelector('[data-ai-load-requirements]').hidden = requirementOffset >= requirementTotal;
+  };
 
   const select = root.querySelector('[data-ai-facility]');
   const templateSelect = root.querySelector('[data-ai-template]');
@@ -289,7 +296,8 @@
       }
     } finally { setBusy(button, false, ''); }
   });
-  root.querySelector('[data-ai-next]').addEventListener('click', () => { renderRun(currentRun); showStep(4); poll(); });
+  root.querySelector('[data-ai-next]').addEventListener('click', async () => { showStep(4); try { await loadRequirements(true); } catch (error) { showError('[data-ai-generation-error]', error); } });
+  root.querySelector('[data-ai-load-requirements]').addEventListener('click', () => loadRequirements());
   root.querySelector('[data-ai-load-traces]').addEventListener('click', () => loadTracePage());
   root.querySelectorAll('[data-ai-prev]').forEach((button) => button.addEventListener('click', () => showStep(Math.max(0, step - 1))));
   root.querySelector('[data-ai-generate]').addEventListener('click', async (event) => {
@@ -319,7 +327,7 @@
     button.disabled = true;
     try { await queueBatches([{ index: Number(button.dataset.aiRetry) }]); } catch (error) { showError('[data-ai-generation-error]', error); button.disabled = false; }
   });
-  setInterval(() => { if (currentRun && step === 4) renderRun(currentRun); }, 1000);
+  setInterval(() => { if (currentRun && step === 4 && currentRun.batches.some((item) => item.status === 'queued' || item.status === 'running')) renderRun(currentRun); }, 1000);
 
   const restoreRunId = params.get('run');
   const restoreDraftId = params.get('draft');

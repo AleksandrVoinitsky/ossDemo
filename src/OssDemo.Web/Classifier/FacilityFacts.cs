@@ -38,7 +38,7 @@ internal static partial class FacilityFactNormalizer
     }
 
     private static IReadOnlyList<string> Split(string? value) => string.IsNullOrWhiteSpace(value) ? [] : value
-        .Split(['\r','\n',';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Split(['\r','\n',';',','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         .Select(NormalizeValue).Where(item => item.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
 
     private static string NormalizeValue(string value) => string.Join(' ', value.Trim().ToLowerInvariant()

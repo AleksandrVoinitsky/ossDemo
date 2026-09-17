@@ -246,18 +246,18 @@ internal static class AiChecklistAgentChecks
         AssertEqual(49, catalogRunValue.Snapshot.ClassifierDecisions.Count);
         AssertTrue(catalogRunValue.Snapshot.SelectedRequirementIds.Count > 0, "Снимок должен сохранять выбранные требования.");
         AssertTrue(catalogRunValue.Snapshot.CatalogHashes.Values.All(value => value.Length == 64), "Снимок должен содержать SHA-256 входных каталогов.");
-        AssertEqual(68, catalogRunValue.Snapshot.ExpectedItemCount);
+        AssertEqual(94, catalogRunValue.Snapshot.ExpectedItemCount);
         AssertEqual(catalogRunValue.Snapshot.ExpectedItemCount, catalogRunValue.Snapshot.ItemTraces!.Count);
         AssertTrue(catalogRunValue.Snapshot.ItemTraces.All(item => item.ClassifierCodes.Count > 0),
             "Для каждого пункта снимок должен хранить связь с применимым классификатором.");
         AssertTrue(catalogRunValue.Snapshot.ItemTraces.All(item =>
                 !item.Provenance.StartsWith("requirements-registry-direct", StringComparison.OrdinalIgnoreCase)),
             "Прямые строки реестра не должны попадать в снимок рабочего чек-листа.");
-        AssertTrue(catalogRunValue.Snapshot.ItemTraces.Any(item => item.Provenance == "inspector-template-v1"),
-            "Снимок должен явно сохранять процедуры с неподтверждённой точной связью реестра.");
+        AssertTrue(catalogRunValue.Snapshot.ItemTraces.All(item => item.Provenance == "requirements-registry-v2"),
+            "Снимок должен состоять только из контрольных групп общего реестра требований.");
         AssertTrue(catalogRunValue.Snapshot.ItemTraces.All(item => item.Explanation.Contains("Статус нормативной связи:", StringComparison.Ordinal)),
             "Трассировка должна явно показывать статус нормативной связи процедуры.");
-        AssertEqual(68, catalogRunValue.Batches.Sum(batch => batch.EvidenceIds.Count));
+        AssertEqual(94, catalogRunValue.Batches.Sum(batch => batch.EvidenceIds.Count));
 
         var retainedRequirement = facilityCatalogs.Requirements.Find(catalogRunValue.Snapshot.SelectedRequirementIds.First())!;
         var markedAgent = new AiChecklistAgent(verifiedSource, catalogSearch, catalogSynthesis, repository, new InMemoryAiChecklistRunStore(),
@@ -285,7 +285,7 @@ internal static class AiChecklistAgentChecks
         var catalogChecklist = await catalogAgent.FinalizeRunAsync(catalogRunValue.Id, CancellationToken.None);
         var catalogChecklistValue = catalogChecklist.Value ?? throw new InvalidOperationException("Большой нормативный чек-лист не сформирован.");
         AssertTrue(catalogChecklist.IsSuccess, "Детерминированный контрольный слой должен финализироваться без LLM.");
-        AssertEqual(68, catalogChecklistValue.Items.Count);
+        AssertEqual(94, catalogChecklistValue.Items.Count);
         var repeatedCatalogChecklist = await catalogAgent.FinalizeRunAsync(catalogRunValue.Id, CancellationToken.None);
         AssertEqual(catalogChecklistValue.Id, repeatedCatalogChecklist.Value!.Id);
         AssertEqual(0, catalogSearch.Calls);

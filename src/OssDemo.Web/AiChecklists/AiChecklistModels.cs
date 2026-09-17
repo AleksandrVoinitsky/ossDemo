@@ -151,6 +151,19 @@ internal sealed record AiChecklistTracePage(
     int Offset,
     int Limit);
 
+internal sealed record AiChecklistRequirementSnapshot(
+    string Id,
+    IReadOnlyList<string> ClassifierCodes,
+    IReadOnlyList<string> Levels,
+    string Basis,
+    string Requirement);
+
+internal sealed record AiChecklistRequirementPage(
+    IReadOnlyList<AiChecklistRequirementSnapshot> Items,
+    int Total,
+    int Offset,
+    int Limit);
+
 internal sealed record AiChecklistBatchWork(
     Guid RunId,
     FacilityProfile Facility,

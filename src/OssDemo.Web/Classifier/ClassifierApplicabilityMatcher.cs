@@ -51,6 +51,13 @@ internal static class ClassifierApplicabilityMatcher
                 result.Add(new(criterion.Code, "included", [], "Критерий явно указан в охвате проверки.", section, criterion, 105, historyItem?.Title));
                 continue;
             }
+            if (IsMappingCriterion(criterion.ApplicabilityRules))
+            {
+                var mapping = DecideFromMapping(criterion.ApplicabilityRules, facts);
+                result.Add(new(criterion.Code, mapping.Included ? "included" : "excluded", [], mapping.Reason,
+                    section, criterion, mapping.Included ? (historyItem is null ? 80 : 90) : 0, historyItem?.Title));
+                continue;
+            }
             if (!facts.HasStructuredProfile)
             {
                 var legacyMatch = MatchRule(criterion.ApplicabilityRules, facts);
@@ -96,6 +103,43 @@ internal static class ClassifierApplicabilityMatcher
                 $"Подтверждено отсутствие признаков: {string.Join(", ", featureCodes)}.", section, criterion, 0, historyItem?.Title));
         }
         return result;
+    }
+
+    private static bool IsMappingCriterion(IReadOnlyList<ClassifierApplicabilityRule> rules) =>
+        rules.Any(rule => rule.Field.Equals("category", StringComparison.OrdinalIgnoreCase))
+        && rules.Any(rule => rule.Field.Equals("region", StringComparison.OrdinalIgnoreCase));
+
+    private static (bool Included, string Reason) DecideFromMapping(
+        IReadOnlyList<ClassifierApplicabilityRule> rules,
+        FacilityFacts facts)
+    {
+        foreach (var field in new[] { "category", "region", "type" })
+        {
+            var rule = rules.FirstOrDefault(item => item.Field.Equals(field, StringComparison.OrdinalIgnoreCase));
+            if (rule is null) continue;
+            var match = MatchValues(rule, facts);
+            if (match is null)
+                return (false, facts.Values(field).Count == 0
+                    ? $"Поле карточки «{field}» не заполнено."
+                    : $"Поле карточки «{field}» не соответствует mapping.");
+        }
+
+        var aspectRule = rules.FirstOrDefault(item => item.Field.Equals("environmentalAspects", StringComparison.OrdinalIgnoreCase));
+        var aspectMatch = aspectRule is null ? null : MatchValues(aspectRule, facts);
+        if (aspectRule is not null && aspectMatch is null)
+            return (false, "Экологические аспекты карточки не соответствуют mapping.");
+
+        var specificRules = rules.Where(item => item.Field.Equals("zones", StringComparison.OrdinalIgnoreCase)
+            || item.Field.Equals("equipment", StringComparison.OrdinalIgnoreCase)
+            || item.Field.Equals("specialZones", StringComparison.OrdinalIgnoreCase)).ToArray();
+        var specificMatch = specificRules.Select(rule => MatchValues(rule, facts)).FirstOrDefault(match => match is not null);
+        if (specificRules.Length > 0 && specificMatch is null)
+            return (false, "Зоны, оборудование и особые природные зоны карточки не соответствуют mapping.");
+
+        var evidence = specificMatch ?? aspectMatch;
+        return evidence is null
+            ? (true, "Идентификационные поля карточки соответствуют mapping.")
+            : (true, $"Mapping: поле «{evidence.Value.Field}» содержит «{evidence.Value.Value}».");
     }
 
     public static IReadOnlyList<ApplicableClassifierCriterion> Match(
@@ -173,7 +217,22 @@ internal static class ClassifierApplicabilityMatcher
     {
         if (expected.ToLowerInvariant() is "i" or "ii" or "iii" or "iv" or "v" or "да" or "нет")
             return ContainsWholeToken(actual,expected);
-        return actual.Contains(expected,StringComparison.OrdinalIgnoreCase);
+        var normalizedActual = NormalizeComparable(actual);
+        var normalizedExpected = NormalizeComparable(expected);
+        if (normalizedActual.Contains(normalizedExpected, StringComparison.OrdinalIgnoreCase)
+            || normalizedExpected.Contains(normalizedActual, StringComparison.OrdinalIgnoreCase)) return true;
+        var expectedWords = normalizedExpected.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(word => word.Length >= 5).ToArray();
+        var actualWords = normalizedActual.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return expectedWords.Length > 0 && expectedWords.All(expectedWord =>
+            actualWords.Any(actualWord => actualWord.StartsWith(expectedWord[..Math.Min(6, expectedWord.Length)], StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static string NormalizeComparable(string value)
+    {
+        var characters = value.Trim().ToLowerInvariant().Replace('ё', 'е')
+            .Select(character => char.IsLetterOrDigit(character) ? character : ' ').ToArray();
+        return string.Join(' ', new string(characters).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
     }
 
     private static bool ContainsWholeToken(string actual,string expected)

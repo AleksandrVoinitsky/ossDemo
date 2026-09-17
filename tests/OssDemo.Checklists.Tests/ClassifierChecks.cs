@@ -89,6 +89,25 @@ internal static class ClassifierChecks
         AssertEqual(49, approvedMapping.Count);
         AssertEqual(49, approvedMapping.Select(row => row.Code).Distinct(StringComparer.OrdinalIgnoreCase).Count());
 
+        var detailedTree = ClassifierMappingCatalog.Apply(ClassifierSeedData.Tree, approvedMapping);
+        var emissionsWithoutGasCleaning = FacilityFactNormalizer.Normalize(new FacilityProfileFields
+        {
+            Category = "III категория", Region = "Пермский край", Type = "Компрессорная станция",
+            EnvironmentalAspects = "Выбросы в атмосферный воздух", Equipment = "Котельная установка"
+        }, null);
+        var withoutGasCleaning = ClassifierApplicabilityMatcher.Decide(detailedTree, emissionsWithoutGasCleaning, []);
+        AssertEqual("excluded", withoutGasCleaning.Single(item => item.Code == "2.4").Outcome);
+
+        var gasCleaning = FacilityFactNormalizer.Normalize(new FacilityProfileFields
+        {
+            Category = "III категория", Region = "Пермский край", Type = "Компрессорная станция",
+            EnvironmentalAspects = "Выбросы в атмосферный воздух", Equipment = "Установка очистки газа"
+        }, null);
+        var withGasCleaning = ClassifierApplicabilityMatcher.Decide(detailedTree, gasCleaning, []);
+        AssertEqual("included", withGasCleaning.Single(item => item.Code == "2.4").Outcome);
+        AssertTrue(withGasCleaning.Single(item => item.Code == "2.4").Reason.Contains("equipment", StringComparison.OrdinalIgnoreCase),
+            "Причина должна ссылаться на конкретное поле mapping, которое включило критерий.");
+
         var industrialProfile = StructuredProfile("industrial", FacilityFactState.Absent);
         industrialProfile.Features["air.emissions"] = new(FacilityFactState.Present, "Два стационарных источника");
         var industrialDecisions = ClassifierApplicabilityMatcher.Decide(

@@ -7,7 +7,8 @@ internal sealed record RequirementCatalogItem(
     IReadOnlyList<string> ClassifierCodes,
     string Basis,
     string Requirement,
-    IReadOnlyList<string> Categories);
+    IReadOnlyList<string> Categories,
+    IReadOnlyList<string>? RequirementGroups = null);
 
 internal sealed class RequirementCatalog
 {

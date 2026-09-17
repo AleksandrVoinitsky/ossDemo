@@ -65,6 +65,11 @@ internal static class AiChecklistApi
             var page = await agent.GetTracePageAsync(runId, offset, limit == 0 ? 50 : limit, ct);
             return page is null ? Results.NotFound(new { error = "Запуск ИИ-формирования не найден.", code = "not_found" }) : Results.Ok(page);
         });
+        group.MapGet("/runs/{runId:guid}/requirements", async (Guid runId, int offset, int limit, AiChecklistAgent agent, CancellationToken ct) =>
+        {
+            var page = await agent.GetRequirementPageAsync(runId, offset, limit == 0 ? 100 : limit, ct);
+            return page is null ? Results.NotFound(new { error = "Запуск формирования не найден.", code = "not_found" }) : Results.Ok(page);
+        });
         group.MapPost("/runs/{runId:guid}/batches/{batchIndex:int}", async (Guid runId, int batchIndex, AiChecklistAgent agent, CancellationToken ct) =>
         {
             try

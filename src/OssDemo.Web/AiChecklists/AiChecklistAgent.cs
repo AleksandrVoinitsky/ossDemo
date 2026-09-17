@@ -101,7 +101,7 @@ internal sealed class AiChecklistAgent(
                     .Select(item => item.Id)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
             }
-            var composition = new FacilityChecklistComposer(tree, checklistCatalogs.Requirements, checklistCatalogs.Controls)
+            var composition = new FacilityChecklistComposer(tree, checklistCatalogs.Requirements)
                 .Compose(analysis.Value.Facility.Profile, history, allowedRequirementIds: allowedRequirementIds);
             var structured = analysis.Value.Facility.Profile.StructuredProfile
                 ?? FacilityProfileMigration.FromLegacy(analysis.Value.Facility.Slug, analysis.Value.Facility.Profile);
@@ -179,6 +179,21 @@ internal sealed class AiChecklistAgent(
         var normalizedOffset = Math.Max(0, offset);
         var normalizedLimit = Math.Clamp(limit, 1, 100);
         return await runStore.GetTracePageAsync(runId, normalizedOffset, normalizedLimit, cancellationToken);
+    }
+
+    public async Task<AiChecklistRequirementPage?> GetRequirementPageAsync(Guid runId, int offset, int limit, CancellationToken cancellationToken)
+    {
+        var run = await runStore.GetAsync(runId, cancellationToken);
+        if (run?.Snapshot is null || checklistCatalogs is null) return null;
+        var items = run.Snapshot.SelectedRequirementIds
+            .Select(checklistCatalogs.Requirements.Find)
+            .Where(item => item is not null)
+            .Cast<RequirementCatalogItem>()
+            .ToArray();
+        var normalizedOffset = Math.Clamp(offset, 0, items.Length);
+        var normalizedLimit = Math.Clamp(limit, 1, 200);
+        return new(items.Skip(normalizedOffset).Take(normalizedLimit).Select(item => new AiChecklistRequirementSnapshot(
+            item.Id, item.ClassifierCodes, item.Levels, item.Basis, item.Requirement)).ToArray(), items.Length, normalizedOffset, normalizedLimit);
     }
 
     public Task<bool> QueueBatchAsync(Guid runId, int batchIndex, CancellationToken cancellationToken) => runStore.QueueBatchAsync(runId, batchIndex, cancellationToken);

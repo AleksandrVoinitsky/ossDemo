@@ -4277,6 +4277,7 @@ a { color: var(--primary); }
 
 /* Verified facility facts */
 .facility-feature-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.profile-info { display: inline-grid; place-items: center; width: 1.15rem; height: 1.15rem; margin-left: .25rem; border: 1px solid currentColor; border-radius: 50%; color: var(--bs-primary); font-size: .72rem; font-weight: 700; line-height: 1; cursor: help; }
 .facility-feature { min-width: 0; padding: 1rem; border: 1px solid var(--border-soft); border-radius: .9rem; background: var(--surface-soft); }
 .facility-feature-title { float: none; width: auto; margin: 0 0 .25rem; color: var(--ink); font-size: .98rem; font-weight: 750; }
 .facility-feature-hint { min-height: 2.5rem; margin: 0 0 .7rem; color: var(--ink-muted); font-size: .82rem; }

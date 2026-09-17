@@ -64,6 +64,7 @@ def main() -> None:
                 "version": version(row[0]),
                 "levels": [],
                 "groups": [],
+                "requirementGroups": [],
                 "classifierCodes": [],
                 "basis": basis,
                 "requirement": requirement,
@@ -77,6 +78,7 @@ def main() -> None:
         for field, value in (
             ("levels", text(row[1])),
             ("groups", text(row[10]) or text(row[2])),
+            ("requirementGroups", text(row[2])),
             ("categories", text(row[8])),
             ("liability", text(row[6])),
             ("penalties", text(row[7])),

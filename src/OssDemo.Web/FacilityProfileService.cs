@@ -16,6 +16,7 @@ public sealed class FacilityProfileService(IConfiguration configuration, Operati
         {
             var savedSlug = reader.GetString(0);
             var fields = JsonSerializer.Deserialize<FacilityProfileFields>(reader.GetString(1)) ?? new FacilityProfileFields();
+            FacilityProfileSeedData.FillMissing(fields, FacilityProfileSeedData.Create(savedSlug, fields.ShortName, fields.Address, fields.Category));
             var structured = fields.StructuredProfile ?? FacilityProfileMigration.FromLegacy(savedSlug, fields);
             fields.StructuredProfile = structured;
             return new FacilityProfile(savedSlug, fields, reader.IsDBNull(2) ? null : reader.GetDecimal(2), reader.IsDBNull(3) ? null : reader.GetDecimal(3), structured, FacilityProfileReadiness.Evaluate(structured));
@@ -26,7 +27,7 @@ public sealed class FacilityProfileService(IConfiguration configuration, Operati
         facilityCommand.Parameters.AddWithValue("slug", slug);
         await using var facilityReader = await facilityCommand.ExecuteReaderAsync(cancellationToken);
         if (!await facilityReader.ReadAsync(cancellationToken)) return null;
-        var initial = CreateInitialProfile(slug, facilityReader.GetString(0), facilityReader.GetString(1), facilityReader.GetString(2));
+        var initial = FacilityProfileSeedData.Create(slug, facilityReader.GetString(0), facilityReader.GetString(1), facilityReader.GetString(2));
         var initialStructured = FacilityProfileMigration.FromLegacy(slug, initial);
         initial.StructuredProfile = initialStructured;
         return new FacilityProfile(slug, initial, facilityReader.IsDBNull(3) ? null : facilityReader.GetDecimal(3), facilityReader.IsDBNull(4) ? null : facilityReader.GetDecimal(4), initialStructured, FacilityProfileReadiness.Evaluate(initialStructured));
@@ -169,18 +170,6 @@ public sealed class FacilityProfileService(IConfiguration configuration, Operati
         }
     }
 
-    private static FacilityProfileFields CreateInitialProfile(string slug, string shortName, string address, string category)
-    {
-        return new FacilityProfileFields
-        {
-            FullName = shortName,
-            ShortName = shortName,
-            Category = category,
-            Region = address.Contains("Удмурт", StringComparison.OrdinalIgnoreCase) ? "Удмуртская Республика"
-                : address.Contains("Перм", StringComparison.OrdinalIgnoreCase) ? "Пермский край" : "",
-            Address = address
-        };
-    }
 }
 
 public sealed record FacilityProfile(string Slug, FacilityProfileFields Profile, decimal? Latitude, decimal? Longitude, FacilityProfileV2? StructuredProfile = null, FacilityProfileReadinessResult? Readiness = null);
