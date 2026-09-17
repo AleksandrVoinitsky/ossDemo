@@ -2314,19 +2314,19 @@ a {
   flex-direction: column;
   min-height: 0;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .facility-workspace {
   display: grid;
-  grid-template-rows: minmax(24rem, .65fr) minmax(39rem, 1.5fr);
+  grid-template-rows: auto minmax(39rem, 1fr);
   gap: 1rem;
   min-height: calc(100vh - 8rem);
 }
 
 .facility-list {
   display: grid;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: .75rem;
   min-height: 0;
@@ -2344,7 +2344,7 @@ a {
   align-content: space-between;
   gap: .25rem;
   min-width: 0;
-  height: 100%;
+  height: auto;
   padding: 1.1rem .95rem;
   border: 1px solid rgba(5, 122, 120, .16);
   border-radius: var(--radius);
