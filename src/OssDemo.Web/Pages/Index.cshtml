@@ -31,7 +31,7 @@
     </article>
     <article class="operation-metric-card">
         <span class="operation-metric-icon metric-icon-red">НШ</span>
-        <div><span class="operation-metric-label">Открытые нарушения</span><strong>@(dashboard?.ViolationCount ?? 0)</strong><a asp-page="/Violations">Открыть реестр</a></div>
+        <div><span class="operation-metric-label">Документы нарушений</span><strong>@(dashboard?.ViolationCount ?? 0)</strong><a asp-page="/Violations">Открыть документы</a></div>
     </article>
     <article class="operation-metric-card">
         <span class="operation-metric-icon metric-icon-amber">!</span>
@@ -46,9 +46,8 @@
 <section class="row g-4">
     <div class="col-xl-7">
         <section class="soft-panel operational-panel h-100" aria-labelledby="priorityTitle">
-            <div class="operational-panel-header"><div><p class="eyebrow mb-1">В фокусе</p><h2 id="priorityTitle" class="h5 section-title mb-0">Очередь инспектора</h2></div><a asp-page="/Violations" class="small">Все нарушения</a></div>
+            <div class="operational-panel-header"><div><p class="eyebrow mb-1">В фокусе</p><h2 id="priorityTitle" class="h5 section-title mb-0">Очередь инспектора</h2></div><a asp-page="/Violations" class="small">Документы</a></div>
             <div class="priority-list">
-                <a class="priority-item priority-critical" asp-page="/Violations"><span class="priority-state">Критично</span><div><strong>Проверить протокол инструментального контроля</strong><p>Березниковское ЛПУМГ · раздел 2.3 «Атмосфера»</p></div><span class="priority-arrow">→</span></a>
                 <a class="priority-item" asp-page="/KnowledgeBase"><span class="priority-state priority-state-info">RAG</span><div><strong>Сверить новые документы перед подготовкой проверки</strong><p>Используйте базу знаний для поиска подтверждающих фрагментов.</p></div><span class="priority-arrow">→</span></a>
                 <a class="priority-item" asp-page="/Checklists/AiNew"><span class="priority-state priority-state-neutral">План</span><div><strong>Сформировать индивидуальный чек-лист</strong><p>Подбор требований и истории нарушений по выбранному объекту.</p></div><span class="priority-arrow">→</span></a>
             </div>

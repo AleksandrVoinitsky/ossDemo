@@ -1,20 +1,9 @@
 @page
-@{
-    ViewData["Title"] = "Реестр нарушений";
-    ViewData["Nav"] = "Violations";
-    ViewData["Breadcrumb"] = "Нарушения / Реестр";
-}
-
-<header class="page-header mb-4">
-    <div><h1 class="h3 section-title mb-1">Реестр нарушений</h1><p class="muted-note mb-0">Фактические записи из рабочей БД. Добавление — через ИИ-консультанта.</p></div>
-</header>
-
-<section class="soft-panel p-3 p-lg-4">
-    <div class="workflow-toolbar mb-3"><div><label class="form-label" for="violationSearch">Поиск</label><input class="form-control" id="violationSearch" type="search" placeholder="Объект, раздел или формулировка" data-violation-search /></div><div><label class="form-label" for="violationStatus">Статус</label><select class="form-select" id="violationStatus" data-violation-status><option value="">Все статусы</option><option value="critical">Критические</option><option value="review">Требуют решения</option><option value="closed">Закрытые</option></select></div></div>
-    <p class="status-message status-message-muted" data-violation-result role="status" aria-live="polite">Загрузка реестра…</p>
-    <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Дата</th><th>Объект</th><th>Раздел</th><th>Формулировка</th><th>Ответственный</th><th>Срок</th><th>Статус</th></tr></thead><tbody data-violations-list><tr><td colspan="7" class="text-muted">Загрузка реестра…</td></tr></tbody></table></div>
+@{ ViewData["Title"] = "Нарушения"; ViewData["Nav"] = "Violations"; ViewData["Breadcrumb"] = "Нарушения"; }
+<header class="page-header mb-4"><div><h1 class="h3 section-title mb-1">Нарушения</h1></div></header>
+<section class="soft-panel p-3 p-lg-4" data-violation-documents>
+    <form class="d-flex flex-wrap gap-2 mb-4" data-violation-upload><input class="form-control flex-grow-1" type="file" name="file" accept=".pdf,.doc,.docx,.xls,.xlsx" required><button class="btn btn-primary" type="submit">Загрузить документ</button></form>
+    <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Документ</th><th>Формат</th><th>Размер</th><th>Дата загрузки</th><th></th></tr></thead><tbody data-violation-documents-list></tbody></table></div>
+    <p class="status-message status-message-muted mt-3 mb-0" data-violation-documents-status role="status"></p>
 </section>
-
-@section Scripts {
-    <script src="~/js/operations.js" asp-append-version="true"></script>
-}
+@section Scripts { <script src="~/js/violation-documents.js" asp-append-version="true"></script> }

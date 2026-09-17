@@ -17,8 +17,8 @@ public sealed class OperationalDataService(IConfiguration configuration, ILogger
 
         return new OperationalDashboard(
             await CountAsync(connection, "app_facilities", cancellationToken),
-            await CountAsync(connection, "app_violations", cancellationToken),
-            await CountAsync(connection, "app_violations WHERE status IN ('critical', 'review')", cancellationToken),
+            await CountAsync(connection, "app_violation_documents", cancellationToken),
+            0,
             await GetUpcomingInspectionsAsync(connection, cancellationToken),
             await GetRecentActivityAsync(connection, cancellationToken));
     }
@@ -103,38 +103,6 @@ public sealed class OperationalDataService(IConfiguration configuration, ILogger
             return OperationalCommandResult.Success($"Объект **{parts[1]}** создан и добавлен в реестр.");
         }
 
-        if (action == "!add-violation")
-        {
-            if (parts.Length != 7)
-            {
-                return OperationalCommandResult.Invalid("Формат: `!add-violation | Объект | Раздел | Формулировка | Ответственный | ГГГГ-ММ-ДД | critical|review|closed`");
-            }
-
-            if (!DateOnly.TryParse(parts[5], out var dueDate) || !new[] { "critical", "review", "closed" }.Contains(parts[6], StringComparer.OrdinalIgnoreCase))
-            {
-                return OperationalCommandResult.Invalid("Укажите срок в формате `ГГГГ-ММ-ДД` и статус: `critical`, `review` или `closed`.");
-            }
-
-            await using var connection = await OpenConnectionAsync(cancellationToken);
-            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-            await using (var insert = new NpgsqlCommand("""
-                INSERT INTO app_violations (facility_name, classifier_section, description, responsible, due_date, status)
-                VALUES (@facility, @section, @description, @responsible, @dueDate, @status)
-                """, connection, transaction))
-            {
-                insert.Parameters.AddWithValue("facility", parts[1]);
-                insert.Parameters.AddWithValue("section", parts[2]);
-                insert.Parameters.AddWithValue("description", parts[3]);
-                insert.Parameters.AddWithValue("responsible", parts[4]);
-                insert.Parameters.AddWithValue("dueDate", dueDate);
-                insert.Parameters.AddWithValue("status", parts[6].ToLowerInvariant());
-                await insert.ExecuteNonQueryAsync(cancellationToken);
-            }
-            await WriteAuditAsync(connection, transaction, "Зарегистрировано нарушение", "Нарушения", parts[3], cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return OperationalCommandResult.Success("Нарушение зарегистрировано и появилось в реестре.");
-        }
-
         return OperationalCommandResult.NotHandled;
     }
 
@@ -158,6 +126,9 @@ public sealed class OperationalDataService(IConfiguration configuration, ILogger
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(), facility_name TEXT NOT NULL, classifier_section TEXT NOT NULL,
                     description TEXT NOT NULL, responsible TEXT NOT NULL, due_date DATE, status TEXT NOT NULL,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+                CREATE TABLE IF NOT EXISTS app_violation_documents (
+                    id UUID PRIMARY KEY, original_name TEXT NOT NULL, stored_path TEXT NOT NULL,
+                    content_type TEXT NOT NULL, byte_length BIGINT NOT NULL, uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now());
                 CREATE TABLE IF NOT EXISTS app_audit_log (
                     id BIGSERIAL PRIMARY KEY, occurred_at TIMESTAMPTZ NOT NULL DEFAULT now(), actor TEXT NOT NULL DEFAULT 'inspector',
                     action TEXT NOT NULL, entity_type TEXT NOT NULL, details TEXT NOT NULL);
@@ -174,9 +145,6 @@ public sealed class OperationalDataService(IConfiguration configuration, ILogger
                     latitude = COALESCE(app_facilities.latitude, EXCLUDED.latitude),
                     longitude = COALESCE(app_facilities.longitude, EXCLUDED.longitude),
                     slug = EXCLUDED.slug;
-                INSERT INTO app_violations (facility_name, classifier_section, description, responsible, due_date, status)
-                SELECT 'Березниковское ЛПУМГ', '2.3 Атмосфера', 'Не представлен протокол инструментального контроля', 'Главный инженер', '2026-10-10', 'critical'
-                WHERE NOT EXISTS (SELECT 1 FROM app_violations);
                 INSERT INTO app_audit_log (action, entity_type, details)
                 SELECT 'Инициализирован рабочий реестр', 'Система', 'Созданы прикладные таблицы для объектов, нарушений и аудита.'
                 WHERE NOT EXISTS (SELECT 1 FROM app_audit_log);
@@ -255,8 +223,6 @@ public sealed record OperationalCommandResult(bool IsHandled, bool IsSuccess, st
         Команды сохраняют записи в PostgreSQL и фиксируются в журнале действий.
 
         - `!add-facility | Наименование | Адрес | Категория НВОС | Широта | Долгота`
-        - `!add-violation | Объект | Раздел | Формулировка | Ответственный | ГГГГ-ММ-ДД | critical|review|closed`
-
         Для диагностики RAG доступны `!status`, `!statusrag`, `!check`, `!reindex` и `!текст запроса`.
         """);
     public static OperationalCommandResult Invalid(string answer) => new(true, false, $"**Запись не создана.** {answer}");

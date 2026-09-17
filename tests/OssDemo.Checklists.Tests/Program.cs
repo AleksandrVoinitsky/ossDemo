@@ -98,6 +98,10 @@ AiChecklistDraftChecks.Run();
 FacilityProfileV2Checks.Run();
 ChecklistItemCatalogChecks.Run();
 FacilityChecklistComposerChecks.Run();
+AssertTrue(ViolationDocumentPolicy.IsAllowed("акт проверки.pdf"), "PDF должен быть разрешён.");
+AssertTrue(ViolationDocumentPolicy.IsAllowed("реестр.xlsx"), "XLSX должен быть разрешён.");
+AssertTrue(!ViolationDocumentPolicy.IsAllowed("script.exe"), "Исполняемые файлы должны быть запрещены.");
+AssertEqual("акт проверки.pdf", ViolationDocumentPolicy.SafeFileName("..\\акт проверки.pdf"));
 
 var boundedConnection = new Npgsql.NpgsqlConnectionStringBuilder(PostgresConnectionPolicy.Apply("Host=localhost;Database=oss;Username=oss;Maximum Pool Size=100"));
 AssertEqual(3, boundedConnection.MaxPoolSize);

@@ -202,7 +202,7 @@
   };
   const poll = async () => {
     clearTimeout(pollTimer);
-    if (!currentRun || step !== 4) return;
+    if (!currentRun || (step !== 3 && step !== 4)) return;
     try {
       const run = await request(`/api/ai-checklists/runs/${encodeURIComponent(currentRun.id)}`);
       renderRun(run);
@@ -235,7 +235,7 @@
     select.innerHTML = '<option value="">Выберите объект</option>' + facilities.map((item) => `<option value="${escapeHtml(item.slug)}" ${item.slug === selectedFromUrl ? 'selected' : ''}>${escapeHtml(item.name)} · ${escapeHtml(item.nvocCategory)}</option>`).join('');
   }).catch(() => { select.innerHTML = '<option value="">Не удалось загрузить объекты</option>'; showError('[data-ai-error]', new Error('Рабочий реестр объектов недоступен.')); });
   const templatesPromise = request('/api/checklist-templates').then((templates) => {
-    templateSelect.innerHTML = '<option value="">Выберите уровень шаблона</option>' + templates.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.scope === 'society' ? 'Уровень Общества' : 'Уровень филиала')} · ${item.itemCount} пунктов</option>`).join('');
+    templateSelect.innerHTML = '<option value="">Выберите уровень шаблона</option>' + templates.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.scope === 'society' ? 'Уровень Общества' : 'Уровень филиала')}</option>`).join('');
   }).catch(() => { templateSelect.innerHTML = '<option value="">Не удалось загрузить шаблоны</option>'; });
 
   const renderDocuments = () => {
@@ -296,7 +296,7 @@
       }
     } finally { setBusy(button, false, ''); }
   });
-  root.querySelector('[data-ai-next]').addEventListener('click', async () => { showStep(4); try { await loadRequirements(true); } catch (error) { showError('[data-ai-generation-error]', error); } });
+  root.querySelector('[data-ai-next]').addEventListener('click', async (event) => { const button = event.currentTarget; button.dataset.idleLabel = button.textContent; setBusy(button, true, 'Формирование…'); try { await queueBatches(currentRun.batches.filter((item) => item.status === 'pending' || item.status === 'failed')); } catch (error) { showError('[data-ai-search-error]', error); setBusy(button, false, ''); } });
   root.querySelector('[data-ai-load-requirements]').addEventListener('click', () => loadRequirements());
   root.querySelector('[data-ai-load-traces]').addEventListener('click', () => loadTracePage());
   root.querySelectorAll('[data-ai-prev]').forEach((button) => button.addEventListener('click', () => showStep(Math.max(0, step - 1))));
@@ -334,12 +334,12 @@
   if (restoreDraftId) Promise.all([facilitiesPromise, templatesPromise, request(`/api/ai-checklists/drafts/${encodeURIComponent(restoreDraftId)}`)]).then(async ([, , draft]) => {
     workflowDraft = draft; slug = draft.facilitySlug; select.value = slug; templateSelect.value = draft.templateId || ''; renderDocuments();
     if (slug) { const data = await post('/api/ai-checklists/analyze', { facilitySlug: slug }); renderProfile(data.facility); root.querySelector('[data-ai-analyze]').hidden = true; root.querySelector('[data-ai-object-next]').hidden = false; }
-    if (draft.runId) { currentRun = await request(`/api/ai-checklists/runs/${encodeURIComponent(draft.runId)}`); renderSearch(currentRun); renderRun(currentRun); showStep(currentRun.checklistId ? 5 : 4); if (!currentRun.checklistId) poll(); }
+    if (draft.runId) { currentRun = await request(`/api/ai-checklists/runs/${encodeURIComponent(draft.runId)}`); renderSearch(currentRun); renderRun(currentRun); showStep(currentRun.checklistId ? 5 : 3); if (!currentRun.checklistId && currentRun.batches.some((item) => item.status === 'queued' || item.status === 'running')) poll(); }
     else showStep({ object:0, basis:1, template:2, criteria:3, generation:4 }[draft.step] ?? 0);
   }).catch((error) => showError('[data-ai-error]', error));
   else if (restoreRunId) request(`/api/ai-checklists/runs/${encodeURIComponent(restoreRunId)}`).then((run) => {
     currentRun = run; slug = run.facility.slug; renderProfile(run.facility); renderSearch(run); renderRun(run);
     if (run.checklistId) { root.querySelector('[data-ai-result-name]').textContent = 'Автоматизированный чек-лист'; root.querySelector('[data-ai-result-facility]').textContent = run.facilityName; root.querySelector('[data-ai-result-count]').textContent = run.batches.reduce((sum, item) => sum + item.itemCount, 0); root.querySelector('[data-ai-result-link]').href = `/Checklists/Result?id=${encodeURIComponent(run.checklistId)}`; showStep(5); }
-    else { showStep(4); poll(); }
+    else { showStep(3); if (run.batches.some((item) => item.status === 'queued' || item.status === 'running')) poll(); }
   }).catch((error) => showError('[data-ai-error]', error));
 })();

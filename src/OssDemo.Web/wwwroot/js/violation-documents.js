@@ -1,0 +1,9 @@
+(() => {
+  const root = document.querySelector('[data-violation-documents]'); if (!root) return;
+  const form = root.querySelector('[data-violation-upload]'); const list = root.querySelector('[data-violation-documents-list]'); const status = root.querySelector('[data-violation-documents-status]');
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;' })[character]);
+  const render = (items) => { list.innerHTML = items.length ? items.map((item) => `<tr><td><strong>${escapeHtml(item.originalName)}</strong></td><td>${escapeHtml(item.originalName.split('.').pop().toUpperCase())}</td><td>${(item.byteLength / 1024 / 1024).toFixed(2)} МБ</td><td>${new Date(item.uploadedAt).toLocaleString('ru-RU')}</td><td class="text-end"><a class="btn btn-sm btn-outline-primary" href="/api/operations/violation-documents/${encodeURIComponent(item.id)}" target="_blank">Открыть</a></td></tr>`).join('') : '<tr><td colspan="5" class="text-muted">Документы не загружены.</td></tr>'; };
+  const load = () => fetch('/api/operations/violation-documents').then((response) => response.ok ? response.json() : Promise.reject()).then(render).catch(() => { status.textContent = 'Не удалось загрузить документы.'; });
+  form.addEventListener('submit', async (event) => { event.preventDefault(); const button = form.querySelector('button'); button.disabled = true; status.textContent = ''; try { const response = await fetch('/api/operations/violation-documents', { method:'POST', body:new FormData(form) }); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error || 'Не удалось загрузить документ.'); form.reset(); await load(); } catch (error) { status.textContent = error.message; } finally { button.disabled = false; } });
+  load();
+})();

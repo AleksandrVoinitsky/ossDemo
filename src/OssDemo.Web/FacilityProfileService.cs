@@ -3,6 +3,24 @@ using System.Text.Json;
 
 public sealed class FacilityProfileService(IConfiguration configuration, OperationalDataService operationalData)
 {
+    public async Task EnsureSeedProfilesAsync(CancellationToken cancellationToken)
+    {
+        if (!IsDatabaseConfigured) return;
+        var facilities = await operationalData.GetFacilitiesAsync(cancellationToken);
+        await EnsureTableAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        foreach (var facility in facilities.Where(item => item.Slug is "bardymskoe" or "bereznikovskoe" or "votkinskoe"))
+        {
+            await using var select = new NpgsqlCommand("SELECT profile::text FROM app_facility_profiles WHERE slug=@slug", connection); select.Parameters.AddWithValue("slug", facility.Slug);
+            var json = await select.ExecuteScalarAsync(cancellationToken) as string;
+            var fields = string.IsNullOrWhiteSpace(json) ? new FacilityProfileFields() : JsonSerializer.Deserialize<FacilityProfileFields>(json) ?? new FacilityProfileFields();
+            FacilityProfileSeedData.FillMissing(fields, FacilityProfileSeedData.Create(facility.Slug, facility.Name, facility.Address, facility.NvocCategory));
+            fields.StructuredProfile ??= FacilityProfileMigration.FromLegacy(facility.Slug, fields);
+            await using var upsert = new NpgsqlCommand("INSERT INTO app_facility_profiles (slug,profile,latitude,longitude) VALUES (@slug,CAST(@profile AS jsonb),@latitude,@longitude) ON CONFLICT (slug) DO UPDATE SET profile=EXCLUDED.profile, latitude=COALESCE(app_facility_profiles.latitude,EXCLUDED.latitude), longitude=COALESCE(app_facility_profiles.longitude,EXCLUDED.longitude), updated_at=now()", connection);
+            upsert.Parameters.AddWithValue("slug", facility.Slug); upsert.Parameters.AddWithValue("profile", JsonSerializer.Serialize(fields)); upsert.Parameters.AddWithValue("latitude", (object?)facility.Latitude ?? DBNull.Value); upsert.Parameters.AddWithValue("longitude", (object?)facility.Longitude ?? DBNull.Value); await upsert.ExecuteNonQueryAsync(cancellationToken);
+        }
+    }
+
     public async Task<FacilityProfile?> GetAsync(string slug, CancellationToken cancellationToken)
     {
         if (!IsDatabaseConfigured) return null;

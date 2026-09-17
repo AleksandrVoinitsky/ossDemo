@@ -81,6 +81,7 @@ builder.Services.AddSingleton<KnowledgeImportService>();
 builder.Services.AddSingleton<KnowledgePathMigration>();
 builder.Services.AddSingleton<OperationalDataService>();
 builder.Services.AddSingleton<FacilityProfileService>();
+builder.Services.AddSingleton<ViolationDocumentStore>();
 builder.Services.AddSingleton<ScheduleService>();
 builder.Services.AddSingleton<IChecklistRepository, PostgresChecklistRepository>();
 builder.Services.AddSingleton<ChecklistService>();
@@ -162,8 +163,12 @@ app.MapGet("/api/rag/status", async (RagService ragService, CancellationToken ca
 });
 app.MapGet("/api/operations/dashboard", async (OperationalDataService operationalData, CancellationToken cancellationToken) =>
     Results.Ok(await operationalData.GetDashboardAsync(cancellationToken)));
-app.MapGet("/api/operations/facilities", async (OperationalDataService operationalData, CancellationToken cancellationToken) =>
-    Results.Ok(await operationalData.GetFacilitiesAsync(cancellationToken)));
+app.MapGet("/api/operations/facilities", async (OperationalDataService operationalData, FacilityProfileService profiles, CancellationToken cancellationToken) =>
+{
+    var facilities = await operationalData.GetFacilitiesAsync(cancellationToken);
+    await profiles.EnsureSeedProfilesAsync(cancellationToken);
+    return Results.Ok(facilities);
+});
 app.MapGet("/api/operations/facility-profile-dictionaries", () => Results.Ok(new
 {
     features = FacilityProfileDictionaries.Features,
@@ -215,8 +220,20 @@ app.MapPut("/api/operations/schedule/{id:guid}", async (Guid id, ScheduleItemReq
 });
 app.MapDelete("/api/operations/schedule/{id:guid}", async (Guid id, ScheduleService scheduleService, CancellationToken cancellationToken) =>
     await scheduleService.DeleteAsync(id, cancellationToken) ? Results.NoContent() : Results.NotFound());
-app.MapGet("/api/operations/violations", async (OperationalDataService operationalData, CancellationToken cancellationToken) =>
-    Results.Ok(await operationalData.GetViolationsAsync(cancellationToken)));
+app.MapGet("/api/operations/violation-documents", async (ViolationDocumentStore documents, CancellationToken ct) => Results.Ok(await documents.GetAllAsync(ct)));
+app.MapPost("/api/operations/violation-documents", async (HttpRequest request, ViolationDocumentStore documents, CancellationToken ct) =>
+{
+    if (!request.HasFormContentType) return Results.BadRequest(new { error = "Выберите документ." });
+    var form = await request.ReadFormAsync(ct); var file = form.Files.GetFile("file");
+    if (file is null) return Results.BadRequest(new { error = "Выберите документ." });
+    var saved = await documents.AddAsync(file, ct);
+    return saved is null ? Results.BadRequest(new { error = "Разрешены PDF, Word и Excel до 50 МБ." }) : Results.Created($"/api/operations/violation-documents/{saved.Id}", saved);
+}).DisableAntiforgery();
+app.MapGet("/api/operations/violation-documents/{id:guid}", async (Guid id, ViolationDocumentStore documents, CancellationToken ct) =>
+{
+    var file = await documents.OpenAsync(id, ct);
+    return file is null ? Results.NotFound() : Results.File(file.Path, file.ContentType, file.OriginalName, enableRangeProcessing: true);
+});
 app.MapChecklistApi();
 app.MapAiChecklistApi();
 app.MapClassifierApi();

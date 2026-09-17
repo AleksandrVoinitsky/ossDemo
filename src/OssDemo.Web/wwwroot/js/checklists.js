@@ -11,7 +11,7 @@
   const templateSelect = document.querySelector('[data-checklist-templates]');
   if (templateSelect) {
     request('/api/checklist-templates').then((templates) => {
-      templateSelect.innerHTML = '<option value="">Выберите уровень шаблона</option>' + templates.map((item, index) => `<option value="${escapeHtml(item.id)}" ${index === 0 ? 'selected' : ''}>${escapeHtml(item.scope === 'society' ? 'Уровень Общества' : 'Уровень филиала')} · ${item.itemCount} пунктов</option>`).join('');
+      templateSelect.innerHTML = '<option value="">Выберите уровень шаблона</option>' + templates.map((item, index) => `<option value="${escapeHtml(item.id)}" ${index === 0 ? 'selected' : ''}>${escapeHtml(item.scope === 'society' ? 'Уровень Общества' : 'Уровень филиала')}</option>`).join('');
     }).catch(() => {
       templateSelect.innerHTML = '<option value="">Не удалось загрузить шаблоны</option>';
       const warning = document.querySelector('[data-template-warning]');
