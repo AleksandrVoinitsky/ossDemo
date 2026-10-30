@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="..\..\data\seed\demo\bardym-checklist.xlsx" LogicalName="OssDemo.Web.Data.bardym-checklist.xlsx" />
     <EmbeddedResource Include="..\..\data\seed\checklists.json" LogicalName="OssDemo.Web.Data.checklists.json" />
     <Content Include="..\..\data\requirements\classifier-mapping.jsonl">
       <Link>requirements\classifier-mapping.jsonl</Link>

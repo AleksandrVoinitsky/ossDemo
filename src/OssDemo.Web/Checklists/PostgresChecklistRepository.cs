@@ -128,6 +128,7 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
             WHERE s.template_id=@templateId ORDER BY s.position,i.position
             """, connection, transaction))
         { copy.Parameters.AddWithValue("checklistId",id); copy.Parameters.AddWithValue("templateId",request.TemplateId); await copy.ExecuteNonQueryAsync(cancellationToken); }
+        await BardymDemoChecklist.ApplyAsync(connection, transaction, id, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return ChecklistOperationResult<ChecklistDetails>.Success((await GetChecklistAsync(id,cancellationToken))!);
     }
@@ -187,6 +188,7 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
             await insertItem.ExecuteNonQueryAsync(cancellationToken);
         }
 
+        await BardymDemoChecklist.ApplyAsync(connection, transaction, id, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return ChecklistOperationResult<ChecklistDetails>.Success((await GetChecklistAsync(id, cancellationToken))!);
     }
@@ -194,11 +196,11 @@ internal sealed class PostgresChecklistRepository(IConfiguration configuration) 
     public async Task<ChecklistDetails?> GetChecklistAsync(Guid id, CancellationToken cancellationToken)
     {
         await using var connection = await OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("SELECT id,name,facility_id,facility_name,template_id,template_name,status,inspection_started_on,inspection_finished_on,created_at,updated_at,approved_at,approved_by FROM app_checklists WHERE id=@id", connection);
+        await using var command = new NpgsqlCommand("SELECT id,name,facility_id,facility_name,template_id,template_name,status,inspection_started_on,inspection_finished_on,created_at,updated_at,approved_at,approved_by,bardym_demo FROM app_checklists WHERE id=@id", connection);
         command.Parameters.AddWithValue("id",id);
         ChecklistDetails header;
         await using (var reader=await command.ExecuteReaderAsync(cancellationToken))
-        { if(!await reader.ReadAsync(cancellationToken)) return null; header=new(reader.GetGuid(0),reader.GetString(1),reader.IsDBNull(2)?null:reader.GetGuid(2),reader.GetString(3),reader.IsDBNull(4)?null:reader.GetGuid(4),reader.GetString(5),reader.GetString(6),reader.IsDBNull(7)?null:reader.GetFieldValue<DateOnly>(7),reader.IsDBNull(8)?null:reader.GetFieldValue<DateOnly>(8),reader.GetFieldValue<DateTimeOffset>(9),reader.GetFieldValue<DateTimeOffset>(10),reader.IsDBNull(11)?null:reader.GetFieldValue<DateTimeOffset>(11),reader.IsDBNull(12)?null:reader.GetString(12),[]); }
+        { if(!await reader.ReadAsync(cancellationToken)) return null; header=new(reader.GetGuid(0),reader.GetString(1),reader.IsDBNull(2)?null:reader.GetGuid(2),reader.GetString(3),reader.IsDBNull(4)?null:reader.GetGuid(4),reader.GetString(5),reader.GetString(6),reader.IsDBNull(7)?null:reader.GetFieldValue<DateOnly>(7),reader.IsDBNull(8)?null:reader.GetFieldValue<DateOnly>(8),reader.GetFieldValue<DateTimeOffset>(9),reader.GetFieldValue<DateTimeOffset>(10),reader.IsDBNull(11)?null:reader.GetFieldValue<DateTimeOffset>(11),reader.IsDBNull(12)?null:reader.GetString(12),[]) { BardymDemo = reader.GetBoolean(13) }; }
         await using var itemsCommand=new NpgsqlCommand("SELECT id,position,section,title,basis,result,nonconformity,note,origin,source_label FROM app_checklist_items WHERE checklist_id=@id ORDER BY position",connection); itemsCommand.Parameters.AddWithValue("id",id);
         await using var itemsReader=await itemsCommand.ExecuteReaderAsync(cancellationToken); var items=new List<ChecklistItemDetails>();
         while(await itemsReader.ReadAsync(cancellationToken)) items.Add(new(itemsReader.GetGuid(0),itemsReader.GetInt32(1),itemsReader.GetString(2),itemsReader.GetString(3),itemsReader.GetString(4),itemsReader.GetString(5),itemsReader.GetString(6),itemsReader.GetString(7),itemsReader.GetString(8),itemsReader.GetString(9)));

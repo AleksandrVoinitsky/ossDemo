@@ -8,6 +8,7 @@ internal static class ChecklistExportFiles
 {
     public static ChecklistExport CreateXlsx(ChecklistDetails checklist)
     {
+        if (checklist.BardymDemo) return BardymDemoChecklist.Export();
         using var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
         {

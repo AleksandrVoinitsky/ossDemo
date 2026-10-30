@@ -133,6 +133,8 @@ var completePdfText = System.Text.Encoding.ASCII.GetString(ChecklistExportFiles.
 AssertTrue(completePdfText.Contains("80."), "PDF не должен обрезать длинный чек-лист.");
 AssertTrue(completePdfText.Contains("Basis: FZ-7") && completePdfText.Contains("Note: Aktualno"), "PDF должен содержать фактические поля пункта.");
 
+BardymDemoChecklistChecks.Run();
+await BardymDemoChecklistChecks.RunDatabaseAsync();
 Console.WriteLine("Checklist domain checks passed.");
 
 static void AssertTrue(bool value, string message)

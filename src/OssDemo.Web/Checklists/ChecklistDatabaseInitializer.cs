@@ -25,6 +25,7 @@ internal sealed class ChecklistDatabaseInitializer(
             await SeedAsync(connection, cancellationToken);
             await MigrateSystemTemplatesAsync(connection, cancellationToken);
             await ImportLegacyDraftsAsync(connection, cancellationToken);
+            await BardymDemoChecklist.MigrateExistingAsync(connection, cancellationToken);
             initialized = true;
         }
         catch (Exception exception) when (exception is NpgsqlException or InvalidOperationException)
@@ -71,6 +72,7 @@ internal sealed class ChecklistDatabaseInitializer(
                 status TEXT NOT NULL CHECK (status IN ('draft', 'approved')),
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                 approved_at TIMESTAMPTZ, approved_by TEXT, legacy_source_key TEXT UNIQUE);
+            ALTER TABLE app_checklists ADD COLUMN IF NOT EXISTS bardym_demo BOOLEAN NOT NULL DEFAULT FALSE;
             CREATE TABLE IF NOT EXISTS app_checklist_items (
                 id UUID PRIMARY KEY, checklist_id UUID NOT NULL REFERENCES app_checklists(id) ON DELETE CASCADE,
                 position INTEGER NOT NULL, section TEXT NOT NULL, title TEXT NOT NULL, basis TEXT NOT NULL,
